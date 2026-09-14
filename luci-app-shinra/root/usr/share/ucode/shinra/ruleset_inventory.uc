@@ -10,7 +10,6 @@ import { Success, Fail } from 'shinra.core.result';
 import { ERR } from 'shinra.core.error';
 import { read_text, parse_json_object, file_exists } from 'shinra.core.utils';
 import { ruleset_policy_config } from 'shinra.ruleset_policy';
-import { ruleset_urls } from 'shinra.ruleset_download';
 
 function starts_with(value, prefix) {
 	value = "" + value;
@@ -190,14 +189,47 @@ function entry_errors(entry, duplicate) {
 	return errors;
 }
 
-function normalize_declaration(item) {
+function replace_tag_placeholder(value, tag) {
+	return replace(value, "{tag}", tag);
+}
+
+function normalized_tags(item) {
+	if (type(item.tag) == "string" && item.tag != "")
+		return [ item.tag ];
+	if (type(item.tag) != "array")
+		return [];
+
+	let tags = [];
+	for (let tag in item.tag) {
+		if (type(tag) != "string" || tag == "")
+			die("Rule Set tag array must contain non-empty strings");
+		push(tags, tag);
+	}
+	if (length(tags) == 0)
+		die("Rule Set tag array must not be empty");
+	return tags;
+}
+
+function resolve_tagged_field(value, tag, multiple, label) {
+	if (type(value) != "string")
+		return "";
+	if (multiple && index(value, "{tag}") < 0)
+		die("Multiple Rule Set tags require {tag} in " + label);
+	return multiple ? replace_tag_placeholder(value, tag) : value;
+}
+
+function normalize_declaration(item, tag, multiple, declaration_id) {
 	if (type(item) != "object" || item == null || type(item) == "array")
 		return null;
-	if (type(item.tag) != "string" || item.tag == "")
+	if (type(tag) != "string" || tag == "")
 		return null;
 
-	let path = type(item.path) == "string" ? item.path : "";
-	let url = type(item.url) == "string" ? item.url : "";
+	let path = resolve_tagged_field(item.path, tag, multiple, "path");
+	let url = resolve_tagged_field(item.url, tag, multiple, "url");
+	if (multiple && item.type == "local" && path == "")
+		die("Multiple local Rule Set tags require a path");
+	if (multiple && item.type == "remote" && url == "")
+		die("Multiple remote Rule Set tags require a URL");
 	let meta = path != "" ? file_metadata(path) : {
 		exists: false,
 		size: 0,
@@ -205,7 +237,8 @@ function normalize_declaration(item) {
 	};
 
 	return {
-		tag: item.tag,
+		tag: tag,
+		declaration_id: declaration_id,
 		type: type(item.type) == "string" ? item.type : "",
 		format: type(item.format) == "string" ? item.format : "",
 		path: path,
@@ -233,10 +266,21 @@ function collect_declarations(config) {
 	if (type(config.route.rule_set) != "array")
 		return declarations;
 
+	let declaration_index = 0;
 	for (let item in config.route.rule_set) {
-		let entry = normalize_declaration(item);
-		if (entry != null)
-			push(declarations, entry);
+		if (type(item) != "object" || item == null || type(item) == "array")
+		{
+			declaration_index = declaration_index + 1;
+			continue;
+		}
+		let tags = normalized_tags(item);
+		let multiple = type(item.tag) == "array";
+		for (let tag in tags) {
+			let entry = normalize_declaration(item, tag, multiple, "route.rule_set:" + declaration_index);
+			if (entry != null)
+				push(declarations, entry);
+		}
+		declaration_index = declaration_index + 1;
 	}
 
 	return declarations;
@@ -469,14 +513,20 @@ function required_entries_from_profile() {
 	count_references(entries, refs);
 	finalize_entries(entries);
 
-	let required = [];
+	/*
+	 * A local/auto generation rewrites every remote declaration, even one not
+	 * referenced by a route rule. Keep this list aligned with that generator
+	 * input so a successful sync can never leave generation blocked.
+	 */
+	let managed_remote = [];
 	for (let entry in entries) {
-		if (entry.referenced_count > 0)
-			push(required, entry);
+		if (entry.type == "remote")
+			push(managed_remote, entry);
 	}
 
 	return {
-		entries: required,
+		entries: managed_remote,
+		declarations: entries,
 		references: refs
 	};
 }
@@ -516,11 +566,134 @@ function local_rule_files() {
 	return files;
 }
 
-function redacted_urls(urls) {
-	let result = [];
-	for (let url in urls)
-		push(result, redacted_url(url));
-	return result;
+function canonical_local_metadata(tag) {
+	return file_metadata(PATH.RULE_DIR + "/" + tag + ".srs");
+}
+
+function metadata_ready(meta) {
+	return meta.exists == true && meta.size > 0;
+}
+
+function push_runtime_reason(reasons, code, tag) {
+	push(reasons, {
+		code: code,
+		tag: tag || ""
+	});
+}
+
+/*
+ * Match the generator's Rule Set selection without modifying the profile:
+ * - local always uses Shinra's managed local files;
+ * - remote preserves the template declaration;
+ * - auto uses a complete local declaration group, otherwise preserves it.
+ *
+ * This deliberately reports Shinra's selection viability, not the semantics of
+ * a template declaration or network reachability. Those belong to the template
+ * Schema / sing-box check and to sing-box at runtime respectively.
+ */
+function ruleset_runtime_state(declarations, references, ruleset_policy) {
+	let mode = ruleset_policy.mode || "auto";
+	let state = {
+		status: "unused",
+		local_count: 0,
+		remote_count: 0,
+		template_count: 0,
+		fallback_count: 0,
+		invalid_count: 0,
+		reasons: []
+	};
+
+	for (let reference in references) {
+		if (!reference.exists_in_declarations) {
+			state.invalid_count = state.invalid_count + 1;
+			push_runtime_reason(state.reasons, "reference_missing_declaration", reference.tag);
+		}
+	}
+	if (length(declarations) == 0) {
+		if (state.invalid_count > 0)
+			state.status = "invalid";
+		return state;
+	}
+
+	let groups = {};
+	for (let entry in declarations) {
+		let key = entry.declaration_id || entry.tag;
+		if (type(groups[key]) != "array")
+			groups[key] = [];
+		push(groups[key], entry);
+	}
+
+	for (let key in groups) {
+		let entries = groups[key];
+		let remote_declaration = entries[0].type == "remote";
+		if (!remote_declaration) {
+			let local_invalid = false;
+			for (let entry in entries) {
+				if (entry.type == "local" && !metadata_ready(entry)) {
+					local_invalid = true;
+					push_runtime_reason(state.reasons, "template_local_missing", entry.tag);
+				}
+			}
+			if (local_invalid)
+				state.invalid_count = state.invalid_count + 1;
+			else
+				state.template_count = state.template_count + length(entries);
+			continue;
+		}
+		let canonical_ready = true;
+		let canonical_ready_count = 0;
+		for (let entry in entries) {
+			let meta = canonical_local_metadata(entry.tag);
+			if (metadata_ready(meta))
+				canonical_ready_count = canonical_ready_count + 1;
+			else
+				canonical_ready = false;
+		}
+
+		if (mode == "local") {
+			if (canonical_ready)
+				state.local_count = state.local_count + length(entries);
+			else {
+				state.invalid_count = state.invalid_count + 1;
+				push_runtime_reason(state.reasons, "required_local_missing", entries[0].tag);
+			}
+			continue;
+		}
+
+		if (mode == "remote") {
+			/* The generator preserves this declaration verbatim. */
+			state.remote_count = state.remote_count + length(entries);
+			continue;
+		}
+
+		if (mode == "auto" && canonical_ready) {
+			state.local_count = state.local_count + length(entries);
+			continue;
+		}
+
+		/*
+		 * auto uses the original declaration for the whole group when any
+		 * managed local file is absent. Do not interpret its type or options:
+		 * keeping that template compatible is explicitly the template owner's
+		 * responsibility.
+		 */
+		state.remote_count = state.remote_count + length(entries);
+		if (canonical_ready_count > 0)
+			state.fallback_count = state.fallback_count + length(entries);
+	}
+
+	if (state.invalid_count > 0)
+		state.status = "invalid";
+	else if (state.fallback_count > 0)
+		state.status = "degraded_remote_fallback";
+	else if (state.remote_count > 0)
+		state.status = "ready_remote";
+	else if (state.template_count > 0)
+		state.status = "ready_template";
+	else
+		state.status = "ready_local";
+
+	return state;
 }
 
 function ruleset_required_inventory(trace_id, req) {
@@ -540,7 +713,6 @@ function ruleset_required_inventory(trace_id, req) {
 			let local_path = PATH.RULE_DIR + "/" + tag + ".srs";
 			let meta = file_metadata(local_path);
 			let status = meta.exists && meta.size > 0 ? "ready" : "missing";
-			let urls = ruleset_urls(entry, ruleset_policy);
 			required_map[tag] = true;
 
 			if (status == "ready")
@@ -548,9 +720,9 @@ function ruleset_required_inventory(trace_id, req) {
 			else {
 				missing = missing + 1;
 				push(diagnostics, {
-					level: "error",
+					level: ruleset_policy.mode == "local" ? "error" : "info",
 					code: "required_local_missing",
-					message: "Required local Rule Set is missing",
+					message: ruleset_policy.mode == "local" ? "Required local Rule Set is missing" : "Local Rule Set cache is missing",
 					data: {
 						tag: tag,
 						path: local_path
@@ -566,10 +738,6 @@ function ruleset_required_inventory(trace_id, req) {
 				local_exists: meta.exists,
 				local_size: meta.size,
 				local_mtime: meta.mtime,
-				source_url: entry.source_url,
-				source_url_redacted: redacted_url(entry.source_url),
-				candidate_urls: urls,
-				candidate_url_redacted: redacted_urls(urls),
 				referenced_count: entry.referenced_count,
 				reference_scopes: entry.reference_scopes,
 				reference_indexes: entry.reference_indexes,
@@ -595,12 +763,26 @@ function ruleset_required_inventory(trace_id, req) {
 			});
 		}
 
+		let runtime = ruleset_runtime_state(required_info.declarations, required_info.references, ruleset_policy);
+		for (let reason in runtime.reasons) {
+			if (reason.code == "required_local_missing")
+				continue;
+			push(diagnostics, {
+				level: "error",
+				code: "runtime_" + reason.code,
+				message: "Rule Set runtime contract is not satisfiable",
+				data: reason
+			});
+		}
+
 		return Success({
 			source: "profile",
 			profile_path: PATH.PROFILE,
 			rule_dir: PATH.RULE_DIR,
 			mode: ruleset_policy.mode,
 			fetch_strategy: ruleset_policy.fetch_strategy,
+			runtime_status: runtime.status,
+			runtime: runtime,
 			summary: {
 				required_count: length(required),
 				ready_count: ready,

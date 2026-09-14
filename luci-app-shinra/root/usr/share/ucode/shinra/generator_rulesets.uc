@@ -29,6 +29,39 @@ function local_ruleset_entry(tag, original) {
 	};
 }
 
+function ruleset_tags(entry) {
+	if (type(entry.tag) == "string" && entry.tag != "")
+		return [ entry.tag ];
+	if (type(entry.tag) != "array")
+		return [];
+
+	let tags = [];
+	for (let tag in entry.tag) {
+		if (type(tag) != "string" || tag == "")
+			die("Rule Set tag array must contain non-empty strings");
+		push(tags, tag);
+	}
+	if (length(tags) == 0)
+		die("Rule Set tag array must not be empty");
+	return tags;
+}
+
+function local_ruleset_group(tags, original) {
+	if (length(tags) == 1)
+		return local_ruleset_entry(tags[0], original);
+
+	let format = "binary";
+	if (type(original.format) == "string" && original.format != "")
+		format = original.format;
+
+	return {
+		type: "local",
+		tag: tags,
+		format: format,
+		path: PATH.RULE_DIR + "/{tag}.srs"
+	};
+}
+
 function localize_rulesets(profile, ruleset_policy) {
 	let mode = "auto";
 	if (type(ruleset_policy) == "object" && ruleset_policy != null && type(ruleset_policy.mode) == "string" && ruleset_policy.mode != "")
@@ -50,32 +83,49 @@ function localize_rulesets(profile, ruleset_policy) {
 
 	let next = [];
 	for (let entry in profile.route.rule_set) {
-		if (type(entry) != "object" || entry == null || type(entry) == "array" || type(entry.tag) != "string" || entry.tag == "") {
+		if (type(entry) != "object" || entry == null || type(entry) == "array") {
 			push(next, entry);
 			continue;
 		}
 
-		result.total = result.total + 1;
+		let tags = ruleset_tags(entry);
+		if (length(tags) == 0) {
+			push(next, entry);
+			continue;
+		}
+		/* Only remote declarations have a Shinra-managed downloadable local form. */
+		if (entry.type != "remote") {
+			push(next, entry);
+			continue;
+		}
+
+		result.total = result.total + length(tags);
 		if (mode == "remote") {
 			push(next, entry);
 			if (entry.type == "remote")
-				result.preserved_remote = result.preserved_remote + 1;
+				result.preserved_remote = result.preserved_remote + length(tags);
 			continue;
 		}
 
-		if (local_ruleset_exists(entry.tag)) {
-			push(next, local_ruleset_entry(entry.tag, entry));
-			result.localized = result.localized + 1;
+		let missing = [];
+		for (let tag in tags) {
+			if (!local_ruleset_exists(tag))
+				push(missing, tag);
+		}
+
+		if (length(missing) == 0) {
+			push(next, local_ruleset_group(tags, entry));
+			result.localized = result.localized + length(tags);
 			continue;
 		}
 
-		result.missing = result.missing + 1;
+		result.missing = result.missing + length(missing);
 		if (mode == "local")
-			die("Required local Rule Set missing: " + entry.tag + " -> " + local_ruleset_path(entry.tag));
+			die("Required local Rule Set missing: " + missing[0] + " -> " + local_ruleset_path(missing[0]));
 
 		push(next, entry);
 		if (entry.type == "remote")
-			result.preserved_remote = result.preserved_remote + 1;
+			result.preserved_remote = result.preserved_remote + length(tags);
 	}
 
 	profile.route.rule_set = next;

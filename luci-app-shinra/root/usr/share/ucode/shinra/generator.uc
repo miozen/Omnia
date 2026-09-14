@@ -10,7 +10,7 @@ import { ERR } from 'shinra.core.error';
 import { file_exists, json_stringify_pretty } from 'shinra.core.utils';
 import { artifact_check_config, artifact_write_candidate } from 'shinra.core.artifact';
 import { parse_profile, parse_node_snapshot, parse_subscriptions_policy, parse_ruleset_policy } from 'shinra.generator_input';
-import { validate_tun_contract, validate_extensions, strip_extensions, validate_references, validated_main_selector_tag } from 'shinra.generator_validate';
+import { validate_shinra_runtime_contract, validate_extensions, strip_extensions, validate_references, validated_main_selector_tag } from 'shinra.generator_validate';
 import { collect_profile_tags, normalized_nodes, collect_node_tags } from 'shinra.generator_nodes';
 import { generate_region_groups, grouped_node_tags, unmatched_node_tag_list, matched_node_count } from 'shinra.generator_groups';
 import { direct_outbound_tag, inject_selectors, main_selector_option_count, merge_outbounds } from 'shinra.generator_selectors';
@@ -47,7 +47,7 @@ function generate_candidate(trace_id, req) {
 		let ruleset = localize_rulesets(profile, ruleset_policy);
 		let api_service = apply_dashboard_api_service(profile);
 		let control_proxy = ensure_control_plane_proxy_inbound(profile);
-		validate_tun_contract(profile);
+		validate_shinra_runtime_contract(profile);
 		let stripped = strip_extensions(profile);
 		validate_references(profile);
 
@@ -109,10 +109,10 @@ function generate_candidate(trace_id, req) {
 		}, 200, trace_id, "Candidate generated");
 	} catch (e) {
 		let err = "" + e;
-		if (substr(err, 0, 13) == "TUN_CONTRACT:")
-			return Fail(ERR.E_TUN_CONTRACT_FAILED, "Profile TUN contract failed", trace_id, substr(err, 13));
+		if (substr(err, 0, 17) == "RUNTIME_CONTRACT:")
+			return Fail(ERR.E_TUN_CONTRACT_FAILED, "Profile runtime contract failed", trace_id, substr(err, 17));
 		if (substr(err, 0, 24) == "CLASH_API_PORT_CONFLICT:")
-			return Fail(ERR.E_CLASH_API_PORT_CONFLICT, "Clash API port conflicts with official API service", trace_id, substr(err, 24));
+			return Fail(ERR.E_CLASH_API_PORT_CONFLICT, "Clash API port conflicts with sing-box API service", trace_id, substr(err, 24));
 		return Fail(ERR.E_GENERATE_FAILED, "Failed to generate Candidate", trace_id, err);
 	}
 }

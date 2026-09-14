@@ -18,10 +18,17 @@ jobs:
           fetch-depth: 0
 
       - name: Provision Static Tools
-        run: sudo apt-get update && sudo apt-get install -y python3-yaml
+        run: sudo apt-get update && sudo apt-get install -y python3-jsonschema python3-yaml
 
       - name: Validate Source Files
         run: bash ./tests/ci-static.sh
+
+      - name: Validate UCode Modules
+        run: |
+          docker run --rm \
+            -v "$PWD:/work:ro" \
+            openwrt/rootfs:latest \
+            sh -c 'find /work/luci-app-shinra/root/usr/share/ucode -type f -name "*.uc" -exec sh -c '\''for file do ucode -L /work/luci-app-shinra/root/usr/share/ucode -c,module -o /tmp/shinra-ucode-check "$file" || exit $?; done'\'' sh {} +'
 
   build:
     name: Assemble Packages

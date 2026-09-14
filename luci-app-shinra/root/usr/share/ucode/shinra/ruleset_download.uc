@@ -10,19 +10,6 @@ import { file_exists } from 'shinra.core.utils';
 import { fetch_file } from 'shinra.resource_fetch';
 import { resource_promote_file } from 'shinra.core.resource';
 
-function starts_with(value, prefix) {
-	value = "" + value;
-	prefix = "" + prefix;
-	return substr(value, 0, length(prefix)) == prefix;
-}
-
-function trim_trailing_slash(value) {
-	value = "" + value;
-	while (length(value) > 0 && substr(value, length(value) - 1, 1) == "/")
-		value = substr(value, 0, length(value) - 1);
-	return value;
-}
-
 function append_unique(list, value) {
 	if (type(value) != "string" || value == "")
 		return;
@@ -45,46 +32,8 @@ function ensure_rule_dirs() {
 		die("Failed to create " + tmp_dir);
 }
 
-function rule_name_parts(tag) {
-	if (starts_with(tag, "geosite-"))
-		return {
-			kind: "geosite",
-			name: substr(tag, 8),
-			standard: true
-		};
-	if (starts_with(tag, "geoip-"))
-		return {
-			kind: "geoip",
-			name: substr(tag, 6),
-			standard: true
-		};
-	return {
-		kind: "",
-		name: tag,
-		standard: false
-	};
-}
-
-function ruleset_urls(entry, policy) {
+function ruleset_urls(entry) {
 	let urls = [];
-	let repos = policy.repositories || {};
-	let private_repo = trim_trailing_slash(repos["private"] || "");
-	let public_repo = trim_trailing_slash(repos["public"] || "");
-	let parts = rule_name_parts(entry.tag);
-
-	if (private_repo != "")
-		append_unique(urls, private_repo + "/" + entry.tag + ".srs");
-
-	if (public_repo != "") {
-		if (parts.standard) {
-			append_unique(urls, public_repo + "/geo/" + parts.kind + "/" + parts.name + ".srs");
-			append_unique(urls, public_repo + "/geo-lite/" + parts.kind + "/" + parts.name + ".srs");
-		} else {
-			append_unique(urls, public_repo + "/rules/" + entry.tag + ".srs");
-			append_unique(urls, public_repo + "/" + entry.tag + ".srs");
-		}
-	}
-
 	append_unique(urls, entry.source_url);
 	return urls;
 }

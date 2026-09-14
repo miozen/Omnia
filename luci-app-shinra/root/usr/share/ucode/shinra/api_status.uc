@@ -36,7 +36,7 @@ function api_url_from_endpoint(listen, port) {
 	return "http://" + dashboard_host(listen) + ":" + port + "/";
 }
 
-function empty_official_api() {
+function empty_singbox_api() {
 	return {
 		configured: false,
 		source: "none",
@@ -48,8 +48,8 @@ function empty_official_api() {
 	};
 }
 
-function runtime_official_api(config, source) {
-	let fallback = empty_official_api();
+function runtime_singbox_api(config, source) {
+	let fallback = empty_singbox_api();
 	if (type(config.services) != "array")
 		return fallback;
 
@@ -61,7 +61,7 @@ function runtime_official_api(config, source) {
 
 		let data = {
 			configured: true,
-			source: service.tag == "shinra-api" ? "dashboard" : "profile",
+			source: (service.tag == "singbox-api" || service.tag == "shinra-api") ? "dashboard" : "profile",
 			tag: service.tag || "",
 			listen: type(service.listen) == "string" && service.listen != "" ? service.listen : "0.0.0.0",
 			listen_port: int(service.listen_port || 0),
@@ -69,7 +69,7 @@ function runtime_official_api(config, source) {
 			dashboard_enabled: type(service.dashboard) == "object" && service.dashboard != null && service.dashboard.enabled == true
 		};
 
-		if (service.tag == "shinra-api")
+		if (service.tag == "singbox-api" || service.tag == "shinra-api")
 			return data;
 		if (!fallback.configured)
 			fallback = data;
@@ -86,8 +86,8 @@ function runtime_clash_api(config) {
 	return config.experimental.clash_api;
 }
 
-function official_status(source, config, running) {
-	let runtime_api = runtime_official_api(config, source);
+function singbox_status(source, config, running) {
+	let runtime_api = runtime_singbox_api(config, source);
 	let runtime_configured = runtime_api.configured == true;
 	let configured = source.enabled == true || runtime_configured;
 	let listen = runtime_configured ? runtime_api.listen : source.listen;
@@ -107,7 +107,7 @@ function official_status(source, config, running) {
 		runtime_configured: runtime_configured,
 		source_enabled: source.enabled == true,
 		source: runtime_configured ? runtime_api.source : (source.enabled == true ? "dashboard" : "none"),
-		tag: runtime_configured ? runtime_api.tag : "shinra-api",
+		tag: runtime_configured ? runtime_api.tag : "singbox-api",
 		running: running,
 		available: available,
 		listen: listen,
@@ -159,7 +159,7 @@ function api_status(trace_id, req) {
 		let running = observed.running == true;
 
 		return Success({
-			official_api: official_status(source, config, running),
+			singbox_api: singbox_status(source, config, running),
 			clash_api: clash_status(trace_id, source, config, running)
 		}, 200, trace_id, "API status observed");
 	} catch (e) {

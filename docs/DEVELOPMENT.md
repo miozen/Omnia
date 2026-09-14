@@ -19,6 +19,17 @@ Shinra 以 OpenWrt 25.12 及更高版本为主要目标，发布物以 APK 为�
 - 内网直连是默认和优先路径。反向代理、公网访问、TLS、路径重写、WebSocket 转发和访问控制均属于外部网关配置，不属于 Shinra 的功能或兼容承诺。
 - Dashboard 的下载来源、Clash API 监听地址、访问密钥和默认模式由 LuCI 面板设置保存，并在生成配置时写入 sing-box。
 
+### 配置兼容性契约
+
+- Profile 模板负责与目标 sing-box 版本保持语义兼容；模板应声明 `"$schema": "https://sing-box.sagernet.org/schema.json"`。CI 会下载该 Schema，并在剥离 Shinra 的 `x_` 扩展字段后校验模板；模板维护者仍须使用对应版本的 `sing-box check` 验证。
+- Shinra 的生成器只校验自身组合配置所必需的结构（例如唯一的 `tun-in`、控制面端口冲突和内部引用）。不得在生成阶段硬编码 sing-box 可选字段、默认值或枚举值。
+- 生成后的候选配置和应用前的配置必须继续通过设备上实际安装版本的 `sing-box check`。这才是版本相关字段的最终裁决。
+- 当前 Profile 使用的 `x_rule` 是 Shinra 的生成扩展，会在候选配置写入前移除；因此官方 Schema 应用于剥离扩展后的候选配置，而不是把带 `x_rule` 的源模板当成纯 sing-box 配置。
+- `route.rule_set` 是规则集下载的唯一来源清单。Shinra 支持 sing-box 的单个 tag 与 tag 数组声明，并对数组 URL、path 中的 `{tag}` 逐项展开；不得在 LuCI 策略中重复维护规则集仓库地址。
+- `profiles/main-profile.json` 是开发与发布共用的唯一默认模板；打包路径下的同名模板必须与其字节一致，CI 会阻止两者漂移。
+- 本地/自动规则集同步覆盖模板的全部 `remote` 声明，而不只覆盖路由已引用的 tag；`inline` 与模板已有的 `local` 声明保持原样。
+- 规则集清单接口必须依据当前策略输出 `runtime_status`，而不是把本地缓存缺失直接等同于运行不可用：`unused`、`ready_local`、`ready_remote`、`ready_template`、`degraded_remote_fallback` 与 `invalid` 是概览页的稳定状态契约。前端只负责其文案和颜色；本地缓存与同步信息仅作辅助展示。
+
 ## 分支职责
 
 - `dev`：唯一开发与集成分支。功能修改先进入这里，并必须通过 GitHub Actions。

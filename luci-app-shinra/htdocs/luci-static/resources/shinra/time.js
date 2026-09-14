@@ -5,15 +5,9 @@ function pad(value) {
 	return value < 10 ? '0' + value : String(value);
 }
 
-function formatLocalTime(value) {
-	if (!value || typeof value !== 'string')
-		return value || '-';
-	if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value))
-		return value;
-
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime()))
-		return value;
+function formatDateTime(date, fallback) {
+	if (!(date instanceof Date) || Number.isNaN(date.getTime()))
+		return fallback || '-';
 
 	return '%s-%s-%s %s:%s:%s'.format(
 		date.getFullYear(),
@@ -25,6 +19,26 @@ function formatLocalTime(value) {
 	);
 }
 
+function formatLocalTime(value) {
+	if (!value || typeof value !== 'string')
+		return value || '-';
+	if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value))
+		return value;
+
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime()))
+		return value;
+
+	return formatDateTime(date, value);
+}
+
+function formatUnixTime(value, fallback) {
+	const seconds = Number(value);
+	if (!Number.isFinite(seconds) || seconds <= 0)
+		return fallback || '-';
+	return formatDateTime(new Date(seconds * 1000), fallback);
+}
+
 function formatMaybeTime(value, fallback) {
 	if (value == null || value === '')
 		return fallback || '-';
@@ -33,5 +47,6 @@ function formatMaybeTime(value, fallback) {
 
 return baseclass.extend({
 	formatLocalTime: formatLocalTime,
+	formatUnixTime: formatUnixTime,
 	formatMaybeTime: formatMaybeTime
 });

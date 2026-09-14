@@ -120,7 +120,16 @@ function compact_snapshot(result) {
 function compact_rules(result) {
 	let data = result_data(result);
 	let summary = type(data.summary) == "object" && data.summary != null ? data.summary : {};
+	let runtime = type(data.runtime) == "object" && data.runtime != null ? data.runtime : {};
 	return compact_result(result, {
+		runtime_status: type(data.runtime_status) == "string" && data.runtime_status != "" ? data.runtime_status : "invalid",
+			runtime: {
+				local_count: runtime.local_count || 0,
+				remote_count: runtime.remote_count || 0,
+				template_count: runtime.template_count || 0,
+				fallback_count: runtime.fallback_count || 0,
+			invalid_count: runtime.invalid_count || 0
+		},
 		summary: {
 			required_count: summary.required_count || 0,
 			ready_count: summary.ready_count || 0,

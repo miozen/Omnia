@@ -36,7 +36,7 @@ function api_url_from_endpoint(listen, port) {
 	return "http://" + dashboard_host(listen) + ":" + port + "/";
 }
 
-function empty_official_api() {
+function empty_singbox_api() {
 	return {
 		configured: false,
 		source: "none",
@@ -48,8 +48,8 @@ function empty_official_api() {
 	};
 }
 
-function runtime_official_api(config, source) {
-	let fallback = empty_official_api();
+function runtime_singbox_api(config, source) {
+	let fallback = empty_singbox_api();
 	if (type(config.services) != "array")
 		return fallback;
 
@@ -86,8 +86,8 @@ function runtime_clash_api(config) {
 	return config.experimental.clash_api;
 }
 
-function official_status(source, config, running) {
-	let runtime_api = runtime_official_api(config, source);
+function singbox_status(source, config, running) {
+	let runtime_api = runtime_singbox_api(config, source);
 	let runtime_configured = runtime_api.configured == true;
 	let configured = source.enabled == true || runtime_configured;
 	let listen = runtime_configured ? runtime_api.listen : source.listen;
@@ -159,7 +159,7 @@ function api_status(trace_id, req) {
 		let running = observed.running == true;
 
 		return Success({
-			official_api: official_status(source, config, running),
+			singbox_api: singbox_status(source, config, running),
 			clash_api: clash_status(trace_id, source, config, running)
 		}, 200, trace_id, "API status observed");
 	} catch (e) {

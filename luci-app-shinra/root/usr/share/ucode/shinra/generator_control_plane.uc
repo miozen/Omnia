@@ -169,7 +169,7 @@ function api_service_result_from_dashboard(policy, found) {
 	};
 }
 
-function apply_official_api_choice(profile, policy, found, result) {
+function apply_singbox_api_choice(profile, policy, found, result) {
 	if (result.source != "dashboard")
 		return;
 
@@ -183,7 +183,7 @@ function apply_official_api_choice(profile, policy, found, result) {
 		push(profile.services, service);
 }
 
-function evaluate_clash_api_policy(profile, policy, official_endpoint, mutate, api_service) {
+function evaluate_clash_api_policy(profile, policy, singbox_endpoint, mutate, api_service) {
 	let dashboard_enabled = type(policy.clash_api) == "object" &&
 		policy.clash_api != null &&
 		type(policy.clash_api) != "array" &&
@@ -191,7 +191,7 @@ function evaluate_clash_api_policy(profile, policy, official_endpoint, mutate, a
 	let profile_has = has_clash_api(profile);
 	let profile_api = profile_has ? profile.experimental.clash_api : {};
 	let dashboard_api = managed_clash_api(policy);
-	let service_endpoint = official_endpoint;
+	let service_endpoint = singbox_endpoint;
 	let profile_endpoint = endpoint_from_controller(profile_api.external_controller);
 	let dashboard_endpoint = endpoint_from_controller(dashboard_api.external_controller);
 	let profile_conflict = profile_has && endpoints_conflict(service_endpoint, profile_endpoint);
@@ -234,15 +234,15 @@ function evaluate_clash_api_policy(profile, policy, official_endpoint, mutate, a
 	}
 
 	if (profile_conflict && dashboard_conflict) {
-		result.error = "Profile and Dashboard Clash API endpoints both conflict with official API service " + service_endpoint.host + ":" + service_endpoint.port;
+		result.error = "Profile and Dashboard Clash API endpoints both conflict with sing-box API service " + service_endpoint.host + ":" + service_endpoint.port;
 		return result;
 	}
 	if (profile_conflict && !dashboard_enabled) {
-		result.error = "Profile Clash API endpoint conflicts with official API service and Dashboard Clash API is disabled";
+		result.error = "Profile Clash API endpoint conflicts with sing-box API service and Dashboard Clash API is disabled";
 		return result;
 	}
 	if (!profile_has && dashboard_conflict) {
-		result.error = "Dashboard Clash API endpoint conflicts with official API service " + service_endpoint.host + ":" + service_endpoint.port;
+		result.error = "Dashboard Clash API endpoint conflicts with sing-box API service " + service_endpoint.host + ":" + service_endpoint.port;
 		return result;
 	}
 
@@ -301,14 +301,14 @@ function apply_dashboard_api_service(profile) {
 	}
 
 	if (chosen == null)
-		die("CLASH_API_PORT_CONFLICT:" + (last_clash != null && type(last_clash.error) == "string" ? last_clash.error : "Clash API endpoint conflicts with official API service"));
+		die("CLASH_API_PORT_CONFLICT:" + (last_clash != null && type(last_clash.error) == "string" ? last_clash.error : "Clash API endpoint conflicts with sing-box API service"));
 
 	let base = chosen.api;
 	for (let key in base)
 		result[key] = base[key];
 
 	result.clash_api = evaluate_clash_api_policy(profile, policy, chosen.endpoint, true, result);
-	apply_official_api_choice(profile, policy, found, result);
+	apply_singbox_api_choice(profile, policy, found, result);
 	return result;
 }
 

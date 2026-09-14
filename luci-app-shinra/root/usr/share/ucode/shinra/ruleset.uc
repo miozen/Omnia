@@ -20,7 +20,7 @@ import { ensure_rule_dirs, ruleset_urls, direct_fetch_rule, same_file_content, a
 function download_required_entry(trace_id, entry, ruleset_policy, strategy, tmp_dir, on_progress) {
 	let final_path = PATH.RULE_DIR + "/" + entry.tag + ".srs";
 	let meta = file_metadata(final_path);
-	let urls = ruleset_urls(entry, ruleset_policy);
+	let urls = ruleset_urls(entry);
 	let tmp_path = tmp_dir + "/" + entry.tag + ".srs.tmp";
 	let attempts = [];
 	let downloaded = false;

@@ -65,15 +65,11 @@ const callRulesetArtifactStatus = rpc.declare({
 });
 
 const DEFAULT_POLICY = {
-	mode: 'remote',
+	mode: 'auto',
 	auto_update: false,
 	auto_apply_after_update: false,
 	update_hour: 4,
-	fetch_strategy: 'direct',
-	repositories: {
-		private: 'https://testingcf.jsdelivr.net/gh/miozen/sing-box-rulesets@master/rules',
-		public: 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing'
-	}
+	fetch_strategy: 'direct'
 };
 
 let policy = null;
@@ -109,22 +105,17 @@ function taskDisplayName(result, fallback) {
 
 function normalizePolicy(input) {
 	input = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
-	const repositories = input.repositories && typeof input.repositories === 'object' && !Array.isArray(input.repositories) ? input.repositories : {};
 	let hour = input.update_hour != null ? Number(input.update_hour) : DEFAULT_POLICY.update_hour;
 
 	if (!Number.isFinite(hour) || hour < 0 || hour > 23)
 		hour = DEFAULT_POLICY.update_hour;
 
 	return {
-		mode: input.mode === 'local' ? 'local' : 'remote',
+		mode: input.mode === 'local' || input.mode === 'remote' || input.mode === 'auto' ? input.mode : DEFAULT_POLICY.mode,
 		auto_update: input.auto_update === true,
 		auto_apply_after_update: input.auto_apply_after_update === true,
 		update_hour: hour,
-		fetch_strategy: input.fetch_strategy === 'proxy' ? 'proxy' : 'direct',
-		repositories: {
-			private: typeof repositories.private === 'string' ? repositories.private : DEFAULT_POLICY.repositories.private,
-			public: typeof repositories.public === 'string' && repositories.public !== '' ? repositories.public : DEFAULT_POLICY.repositories.public
-		}
+		fetch_strategy: input.fetch_strategy === 'proxy' ? 'proxy' : 'direct'
 	};
 }
 
@@ -289,18 +280,16 @@ function updatePolicyFromFields() {
 		auto_update: readFieldChecked('shinra-ruleset-auto-update', policy.auto_update),
 		auto_apply_after_update: readFieldChecked('shinra-ruleset-auto-apply-after-update', policy.auto_apply_after_update),
 		update_hour: readFieldNumber('shinra-ruleset-update-hour', policy.update_hour),
-		fetch_strategy: readFieldValue('shinra-ruleset-fetch-strategy', policy.fetch_strategy),
-		repositories: {
-			private: readFieldValue('shinra-ruleset-private-repo', policy.repositories.private),
-			public: readFieldValue('shinra-ruleset-public-repo', policy.repositories.public)
-		}
+		fetch_strategy: readFieldValue('shinra-ruleset-fetch-strategy', policy.fetch_strategy)
 	});
 }
 
 function modeHelpText() {
 	return policy.mode === 'local' ?
 		_('本地模式会在生成候选配置时把规则集改写到 /etc/shinra/rules。缺失本地文件会阻止候选配置生成。') :
-		_('远程模式保留 main-profile.json 中的 rule_set 声明，不要求本地规则集文件。');
+		policy.mode === 'auto' ?
+			_('自动模式会优先使用完整的本地缓存；某个 tag 数组缓存不完整时，会保留该组模板声明。') :
+			_('远程模式保留 main-profile.json 中的 rule_set 声明，不要求本地规则集文件。');
 }
 
 function modeSettings() {
@@ -316,17 +305,18 @@ function modeSettings() {
 					'change': function(ev) {
 						actionToken++;
 						updatePolicyFromFields();
-						policy.mode = ev.target.value === 'local' ? 'local' : 'remote';
+						policy.mode = ev.target.value === 'local' || ev.target.value === 'auto' ? ev.target.value : 'remote';
 						actionStatus = '';
 						redraw();
 					}
 				}, [
 					E('option', { 'value': 'remote', 'selected': policy.mode === 'remote' ? 'selected' : null }, _('远程模式')),
+					E('option', { 'value': 'auto', 'selected': policy.mode === 'auto' ? 'selected' : null }, _('自动模式')),
 					E('option', { 'value': 'local', 'selected': policy.mode === 'local' ? 'selected' : null }, _('本地模式'))
 				])
 			]),
 			E('button', { 'type': 'button', 'class': shinraMotion.buttonClass('btn cbi-button cbi-button-save'), 'click': function(ev) { ev.preventDefault(); return savePolicy(); } }, _('保存设置')),
-			policy.mode === 'local' ? E('button', { 'type': 'button', 'class': shinraMotion.buttonClass('btn cbi-button cbi-button-apply'), 'click': function(ev) { ev.preventDefault(); return syncRulesets(); } }, _('同步所需规则集')) : ''
+			policy.mode !== 'remote' ? E('button', { 'type': 'button', 'class': shinraMotion.buttonClass('btn cbi-button cbi-button-apply'), 'click': function(ev) { ev.preventDefault(); return syncRulesets(); } }, _('同步模板规则集')) : ''
 		]),
 		E('div', { 'style': mutedStyle() }, modeHelpText()),
 		inlineActionStatus()
@@ -334,33 +324,11 @@ function modeSettings() {
 }
 
 function localSyncSettings() {
-	if (policy.mode !== 'local')
+	if (policy.mode === 'remote')
 		return E('div', { 'style': 'display: none;' }, '');
 
 	return E('div', { 'style': sectionStyle() }, [
 		sectionTitle(_('本地同步设置')),
-		E('h4', { 'style': 'margin: .25rem 0 .65rem;' }, _('规则集来源')),
-		E('div', { 'style': 'display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; margin-bottom: .75rem;' }, [
-			E('label', {}, [
-				fieldLabel(_('私有仓库')),
-				E('input', {
-					'id': 'shinra-ruleset-private-repo',
-					'class': 'cbi-input-text',
-					'style': 'width: 100%; box-sizing: border-box;',
-					'placeholder': _('可选的私有仓库地址'),
-					'value': policy.repositories.private
-				})
-			]),
-			E('label', {}, [
-				fieldLabel(_('公共仓库')),
-				E('input', {
-					'id': 'shinra-ruleset-public-repo',
-					'class': 'cbi-input-text',
-					'style': 'width: 100%; box-sizing: border-box;',
-					'value': policy.repositories.public
-				})
-			])
-		]),
 		E('h4', { 'style': 'margin: .25rem 0 .65rem;' }, _('同步方式')),
 		E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem; margin-bottom: .65rem; align-items: start;' }, [
 			E('label', {}, [
@@ -411,7 +379,7 @@ function localSyncSettings() {
 				]) : ''
 			])
 		]),
-		E('div', { 'style': mutedStyle() }, _('下载顺序：私有仓库优先，公共仓库兜底，最后使用模板中的原始地址。'))
+		E('div', { 'style': mutedStyle() }, _('下载地址由 main-profile.json 的 rule_set 声明提供。'))
 	]);
 }
 
@@ -470,9 +438,7 @@ function artifactStatusPanel() {
 }
 
 function timeText(value) {
-	if (!value)
-		return '-';
-	return valueText(value);
+	return shinraTime.formatUnixTime(value);
 }
 
 function requiredInventory() {
@@ -487,11 +453,19 @@ function rulesetStatus(entry) {
 	return shinraUi.pill(_('已就绪'), 'ok');
 }
 
-function sourceText(entry) {
-	const urls = entry && Array.isArray(entry.candidate_url_redacted) ? entry.candidate_url_redacted : [];
-	if (urls.length)
-		return urls.join('\n');
-	return valueText(entry && (entry.source_url_redacted || entry.source_url));
+function runtimeStatusPill(inv) {
+	const status = inv && inv.runtime_status ? inv.runtime_status : 'invalid';
+	if (status === 'unused')
+		return shinraUi.pill(_('未使用'), 'neutral');
+	if (status === 'ready_local')
+		return shinraUi.pill(_('本地就绪'), 'ok');
+	if (status === 'ready_remote')
+		return shinraUi.pill(_('远程可用'), 'ok');
+	if (status === 'ready_template')
+		return shinraUi.pill(_('模板可用'), 'ok');
+	if (status === 'degraded_remote_fallback')
+		return shinraUi.pill(_('远程回退'), 'warning');
+	return shinraUi.pill(_('不可用'), 'error');
 }
 
 function templateRequiredText(entry) {
@@ -544,14 +518,13 @@ function rulesetRows(items) {
 	return items.map(function(entry) {
 		const required = !(entry && entry.required === false);
 		const busy = downloadingTag && entry && entry.tag === downloadingTag;
-		return E('div', { 'class': shinraMotion.softRowClass(), 'style': 'display: grid; grid-template-columns: minmax(150px, 1.1fr) 92px 84px minmax(220px, 1.7fr) 86px 120px minmax(220px, 1.8fr) 98px; gap: .75rem; padding: .5rem 0; border-bottom: 1px solid #eee; align-items: center;' }, [
+		return E('div', { 'class': shinraMotion.softRowClass(), 'style': 'display: grid; grid-template-columns: minmax(150px, 1.1fr) 92px 84px minmax(220px, 1.7fr) 86px 120px 98px; gap: .75rem; padding: .5rem 0; border-bottom: 1px solid #eee; align-items: center;' }, [
 			E('div', { 'style': 'overflow-wrap: anywhere; font-weight: 600;' }, valueText(entry && entry.tag)),
 			E('div', {}, rowStatus(entry)),
 			E('div', { 'style': 'color: #667;' }, templateRequiredText(entry)),
 			E('div', { 'style': 'overflow-wrap: anywhere; color: #667;' }, valueText(entry && entry.local_path)),
 			E('div', { 'style': 'color: #667; text-align: right;' }, bytesText(Number(entry && entry.local_size || 0))),
 			E('div', { 'style': 'color: #667; text-align: right;' }, timeText(entry && entry.local_mtime)),
-			E('div', { 'style': 'overflow-wrap: anywhere; white-space: pre-line; color: #667;' }, sourceText(entry)),
 			E('div', {}, required ? E('button', {
 				'type': 'button',
 				'class': shinraMotion.buttonClass('btn cbi-button'),
@@ -567,15 +540,14 @@ function rulesetRows(items) {
 
 function rulesetListContent(items) {
 	return E('div', { 'style': 'overflow-x: auto; margin-top: .75rem;' }, [
-		E('div', { 'style': 'min-width: 1260px;' }, [
-			E('div', { 'style': 'display: grid; grid-template-columns: minmax(150px, 1.1fr) 92px 84px minmax(220px, 1.7fr) 86px 120px minmax(220px, 1.8fr) 98px; gap: .75rem; color: #667; font-size: 12px; padding-bottom: .4rem; border-bottom: 1px solid #ddd;' }, [
+		E('div', { 'style': 'min-width: 980px;' }, [
+			E('div', { 'style': 'display: grid; grid-template-columns: minmax(150px, 1.1fr) 92px 84px minmax(220px, 1.7fr) 86px 120px 98px; gap: .75rem; color: #667; font-size: 12px; padding-bottom: .4rem; border-bottom: 1px solid #ddd;' }, [
 				E('div', {}, _('标签')),
 				E('div', {}, _('状态')),
 				E('div', {}, _('模板需要')),
 				E('div', {}, _('本地文件')),
 				E('div', { 'style': 'text-align: right;' }, _('大小')),
 				E('div', { 'style': 'text-align: right;' }, _('修改时间')),
-				E('div', {}, _('下载来源')),
 				E('div', {}, _('操作'))
 			]),
 			E('div', {}, rulesetRows(items))
@@ -593,7 +565,7 @@ function rulesetList() {
 		suffix = _('，待运行验证 %d').format(Number(artifact.changed_count || 0));
 	else if (Number(artifact.last_good_count || 0) > 0)
 		suffix = _('，已确认基线 %d').format(Number(artifact.last_good_count || 0));
-	const subtitle = _('需要 %d，已就绪 %d，缺失 %d，未使用 %d%s').format(
+	const subtitle = _('本地缓存：需要 %d，已就绪 %d，缺失 %d，未使用 %d%s').format(
 		summary.required_count || 0,
 		summary.ready_count || 0,
 		summary.missing_count || 0,
@@ -610,10 +582,11 @@ function rulesetList() {
 	}, [
 		E('summary', { 'style': 'cursor: pointer; list-style-position: inside;' }, [
 			E('span', { 'style': 'font-weight: 700;' }, _('规则集列表')),
+			runtimeStatusPill(inv),
 			E('span', { 'style': 'display: block; color: #667; font-size: 12px; margin-top: .25rem;' }, subtitle)
 		]),
 		E('div', { 'style': 'color: #667; margin-top: .75rem; overflow-wrap: anywhere;' },
-			_('以列表形式展示 main-profile.json 引用的规则集和 /etc/shinra/rules 本地文件状态。')),
+			_('运行状态按当前规则集策略计算；列表中的“缺失”仅表示 /etc/shinra/rules 本地缓存未找到文件。')),
 		rulesetListContent(items)
 	]);
 }

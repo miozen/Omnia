@@ -147,7 +147,7 @@ function safe_shell_arg(value, label) {
 		let ok = (ch >= "A" && ch <= "Z") ||
 			(ch >= "a" && ch <= "z") ||
 			(ch >= "0" && ch <= "9") ||
-			ch == "." || ch == "_" || ch == "-";
+			ch == "." || ch == "_" || ch == "-" || ch == "!";
 		if (!ok)
 			die("Invalid " + label + ": " + value);
 	}

@@ -28,7 +28,7 @@ jobs:
           docker run --rm \
             -v "$PWD:/work:ro" \
             openwrt/rootfs:latest \
-            sh -c 'find /work/luci-app-omnia/root/usr/share/ucode -type f -name "*.uc" -exec sh -c '\''for file do ucode -L /work/luci-app-omnia/root/usr/share/ucode -c,module -o /tmp/shinra-ucode-check "$file" || exit $?; done'\'' sh {} +'
+            sh -c 'find /work/luci-app-omnia/root/usr/share/ucode -type f -name "*.uc" -exec sh -c '\''for file do ucode -L /work/luci-app-omnia/root/usr/share/ucode -c,module -o /tmp/omnia-ucode-check "$file" || exit $?; done'\'' sh {} +'
 
   build:
     name: Assemble Packages
@@ -62,7 +62,7 @@ jobs:
             -e APK_SIGNING_KEY_B64 \
             -w /work \
             alpine:latest \
-            sh -lc 'apk add --no-cache bash apk-tools coreutils findutils sed grep ca-certificates && if [ -n "$APK_SIGNING_KEY_B64" ]; then mkdir -p build/signing && printf "%s" "$APK_SIGNING_KEY_B64" | base64 -d > build/signing/shinra.rsa && chmod 0600 build/signing/shinra.rsa && export APK_SIGNING_KEY=/work/build/signing/shinra.rsa; fi && bash ./scripts/build.sh apk'
+            sh -lc 'apk add --no-cache bash apk-tools coreutils findutils sed grep ca-certificates && if [ -n "$APK_SIGNING_KEY_B64" ]; then mkdir -p build/signing && printf "%s" "$APK_SIGNING_KEY_B64" | base64 -d > build/signing/omnia.rsa && chmod 0600 build/signing/omnia.rsa && export APK_SIGNING_KEY=/work/build/signing/omnia.rsa; fi && bash ./scripts/build.sh apk'
 
       - name: Upload IPK Artifact
         uses: actions/upload-artifact@v4

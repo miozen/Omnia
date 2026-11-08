@@ -1,0 +1,132 @@
+#!/bin/sh
+
+set -u
+
+TASK_TYPE="${1:-}"
+TARGET="${2:-}"
+TRACE_ID="${3:-omnia-runner}"
+STRATEGY="${4:-}"
+NOTIFY="${5:-}"
+AUTO_APPLY="${6:-}"
+TAG=""
+SOURCE_ID=""
+RUN_ID=""
+RUN_DIR="/var/run/omnia"
+RUNNER_DIR="/var/run/omnia/runner"
+LOCK=""
+
+case "${TASK_TYPE}:${TARGET}" in
+	ruleset.sync:ruleset_download_required)
+		LOCK="${RUNNER_DIR}/ruleset.sync.lock"
+		RUN_ID="${7:-}"
+		;;
+	ruleset.download_one:ruleset_download_one)
+		LOCK="${RUNNER_DIR}/ruleset.download_one.lock"
+		TAG="${4:-}"
+		STRATEGY=""
+		NOTIFY="${5:-}"
+		AUTO_APPLY="${6:-}"
+		RUN_ID="${7:-}"
+		;;
+	subscription.refresh:subscriptions_refresh)
+		LOCK="${RUNNER_DIR}/subscription.refresh.lock"
+		RUN_ID="${4:-}"
+		STRATEGY="${5:-}"
+		NOTIFY="${6:-}"
+		;;
+	subscription.refresh:subscription_refresh_source)
+		LOCK="${RUNNER_DIR}/subscription.refresh.lock"
+		SOURCE_ID="${4:-}"
+		RUN_ID="${5:-}"
+		STRATEGY="${6:-}"
+		NOTIFY="${7:-}"
+		AUTO_APPLY="${8:-}"
+		;;
+	*)
+		exit 2
+		;;
+esac
+
+case "$TRACE_ID" in
+	*[!A-Za-z0-9._-]*)
+	TRACE_ID="omnia-runner"
+	;;
+esac
+
+case "$TAG" in
+	""|*[!A-Za-z0-9._-]*)
+		TAG=""
+		;;
+esac
+
+case "$SOURCE_ID" in
+	""|*[!A-Za-z0-9._-]*)
+		SOURCE_ID=""
+		;;
+esac
+
+case "$RUN_ID" in
+	""|*[!A-Za-z0-9._-]*)
+		RUN_ID=""
+		;;
+esac
+
+if [ "$TARGET" = "subscription_refresh_source" ] && [ -z "$SOURCE_ID" ]; then
+	exit 2
+fi
+
+if [ -z "$RUN_ID" ]; then
+	exit 2
+fi
+
+case "$STRATEGY" in
+	""|direct|proxy)
+		;;
+	-)
+		STRATEGY=""
+		;;
+	*)
+		STRATEGY=""
+		;;
+esac
+
+case "$NOTIFY" in
+	notify|true|1)
+		NOTIFY_INTENT="true"
+		;;
+	*)
+		NOTIFY_INTENT="false"
+		;;
+esac
+
+case "$AUTO_APPLY" in
+	autoapply|true|1)
+		AUTO_APPLY_INTENT="true"
+		;;
+	*)
+		AUTO_APPLY_INTENT="false"
+		;;
+esac
+
+mkdir -p "$RUN_DIR" "$RUNNER_DIR"
+
+LOCK_PRECLAIMED=0
+if [ ! -f "$LOCK/run_id" ] || [ "$(cat "$LOCK/run_id" 2>/dev/null)" != "$RUN_ID" ]; then
+	exit 0
+fi
+LOCK_PRECLAIMED=1
+
+cleanup() {
+	if [ "$LOCK_PRECLAIMED" = "1" ]; then
+		rm -f "$LOCK/pid"
+		rm -f "$LOCK/run_id"
+	fi
+	rmdir "$LOCK" 2>/dev/null || true
+}
+
+trap cleanup EXIT INT TERM
+
+printf '%s\n' "$$" > "$LOCK/pid"
+
+ucode -e 'import { runner_execute } from "omnia.runner"; let code = runner_execute("'"$TASK_TYPE"'", "'"$TARGET"'", "'"$TRACE_ID"'", { strategy: "'"$STRATEGY"'", tag: "'"$TAG"'", source_id: "'"$SOURCE_ID"'", run_id: "'"$RUN_ID"'", notify_intent: '"$NOTIFY_INTENT"', scheduler_intent: '"$AUTO_APPLY_INTENT"', auto_apply_intent: '"$AUTO_APPLY_INTENT"' }); if (code != 0) die("runner failed: " + code);'
+exit "$?"

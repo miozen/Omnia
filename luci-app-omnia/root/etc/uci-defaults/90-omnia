@@ -1,0 +1,70 @@
+#!/bin/sh
+
+set -eu
+
+mkdir -p /etc/omnia/runtime
+mkdir -p /etc/omnia/rules
+mkdir -p /www/omnia/dashboard
+mkdir -p /var/run/omnia
+
+chmod 0755 /etc/omnia /etc/omnia/runtime /etc/omnia/rules 2>/dev/null || true
+chmod 0755 /www/omnia /www/omnia/dashboard 2>/dev/null || true
+chmod 0755 /var/run/omnia 2>/dev/null || true
+
+chmod 0755 /etc/init.d/omnia 2>/dev/null || true
+chmod 0755 /usr/libexec/omnia-ensure-auto-task 2>/dev/null || true
+chmod 0755 /usr/libexec/omnia-auto-task 2>/dev/null || true
+chmod 0755 /usr/libexec/omnia-runner 2>/dev/null || true
+chmod 0755 /usr/libexec/omnia-ruleset-sync-job 2>/dev/null || true
+
+if [ -x /etc/init.d/omnia ]; then
+	/etc/init.d/omnia enable 2>/dev/null || true
+fi
+
+copy_default() {
+	local src="$1"
+	local dst="$2"
+
+	if [ ! -f "$dst" ] && [ -f "$src" ]; then
+		cp "$src" "$dst"
+	fi
+}
+
+copy_default /usr/share/omnia/profiles/main-profile.json /etc/omnia/main-profile.json
+copy_default /usr/share/omnia/defaults/profile-source.json /etc/omnia/profile-source.json
+copy_default /usr/share/omnia/defaults/notify.json /etc/omnia/notify.json
+copy_default /usr/share/omnia/defaults/dashboard.json /etc/omnia/dashboard.json
+copy_default /usr/share/omnia/defaults/subscriptions.json /etc/omnia/subscriptions.json
+
+ucode -e '
+import { readfile, writefile, rename, stat } from "fs";
+
+let subscriptions_path = "/etc/omnia/subscriptions.json";
+let ruleset_policy_path = "/etc/omnia/ruleset-policy.json";
+let subscriptions_raw = readfile(subscriptions_path);
+
+if (subscriptions_raw != null) {
+	let subscriptions = json(subscriptions_raw);
+
+	if (type(subscriptions) == "object" && subscriptions != null && type(subscriptions) != "array" &&
+	    type(subscriptions.ruleset) == "object" && subscriptions.ruleset != null && type(subscriptions.ruleset) != "array") {
+		let ruleset_policy_stat = stat(ruleset_policy_path);
+
+		if (type(ruleset_policy_stat) != "object" || ruleset_policy_stat == null)
+			writefile(ruleset_policy_path, sprintf("%J", subscriptions.ruleset));
+
+		delete subscriptions.ruleset;
+		writefile(subscriptions_path + ".tmp", sprintf("%J", subscriptions));
+		rename(subscriptions_path + ".tmp", subscriptions_path);
+	}
+}
+' 2>/dev/null || true
+
+copy_default /usr/share/omnia/defaults/ruleset-policy.json /etc/omnia/ruleset-policy.json
+copy_default /usr/share/omnia/defaults/node-snapshot.json /etc/omnia/node-snapshot.json
+
+if [ -x /usr/libexec/omnia-ensure-auto-task ]; then
+	/usr/libexec/omnia-ensure-auto-task || true
+fi
+
+exit 0

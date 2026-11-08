@@ -13,13 +13,13 @@ from jsonschema import Draft202012Validator
 OFFICIAL_SCHEMA_URL = "https://sing-box.sagernet.org/schema.json"
 
 
-def strip_shinra_extensions(value):
+def strip_omnia_extensions(value):
     if isinstance(value, list):
-        return [strip_shinra_extensions(item) for item in value]
+        return [strip_omnia_extensions(item) for item in value]
     if not isinstance(value, dict):
         return value
     return {
-        key: strip_shinra_extensions(item)
+        key: strip_omnia_extensions(item)
         for key, item in value.items()
         if not key.startswith("x_")
     }
@@ -34,7 +34,7 @@ def validate_profile(path, validator):
     profile = json.loads(path.read_text(encoding="utf-8"))
     if profile.get("$schema") != OFFICIAL_SCHEMA_URL:
         raise ValueError(f"{path} must declare {OFFICIAL_SCHEMA_URL}")
-    validator.validate(strip_shinra_extensions(profile))
+    validator.validate(strip_omnia_extensions(profile))
 
 
 def main():

@@ -49,7 +49,7 @@ jobs:
             -e APK_SIGNING_KEY_B64 \
             -w /work \
             alpine:latest \
-            sh -lc 'apk add --no-cache bash apk-tools coreutils findutils sed grep ca-certificates && if [ -n "$APK_SIGNING_KEY_B64" ]; then mkdir -p build/signing && printf "%s" "$APK_SIGNING_KEY_B64" | base64 -d > build/signing/shinra.rsa && chmod 0600 build/signing/shinra.rsa && export APK_SIGNING_KEY=/work/build/signing/shinra.rsa; fi && bash ./scripts/build.sh apk'
+            sh -lc 'apk add --no-cache bash apk-tools coreutils findutils sed grep ca-certificates && if [ -n "$APK_SIGNING_KEY_B64" ]; then mkdir -p build/signing && printf "%s" "$APK_SIGNING_KEY_B64" | base64 -d > build/signing/omnia.rsa && chmod 0600 build/signing/omnia.rsa && export APK_SIGNING_KEY=/work/build/signing/omnia.rsa; fi && bash ./scripts/build.sh apk'
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

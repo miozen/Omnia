@@ -403,8 +403,14 @@ function refreshResultText(result) {
 		return '';
 	if (result.status === 'running')
 		return _('正在刷新...');
-	if (result.ok)
+	if (result.ok) {
+		let refresh = activeRefresh(), taskStatus = refresh && refresh.task ? refresh.task.status : '';
+		if (taskStatus === 'failed')
+			return _('已获取 %d 个节点，但快照未保存。').format(result.node_count || 0);
+		if (!refreshStatusDone(taskStatus))
+			return _('已获取 %d 个节点，正在保存快照...').format(result.node_count || 0);
 		return _('刷新完成：%d 个节点。').format(result.node_count || 0);
+	}
 	return _('刷新失败，已保留 %d 个节点。').format(result.node_count || 0);
 }
 
@@ -1146,7 +1152,7 @@ function refreshFinishedText(refresh) {
 		return _('节点快照已刷新。准备使用新节点时，请生成候选配置。');
 	if (status === 'partial')
 		return _('节点快照部分刷新完成，请查看各订阅源结果。');
-	return _('订阅刷新未完成：%s。').format(status || _('未知'));
+	return task.last_error ? _('订阅刷新未完成：%s。').format(task.last_error) : _('订阅刷新未完成：%s。').format(status || _('未知'));
 }
 
 function refreshTaskStale(task) {

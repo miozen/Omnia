@@ -1,10 +1,8 @@
 name: Verify Omnia on OpenWrt
 
 on:
-  push:
-    branches: [ dev ]
   pull_request:
-    branches: [ dev, master ]
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
@@ -29,6 +27,16 @@ jobs:
             -v "$PWD:/work:ro" \
             openwrt/rootfs:latest \
             sh -c 'find /work/luci-app-omnia/root/usr/share/ucode -type f -name "*.uc" -exec sh -c '\''for file do ucode -L /work/luci-app-omnia/root/usr/share/ucode -c,module -o /tmp/omnia-ucode-check "$file" || exit $?; done'\'' sh {} +'
+
+      - name: Test Control Path Encoding
+        run: |
+          docker run --rm -v "$PWD:/work:ro" openwrt/rootfs:latest \
+            ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/control-encoding.uc
+
+      - name: Test sing-box protobuf decoding
+        run: |
+          docker run --rm -v "$PWD:/work:ro" openwrt/rootfs:latest \
+            ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/grpc-proto.uc
 
   build:
     name: Assemble Packages

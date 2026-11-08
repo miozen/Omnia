@@ -9,8 +9,8 @@ BUILD_DIR="${ROOT_DIR}/build/${PACKAGE_MODE}"
 PKG_DIR="${BUILD_DIR}/luci-app-omnia"
 CONTROL_DIR="${PKG_DIR}/CONTROL"
 APK_META_DIR="${PKG_DIR}/lib/apk/packages"
-IPK_DEPENDS="luci-base, rpcd, rpcd-mod-ucode, ucode, ucode-mod-fs, ucode-mod-ubus, jsonfilter, sing-box, ip-full, ca-bundle, wget-ssl, coreutils-timeout"
-APK_DEPENDS="luci-base rpcd rpcd-mod-ucode ucode ucode-mod-fs ucode-mod-ubus jsonfilter sing-box ip-full ca-bundle wget-ssl coreutils-timeout"
+IPK_DEPENDS="luci-base, rpcd, rpcd-mod-ucode, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uclient, ucode-mod-uloop, jsonfilter, sing-box, ip-full, ca-bundle, wget-ssl, coreutils-timeout"
+APK_DEPENDS="luci-base rpcd rpcd-mod-ucode ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uclient ucode-mod-uloop jsonfilter sing-box ip-full ca-bundle wget-ssl coreutils-timeout"
 
 fail() {
 	echo "build.sh: $*" >&2
@@ -55,6 +55,7 @@ need_file "${APP_DIR}/root/etc/uci-defaults/90-omnia"
 need_file "${APP_DIR}/root/usr/libexec/omnia-auto-task"
 need_file "${APP_DIR}/root/usr/libexec/omnia-ensure-auto-task"
 need_file "${APP_DIR}/root/usr/libexec/omnia-runner"
+need_file "${APP_DIR}/root/usr/libexec/omnia-native-api"
 need_file "${APP_DIR}/root/usr/libexec/omnia-ruleset-sync-job"
 need_file "${APP_DIR}/root/usr/share/rpcd/ucode/omnia.uc"
 need_file "${APP_DIR}/root/usr/share/rpcd/acl.d/luci-app-omnia.json"
@@ -78,12 +79,14 @@ fi
 cp -a "${APP_DIR}/root/." "${PKG_DIR}/"
 mkdir -p "${PKG_DIR}/www"
 cp -a "${APP_DIR}/htdocs/." "${PKG_DIR}/www/"
+printf '%s' "$pkg_version" > "${PKG_DIR}/usr/share/omnia/package-version"
 
 chmod 0755 "${PKG_DIR}/etc/init.d/omnia"
 chmod 0755 "${PKG_DIR}/etc/uci-defaults/90-omnia"
 chmod 0755 "${PKG_DIR}/usr/libexec/omnia-auto-task"
 chmod 0755 "${PKG_DIR}/usr/libexec/omnia-ensure-auto-task"
 chmod 0755 "${PKG_DIR}/usr/libexec/omnia-runner"
+chmod 0755 "${PKG_DIR}/usr/libexec/omnia-native-api"
 chmod 0755 "${PKG_DIR}/usr/libexec/omnia-ruleset-sync-job"
 
 write_ipk_scripts() {

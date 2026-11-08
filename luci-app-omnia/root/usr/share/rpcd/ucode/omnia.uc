@@ -12,7 +12,7 @@ import { dashboard_overview, dashboard_metrics } from 'omnia.dashboard';
 import { dashboard_source_get, dashboard_source_save, dashboard_status } from 'omnia.dashboard_config';
 import { api_status } from 'omnia.api_status';
 import { logs_get, last_error_get, task_locks_get, task_lock_recover, diagnostics_get } from 'omnia.diagnostics';
-import { selector_list, selector_delay_test, selector_set } from 'omnia.control';
+import { selector_list, selector_delay_test, node_delay_test, selector_set, mode_get, mode_set } from 'omnia.control';
 import { connections_list } from 'omnia.connections';
 import { connectivity_probe } from 'omnia.connectivity';
 import { ruleset_inventory, ruleset_required_inventory, ruleset_policy_get, ruleset_policy_save, ruleset_download_required, ruleset_download_required_start, ruleset_download_required_status, ruleset_artifact_status, ruleset_download_one_start, ruleset_download_one_status } from 'omnia.ruleset';
@@ -21,6 +21,7 @@ import { auto_task_status_get } from 'omnia.auto_task';
 import { scheduler_status, scheduler_tick } from 'omnia.scheduler';
 import { net_fetch_test } from 'omnia.resource_fetch';
 import { overview_status } from 'omnia.overview_status';
+import { ExecResult, json_stringify } from 'omnia.core.utils';
 
 function request_args(req) {
 	try {
@@ -39,6 +40,20 @@ function gateway(trace_id, logic, req) {
 	} catch (e) {
 		let err = "" + e;
 		return Fail(ERR.E_INTERNAL, "Gateway Crash: " + err, trace_id);
+	}
+}
+
+function native_call(trace_id, req, action) {
+	try {
+		let result = ExecResult(trace_id, [ 'timeout', '20', 'ucode', '/usr/libexec/omnia-native-api', action, b64enc(json_stringify(req)) ]);
+		let data = json(result.stdout);
+		if (type(data) != 'object' || data == null)
+			return Fail(ERR.E_INTERNAL, 'sing-box API adapter returned invalid output', trace_id);
+		if (data.ok != true)
+			return Fail(ERR.E_CONTROL_FAILED, data.message || 'sing-box API request failed', trace_id, data.detail || '');
+		return Success(data.data, 200, trace_id, 'sing-box API request completed');
+	} catch (e) {
+		return Fail(ERR.E_INTERNAL, 'sing-box API adapter failed', trace_id, '' + e);
 	}
 }
 
@@ -384,6 +399,15 @@ const methods = {
 		}
 	},
 
+	mode_get: { args: {}, call: function(req) { return gateway(gen_trace_id(), mode_get, req); } },
+	mode_set: { args: { mode: "" }, call: function(req) { return gateway(gen_trace_id(), mode_set, req); } },
+
+	native_list: { args: {}, call: function(req) { return native_call(gen_trace_id(), request_args(req), 'list'); } },
+	native_mode_get: { args: {}, call: function(req) { return native_call(gen_trace_id(), request_args(req), 'mode_get'); } },
+	native_mode_set: { args: { mode: '' }, call: function(req) { return native_call(gen_trace_id(), request_args(req), 'mode_set'); } },
+	native_select: { args: { selector: '', target: '' }, call: function(req) { return native_call(gen_trace_id(), request_args(req), 'select'); } },
+	native_test: { args: { node: '' }, call: function(req) { return native_call(gen_trace_id(), request_args(req), 'test'); } },
+
 	selector_set: {
 		args: {
 			selector: "",
@@ -402,6 +426,14 @@ const methods = {
 		call: function(req) {
 			let trace_id = gen_trace_id();
 			return gateway(trace_id, selector_delay_test, req);
+		}
+	},
+
+	node_delay_test: {
+		args: { node: "" },
+		call: function(req) {
+			let trace_id = gen_trace_id();
+			return gateway(trace_id, node_delay_test, req);
 		}
 	},
 

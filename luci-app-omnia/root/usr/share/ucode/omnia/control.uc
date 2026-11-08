@@ -8,7 +8,7 @@ import { PATH } from 'omnia.core.constants';
 import { Success, Fail } from 'omnia.core.result';
 import { ERR } from 'omnia.core.error';
 import { read_text, parse_json_object, json_escape, json_stringify } from 'omnia.core.utils';
-import { http_get_json, http_put_json, clash_api_url } from 'omnia.clash';
+import { http_get_json, http_put_json, http_patch_json, clash_api_url } from 'omnia.clash';
 
 function is_selector(proxy) {
 	if (type(proxy) != "object" || proxy == null)
@@ -266,14 +266,19 @@ function has_target(selector, target) {
 
 function path_segment_escape(value) {
 	value = "" + value;
-	value = replace(value, "%", "%25");
-	value = replace(value, " ", "%20");
-	value = replace(value, "#", "%23");
-	value = replace(value, "?", "%3F");
-	value = replace(value, "/", "%2F");
-	value = replace(value, "&", "%26");
-	value = replace(value, "+", "%2B");
-	return value;
+	let encoded = "";
+	for (let i = 0; ; i++) {
+		let byte = ord(value, i);
+		if (byte == null)
+			break;
+		if ((byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) ||
+		    (byte >= 48 && byte <= 57) || byte == 45 || byte == 95 || byte == 126 ||
+		    (byte == 46 && value != "." && value != ".."))
+			encoded += chr(byte);
+		else
+			encoded += sprintf("%%%02X", byte);
+	}
+	return encoded;
 }
 
 function selector_url(selector) {
@@ -305,6 +310,36 @@ function selector_list(trace_id, req) {
 	}
 }
 
+function mode_get(trace_id, req) {
+	try {
+		let config = http_get_json(trace_id, clash_api_url('/configs'));
+		return Success({ mode: config.mode, modes: config['mode-list'] || [] }, 200, trace_id, 'Clash mode loaded');
+	} catch (e) {
+		return Fail(ERR.E_CLASH_API_UNAVAILABLE, 'Failed to load Clash mode', trace_id, '' + e);
+	}
+}
+
+function mode_set(trace_id, req) {
+	try {
+		if (type(req) != 'object' || req == null || type(req.mode) != 'string')
+			die('mode is required');
+		let current = http_get_json(trace_id, clash_api_url('/configs'));
+		let allowed = false;
+		for (let mode in current['mode-list'] || [])
+			if (lc(mode) == lc(req.mode) && (lc(mode) == 'direct' || lc(mode) == 'rule' || lc(mode) == 'global'))
+				allowed = true;
+		if (!allowed)
+			die('mode is not available');
+		http_patch_json(trace_id, clash_api_url('/configs'), '{"mode":"' + json_escape(req.mode) + '"}');
+		let observed = http_get_json(trace_id, clash_api_url('/configs'));
+		if (type(observed.mode) != 'string' || lc(observed.mode) != lc(req.mode))
+			die('mode change verification failed');
+		return Success({ mode: observed.mode }, 200, trace_id, 'Clash mode changed');
+	} catch (e) {
+		return Fail(ERR.E_CONTROL_FAILED, 'Failed to change Clash mode', trace_id, '' + e);
+	}
+}
+
 function selector_delay_test(trace_id, req) {
 	try {
 		validate_delay_input(req);
@@ -317,7 +352,7 @@ function selector_delay_test(trace_id, req) {
 		if (target == "" || type(data.proxies[target]) != "object" || data.proxies[target] == null)
 			return Fail(ERR.E_SELECTOR_NOT_FOUND, "Selector target not found", trace_id, req.selector);
 
-		let result = http_get_json(trace_id, delay_url(target));
+		let result = http_get_json(trace_id, delay_url(target), 7);
 		let delay = result.delay != null ? result.delay : null;
 
 		return Success({
@@ -328,6 +363,18 @@ function selector_delay_test(trace_id, req) {
 	} catch (e) {
 		let err = "" + e;
 		return Fail(ERR.E_CONTROL_FAILED, "Delay test failed", trace_id, err);
+	}
+}
+
+function node_delay_test(trace_id, req) {
+	try {
+		if (type(req) != "object" || req == null || type(req.node) != "string" || req.node == "")
+			die("node must be a non-empty string");
+		/* The Clash delay endpoint validates the outbound name itself. */
+		let result = http_get_json(trace_id, delay_url(req.node), 7);
+		return Success({ node: req.node, delay: result.delay != null ? result.delay : null }, 200, trace_id, "Node delay test completed");
+	} catch (e) {
+		return Fail(ERR.E_CONTROL_FAILED, "Node delay test failed", trace_id, "" + e);
 	}
 }
 
@@ -346,8 +393,8 @@ function selector_set(trace_id, req) {
 
 		http_put_json(trace_id, selector_url(req.selector), "{\"name\":\"" + json_escape(req.target) + "\"}");
 
-		let verified = find_selector(load_selectors(trace_id), req.selector);
-		if (verified == null || verified.now != req.target)
+		let verified = http_get_json(trace_id, selector_url(req.selector));
+		if (type(verified) != "object" || verified == null || verified.now != req.target)
 			return Fail(ERR.E_SELECTOR_SWITCH_FAILED, "Selector switch verification failed", trace_id, json_stringify(verified));
 
 		return Success({
@@ -360,4 +407,4 @@ function selector_set(trace_id, req) {
 	}
 }
 
-export { selector_list, selector_delay_test, selector_set };
+export { selector_list, selector_delay_test, node_delay_test, selector_set, mode_get, mode_set, path_segment_escape };

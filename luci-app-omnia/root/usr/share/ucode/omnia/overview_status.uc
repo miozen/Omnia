@@ -4,6 +4,7 @@
 
 'use strict';
 
+import { readfile } from 'fs';
 import { Success } from 'omnia.core.result';
 import { runtime_status } from 'omnia.runtime';
 import { get_profile, profile_source_get } from 'omnia.profile';
@@ -251,6 +252,7 @@ function overview_status(trace_id, req) {
 	}
 
 	return Success({
+		package_version: readfile('/usr/share/omnia/package-version') || '',
 		partial: partial,
 		items: items,
 		errors: errors

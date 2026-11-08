@@ -334,6 +334,7 @@ function loadAll() {
 	return callOverviewStatus().then(function(result) {
 		const items = omniaUi.dataOf(result).items || {};
 		return {
+			packageVersion: omniaUi.dataOf(result).package_version || '',
 			runtime: overviewItem(items, 'runtime', _('Runtime 状态加载失败')),
 			profile: overviewItem(items, 'profile', _('模板加载失败')),
 			subscriptions: overviewItem(items, 'subscriptions', _('订阅加载失败')),
@@ -381,7 +382,7 @@ function ensureSupplementalLoad() {
 function runtimeCards() {
 	const state = stateOf();
 	const status = omniaUi.dataOf(pageResults.apiStatus);
-	const official = status.official_api || {};
+	const official = status.singbox_api || {};
 	const clash = status.clash_api || {};
 	const running = !!state.sing_box_running;
 	const tun = !!state.tun_exists;
@@ -390,6 +391,7 @@ function runtimeCards() {
 	const clashObserved = clash.available != null || clash.configured != null;
 	const apiObserved = officialObserved || clashObserved;
 	const officialOk = official.available === true;
+	const officialUnknown = official.available === null;
 	const clashOk = clash.available === true;
 	let apiValue = _('未观测');
 	let apiAccent = '#64748b';
@@ -401,6 +403,9 @@ function runtimeCards() {
 		} else if (officialOk || clashOk) {
 			apiValue = _('部分可用');
 			apiAccent = '#ea580c';
+		} else if (officialUnknown) {
+			apiValue = _('未确认');
+			apiAccent = '#64748b';
 		} else {
 			apiValue = _('不可用');
 			apiAccent = '#dc2626';
@@ -411,7 +416,7 @@ function runtimeCards() {
 		card(_('运行时'), running ? _('运行中') : _('已停止'), running ? _('sing-box 服务运行中') : _('服务已停止'), statusTone(running)),
 		card(_('TUN'), tun ? _('存在') : _('缺失'), state.tun_name || '-', statusTone(tun, running)),
 		card(_('配置'), config ? _('就绪') : _('缺失'), state.runtime_config_hash ? _('已观测到运行配置哈希') : _('运行配置缺失'), statusTone(config)),
-		card(_('API'), apiValue, _('sing-box API: %s | Clash API: %s').format(officialObserved ? (officialOk ? _('可用') : _('不可用')) : '-', clashObserved ? (clashOk ? _('可用') : _('不可用')) : '-'), apiAccent)
+		card(_('API'), apiValue, _('sing-box API: %s | Clash API: %s').format(officialObserved ? (officialUnknown ? _('未确认') : (officialOk ? _('可用') : _('不可用'))) : '-', clashObserved ? (clashOk ? _('可用') : _('不可用')) : '-'), apiAccent)
 	]);
 }
 
@@ -518,7 +523,7 @@ function resourceStatusSection() {
 function operationButtons() {
 	return E('div', { 'style': omniaUi.sectionStyle() }, [
 		omniaUi.sectionTitle(_('运行时操作')),
-		omniaUi.sectionDescription(_('资源准备完成后，在这里执行生成、检查、应用和回滚。策略组切换和延迟测速交给 Dashboard。')),
+		omniaUi.sectionDescription(_('资源准备完成后，在这里执行生成、检查、应用和回滚。策略组切换和延迟测速可在原生代理面板操作。')),
 		omniaUi.statusBox('omnia-overview-action-status', actionStatus, actionStatusOk ? 'ok' : 'error', {
 			padding: '.75rem',
 			margin: '0 0 .75rem'
@@ -536,11 +541,16 @@ function operationButtons() {
 
 function renderPage() {
 	const loadError = pageLoadError();
+	const title = E('span', { 'style': 'display: inline-flex; align-items: baseline; gap: .35rem;' }, [
+		_('Omnia'),
+		pageResults.packageVersion ? E('span', { 'style': 'font-size: .48em; font-weight: normal; color: #667;' }, pageResults.packageVersion) : ''
+	]);
+	const header = omniaUi.pageHeader(title, _('概览是控制面首页。运行时策略组可在原生代理面板操作。'));
 	omniaMotion.inject();
 	ensureSupplementalLoad();
 
 	return E('div', { 'id': 'omnia-overview-root', 'class': 'cbi-map' }, [
-		omniaUi.pageHeader(_('Omnia'), _('概览是控制面首页。运行时策略组交互由 Dashboard 处理。')),
+		header,
 		loadError ? E('div', { 'style': 'border: 1px solid #fecaca; border-radius: 8px; padding: .65rem; margin: 0 0 .75rem; background: #fef2f2; color: #991b1b;' }, loadError) : '',
 		runtimeStatusSection(),
 		resourceStatusSection(),

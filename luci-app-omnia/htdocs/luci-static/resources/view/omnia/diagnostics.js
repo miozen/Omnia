@@ -302,14 +302,14 @@ function controlplanePanel() {
 	const lastError = omniaUi.dataOf(pageResults.lastError);
 	const logs = omniaUi.dataOf(pageResults.logs);
 	const apiStatus = omniaUi.dataOf(pageResults.apiStatus);
-	const official = apiStatus.official_api || {};
+	const official = apiStatus.singbox_api || {};
 	const clash = apiStatus.clash_api || {};
 	const taskLocks = omniaUi.dataOf(pageResults.taskLocks).locks || [];
 
 	return E('div', {}, [
 		E('div', { 'style': omniaUi.sectionStyle() }, [
 			omniaUi.sectionTitle(_('API 状态')),
-			field(_('sing-box API'), official.available ? _('可用') : _('不可用')),
+			field(_('sing-box API'), official.available === null || official.available == null ? _('未确认') : (official.available ? _('可用') : _('不可用'))),
 			field(_('sing-box API 地址'), official.api_url || '-'),
 			field(_('sing-box API 原因'), official.reason || '-'),
 			field(_('Clash API'), clash.available ? _('可用') : _('不可用')),

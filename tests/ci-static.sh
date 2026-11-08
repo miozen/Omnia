@@ -53,3 +53,8 @@ PY
 while IFS= read -r -d '' file; do
 	node --check "$file"
 done < <(find luci-app-omnia/htdocs -type f -name '*.js' -print0)
+
+node tests/panel-behavior.cjs
+node tests/subscription-ui.cjs
+bash tests/release-version.sh
+python3 tests/release-workflow.py

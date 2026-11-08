@@ -1,0 +1,12 @@
+#!/usr/bin/ucode
+'use strict';
+import { dispatch } from 'omnia.native_control';
+
+try {
+	let args = json(b64dec(ARGV[1] || 'e30='));
+	if (type(args) != 'object' || args == null || type(args) == 'array') die('invalid request');
+	print(sprintf('%J\n', { ok: true, data: dispatch(ARGV[0], args) }));
+} catch (e) {
+	print(sprintf('%J\n', { ok: false, message: 'sing-box API request failed', detail: '' + e }));
+	exit(1);
+}

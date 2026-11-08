@@ -4,10 +4,10 @@
 
 'use strict';
 
-import { PATH } from 'omnia.core.constants';
+import { PATH, BIN } from 'omnia.core.constants';
 import { Success, Fail } from 'omnia.core.result';
 import { ERR } from 'omnia.core.error';
-import { read_optional_text, parse_json_object, file_exists } from 'omnia.core.utils';
+import { read_optional_text, parse_json_object, file_exists, ExecResult } from 'omnia.core.utils';
 import { observe_runtime } from 'omnia.runtime';
 import { read_dashboard_source } from 'omnia.dashboard_config';
 import { clash_api_url, api_available } from 'omnia.clash';
@@ -66,6 +66,7 @@ function runtime_singbox_api(config, source) {
 			listen: type(service.listen) == "string" && service.listen != "" ? service.listen : "0.0.0.0",
 			listen_port: int(service.listen_port || 0),
 			secret_configured: type(service.secret) == "string" && service.secret != "",
+			tls_enabled: type(service.tls) == "object" && service.tls != null && service.tls.enabled == true,
 			dashboard_enabled: type(service.dashboard) == "object" && service.dashboard != null && service.dashboard.enabled == true
 		};
 
@@ -86,13 +87,14 @@ function runtime_clash_api(config) {
 	return config.experimental.clash_api;
 }
 
-function singbox_status(source, config, running) {
+function singbox_status(trace_id, source, config, running) {
 	let runtime_api = runtime_singbox_api(config, source);
 	let runtime_configured = runtime_api.configured == true;
 	let configured = source.enabled == true || runtime_configured;
 	let listen = runtime_configured ? runtime_api.listen : source.listen;
 	let listen_port = runtime_configured ? runtime_api.listen_port : source.listen_port;
-	let available = configured && runtime_configured && running;
+	let available = false;
+	let verified = false;
 	let reason = "ok";
 
 	if (!configured)
@@ -101,6 +103,22 @@ function singbox_status(source, config, running) {
 		reason = "runtime_not_running";
 	else if (!runtime_configured)
 		reason = "runtime_service_missing";
+	else if (runtime_api.secret_configured || runtime_api.tls_enabled) {
+		available = null;
+		reason = runtime_api.secret_configured ? "probe_secret_unsupported" : "probe_tls_unsupported";
+	}
+	else if (listen_port <= 0 || listen_port > 65535)
+		reason = "invalid_endpoint";
+	else {
+		let host = listen;
+		if (host == "0.0.0.0") host = "127.0.0.1";
+		else if (host == "::") host = "::1";
+		if (index(host, ":") >= 0 && substr(host, 0, 1) != "[") host = "[" + host + "]";
+		let probe = ExecResult(trace_id, [ BIN.TIMEOUT, "5", BIN.SING_BOX, "api", "--url", "http://" + host + ":" + listen_port, "mode" ]);
+		verified = true;
+		available = probe.code == 0;
+		reason = available ? "ok" : "probe_failed";
+	}
 
 	return {
 		configured: configured,
@@ -110,6 +128,7 @@ function singbox_status(source, config, running) {
 		tag: runtime_configured ? runtime_api.tag : "singbox-api",
 		running: running,
 		available: available,
+		verified: verified,
 		listen: listen,
 		listen_port: listen_port,
 		api_url: api_url_from_endpoint(listen, listen_port),
@@ -159,7 +178,7 @@ function api_status(trace_id, req) {
 		let running = observed.running == true;
 
 		return Success({
-			singbox_api: singbox_status(source, config, running),
+			singbox_api: singbox_status(trace_id, source, config, running),
 			clash_api: clash_status(trace_id, source, config, running)
 		}, 200, trace_id, "API status observed");
 	} catch (e) {

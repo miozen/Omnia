@@ -86,15 +86,17 @@ function clash_api_url(path) {
 	return clash_api_base_url() + path;
 }
 
-function wget_args(method, url, body) {
-	let args = [ BIN.TIMEOUT, "3", "wget", "-q", "-T", "2" ];
+function wget_args(method, url, body, timeout_sec) {
+	let limit = timeout_sec || 3;
+	let args = [ BIN.TIMEOUT, "" + limit, "wget", "-q", "-T", "" + (limit - 1) ];
 	let secret = clash_api_secret();
 
 	if (secret != "")
 		push(args, "--header=Authorization: Bearer " + secret);
 
-	if (method == "PUT") {
-		push(args, "--method=PUT");
+	if (method == "PUT" || method == "PATCH") {
+		push(args, "--method=" + method);
+		push(args, "--header=Content-Type: application/json");
 		push(args, "--body-data=" + body);
 	}
 
@@ -104,8 +106,8 @@ function wget_args(method, url, body) {
 	return args;
 }
 
-function http_get_json(trace_id, url) {
-	let result = ExecResult(trace_id, wget_args("GET", url, ""));
+function http_get_json(trace_id, url, timeout_sec) {
+	let result = ExecResult(trace_id, wget_args("GET", url, "", timeout_sec));
 	let body = first_json_line(result.stdout);
 
 	if (result.code != 0)
@@ -125,6 +127,13 @@ function http_put_json(trace_id, url, body) {
 	return result.stdout || "";
 }
 
+function http_patch_json(trace_id, url, body) {
+	let result = ExecResult(trace_id, wget_args("PATCH", url, body));
+	if (result.code != 0)
+		die(result.stderr || result.stdout || "HTTP PATCH failed");
+	return result.stdout || "";
+}
+
 function api_available(trace_id, url) {
 	try {
 		http_get_json(trace_id, url);
@@ -135,4 +144,4 @@ function api_available(trace_id, url) {
 	}
 }
 
-export { clash_api_external_controller, clash_api_base_url, clash_api_url, http_get_json, http_put_json, api_available };
+export { clash_api_external_controller, clash_api_base_url, clash_api_url, http_get_json, http_put_json, http_patch_json, api_available };

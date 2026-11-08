@@ -13,7 +13,7 @@ Omnia 内嵌原生代理面板，通过 LuCI 同源会话访问已启用的 sing
 
 ## Release
 
-仅从已验证的 `master` 提交创建 `vX.Y.Z` tag 才会发布正式版本。Release 固定提供：
+已验证的 `dev` 合并到 `master` 后自动发布：首次版本为 `v0.1.0`，后续自动递增补丁号；大版本更新时，PR 标题以 `[manual-release]` 开头，合并后在 `master` 手动运行发布工作流并指定版本。Release 固定提供：
 
 - `luci-app-omnia_<版本>-1_all.ipk`
 - `luci-app-omnia_<版本>-r1_all.apk`

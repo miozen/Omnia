@@ -1,4 +1,4 @@
-name: Release Shinra Packages
+name: Release Omnia Packages
 
 on:
   push:
@@ -26,9 +26,9 @@ jobs:
               exit 1
               ;;
           esac
-          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" luci-app-shinra/Makefile
-          sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' luci-app-shinra/Makefile
-          grep '^PKG_\(VERSION\|RELEASE\):=' luci-app-shinra/Makefile
+          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" luci-app-omnia/Makefile
+          sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' luci-app-omnia/Makefile
+          grep '^PKG_\(VERSION\|RELEASE\):=' luci-app-omnia/Makefile
 
       - name: Provision Build Environment
         run: |

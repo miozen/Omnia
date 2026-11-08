@@ -1,4 +1,4 @@
-name: Verify Shinra on OpenWrt
+name: Verify Omnia on OpenWrt
 
 on:
   push:
@@ -28,7 +28,17 @@ jobs:
           docker run --rm \
             -v "$PWD:/work:ro" \
             openwrt/rootfs:latest \
-            sh -c 'find /work/luci-app-shinra/root/usr/share/ucode -type f -name "*.uc" -exec sh -c '\''for file do ucode -L /work/luci-app-shinra/root/usr/share/ucode -c,module -o /tmp/shinra-ucode-check "$file" || exit $?; done'\'' sh {} +'
+            sh -c 'find /work/luci-app-omnia/root/usr/share/ucode -type f -name "*.uc" -exec sh -c '\''for file do ucode -L /work/luci-app-omnia/root/usr/share/ucode -c,module -o /tmp/shinra-ucode-check "$file" || exit $?; done'\'' sh {} +'
+
+      - name: Test Control Path Encoding
+        run: |
+          docker run --rm -v "$PWD:/work:ro" openwrt/rootfs:latest \
+            ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/control-encoding.uc
+
+      - name: Test sing-box protobuf decoding
+        run: |
+          docker run --rm -v "$PWD:/work:ro" openwrt/rootfs:latest \
+            ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/grpc-proto.uc
 
   build:
     name: Assemble Packages
@@ -40,8 +50,8 @@ jobs:
 
       - name: Set Package Release
         run: |
-          sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=${GITHUB_RUN_NUMBER}/" luci-app-shinra/Makefile
-          grep '^PKG_RELEASE:=' luci-app-shinra/Makefile
+          sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=${GITHUB_RUN_NUMBER}/" luci-app-omnia/Makefile
+          grep '^PKG_RELEASE:=' luci-app-omnia/Makefile
 
       - name: Provision Build Environment
         run: |
@@ -67,7 +77,7 @@ jobs:
       - name: Upload IPK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: shinra-ipk-${{ github.sha }}
+          name: omnia-ipk-${{ github.sha }}
           path: '*.ipk'
           if-no-files-found: error
           retention-days: 7
@@ -75,7 +85,7 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: shinra-apk-${{ github.sha }}
+          name: omnia-apk-${{ github.sha }}
           path: '*.apk'
           if-no-files-found: error
           retention-days: 7

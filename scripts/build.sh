@@ -3,14 +3,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_DIR="${ROOT_DIR}/luci-app-shinra"
+APP_DIR="${ROOT_DIR}/luci-app-omnia"
 PACKAGE_MODE="${1:-ipk}"
 BUILD_DIR="${ROOT_DIR}/build/${PACKAGE_MODE}"
-PKG_DIR="${BUILD_DIR}/luci-app-shinra"
+PKG_DIR="${BUILD_DIR}/luci-app-omnia"
 CONTROL_DIR="${PKG_DIR}/CONTROL"
 APK_META_DIR="${PKG_DIR}/lib/apk/packages"
-IPK_DEPENDS="luci-base, rpcd, rpcd-mod-ucode, ucode, ucode-mod-fs, ucode-mod-ubus, jsonfilter, sing-box, ip-full, ca-bundle, wget-ssl, coreutils-timeout"
-APK_DEPENDS="luci-base rpcd rpcd-mod-ucode ucode ucode-mod-fs ucode-mod-ubus jsonfilter sing-box ip-full ca-bundle wget-ssl coreutils-timeout"
+IPK_DEPENDS="luci-base, rpcd, rpcd-mod-ucode, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uclient, ucode-mod-uloop, jsonfilter, sing-box, ip-full, ca-bundle, wget-ssl, coreutils-timeout"
+APK_DEPENDS="luci-base rpcd rpcd-mod-ucode ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uclient ucode-mod-uloop jsonfilter sing-box ip-full ca-bundle wget-ssl coreutils-timeout"
 
 fail() {
 	echo "build.sh: $*" >&2
@@ -55,6 +55,7 @@ need_file "${APP_DIR}/root/etc/uci-defaults/90-shinra"
 need_file "${APP_DIR}/root/usr/libexec/shinra-auto-task"
 need_file "${APP_DIR}/root/usr/libexec/shinra-ensure-auto-task"
 need_file "${APP_DIR}/root/usr/libexec/shinra-runner"
+need_file "${APP_DIR}/root/usr/libexec/shinra-native-api"
 need_file "${APP_DIR}/root/usr/libexec/shinra-ruleset-sync-job"
 need_file "${APP_DIR}/root/usr/share/rpcd/ucode/shinra.uc"
 need_file "${APP_DIR}/root/usr/share/rpcd/acl.d/luci-app-shinra.json"
@@ -78,12 +79,18 @@ fi
 cp -a "${APP_DIR}/root/." "${PKG_DIR}/"
 mkdir -p "${PKG_DIR}/www"
 cp -a "${APP_DIR}/htdocs/." "${PKG_DIR}/www/"
+if [ "$PACKAGE_MODE" = "apk" ]; then
+	printf '%s' "$apk_version" > "${PKG_DIR}/usr/share/shinra/package-version"
+else
+	printf '%s' "${pkg_version}-${pkg_release}" > "${PKG_DIR}/usr/share/shinra/package-version"
+fi
 
 chmod 0755 "${PKG_DIR}/etc/init.d/shinra"
 chmod 0755 "${PKG_DIR}/etc/uci-defaults/90-shinra"
 chmod 0755 "${PKG_DIR}/usr/libexec/shinra-auto-task"
 chmod 0755 "${PKG_DIR}/usr/libexec/shinra-ensure-auto-task"
 chmod 0755 "${PKG_DIR}/usr/libexec/shinra-runner"
+chmod 0755 "${PKG_DIR}/usr/libexec/shinra-native-api"
 chmod 0755 "${PKG_DIR}/usr/libexec/shinra-ruleset-sync-job"
 
 write_ipk_scripts() {
@@ -95,7 +102,7 @@ Maintainer: Von <noreply@example.com>
 Section: luci
 Priority: optional
 Depends: ${IPK_DEPENDS}
-Description: Shinra sing-box TUN control panel for LuCI.
+Description: Omnia sing-box TUN control panel for LuCI.
 EOF
 
 cat > "${CONTROL_DIR}/postinst" <<'EOF'
@@ -272,9 +279,9 @@ build_apk() {
 	apk mkpkg \
 		--info "name:${pkg_name}" \
 		--info "version:${apk_version}" \
-		--info "description:Shinra sing-box TUN control panel for LuCI." \
+		--info "description:Omnia sing-box TUN control panel for LuCI." \
 		--info "arch:${apk_arch}" \
-		--info "origin:https://github.com/miozen/shinra" \
+		--info "origin:https://github.com/miozen/Omnia" \
 		--info "url:" \
 		--info "maintainer:Von <noreply@example.com>" \
 		--info "provides:" \

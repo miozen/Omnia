@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Validate sing-box portions of Shinra profile templates against their schema."""
+"""Validate sing-box portions of Omnia profile templates against their schema."""
 
 import json
 import sys

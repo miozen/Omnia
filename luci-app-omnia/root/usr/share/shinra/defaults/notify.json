@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "telegram": {
+    "enabled": false,
+    "mode": "fail_only",
+    "bot_token": "",
+    "chat_id": "",
+    "location_name": "Omnia",
+    "fetch_strategy": "proxy",
+    "timeout_sec": 15
+  }
+}

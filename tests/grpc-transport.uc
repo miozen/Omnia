@@ -1,6 +1,6 @@
 'use strict';
-import { request } from 'shinra.core.grpc_transport';
-import { decode_mode, decode_groups, field_string } from 'shinra.core.grpc_proto';
+import { request } from 'omnia.core.grpc_transport';
+import { decode_mode, decode_groups, field_string } from 'omnia.core.grpc_proto';
 
 let url = 'http://127.0.0.1:20123';
 let mode = decode_mode(request(url, '', 'GetClashModeStatus', '', false));

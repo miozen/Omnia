@@ -3,7 +3,7 @@
 Omnia 是面向 OpenWrt 25.12+ 的 sing-box TUN 与 LuCI 管理插件。APK 是主要交付物；IPK
 仅用于旧系统兼容。
 
-安装包名为 `luci-app-omnia`。为兼容已有配置，运行时路径、服务和 RPC 标识仍沿用 `shinra`；它与原 `luci-app-shinra` 包共享文件，不支持同时安装。模板的原有默认来源保持不变。
+安装包、配置路径、服务和 RPC 标识均使用 `omnia`；不自动迁移原项目配置。
 
 ## Dashboard 访问模型
 

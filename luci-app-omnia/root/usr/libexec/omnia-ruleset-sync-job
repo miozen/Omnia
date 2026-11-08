@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -u
+
+exec ucode -e 'import { ruleset_download_required_start } from "omnia.ruleset"; let result = ruleset_download_required_start("omnia-ruleset-sync-job", {}); if (!result || result.ok != true) die("failed to start Rule Set sync");'

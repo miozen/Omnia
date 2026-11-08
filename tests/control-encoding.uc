@@ -1,5 +1,5 @@
 'use strict';
-import { path_segment_escape } from 'shinra.control';
+import { path_segment_escape } from 'omnia.control';
 
 assert(path_segment_escape('abc-_.~') == 'abc-_.~', 'unreserved characters');
 assert(path_segment_escape('a/b?#% +') == 'a%2Fb%3F%23%25%20%2B', 'reserved characters');

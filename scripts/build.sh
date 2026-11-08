@@ -50,24 +50,24 @@ apk_version="${pkg_version}-r${pkg_release}"
 [ -n "$pkg_arch" ] || pkg_arch="all"
 
 need_file "${APP_DIR}/Makefile"
-need_file "${APP_DIR}/root/etc/init.d/shinra"
-need_file "${APP_DIR}/root/etc/uci-defaults/90-shinra"
-need_file "${APP_DIR}/root/usr/libexec/shinra-auto-task"
-need_file "${APP_DIR}/root/usr/libexec/shinra-ensure-auto-task"
-need_file "${APP_DIR}/root/usr/libexec/shinra-runner"
-need_file "${APP_DIR}/root/usr/libexec/shinra-native-api"
-need_file "${APP_DIR}/root/usr/libexec/shinra-ruleset-sync-job"
-need_file "${APP_DIR}/root/usr/share/rpcd/ucode/shinra.uc"
-need_file "${APP_DIR}/root/usr/share/rpcd/acl.d/luci-app-shinra.json"
-need_file "${APP_DIR}/root/usr/share/luci/menu.d/luci-app-shinra.json"
-need_file "${APP_DIR}/root/usr/share/shinra/profiles/main-profile.json"
-need_file "${APP_DIR}/root/usr/share/shinra/defaults/profile-source.json"
-need_file "${APP_DIR}/root/usr/share/shinra/defaults/notify.json"
-need_file "${APP_DIR}/root/usr/share/shinra/defaults/dashboard.json"
-need_file "${APP_DIR}/root/usr/share/shinra/defaults/ruleset-policy.json"
-need_file "${APP_DIR}/root/usr/share/shinra/defaults/subscriptions.json"
-need_file "${APP_DIR}/root/usr/share/shinra/defaults/node-snapshot.json"
-need_file "${APP_DIR}/htdocs/luci-static/resources/view/shinra/overview.js"
+need_file "${APP_DIR}/root/etc/init.d/omnia"
+need_file "${APP_DIR}/root/etc/uci-defaults/90-omnia"
+need_file "${APP_DIR}/root/usr/libexec/omnia-auto-task"
+need_file "${APP_DIR}/root/usr/libexec/omnia-ensure-auto-task"
+need_file "${APP_DIR}/root/usr/libexec/omnia-runner"
+need_file "${APP_DIR}/root/usr/libexec/omnia-native-api"
+need_file "${APP_DIR}/root/usr/libexec/omnia-ruleset-sync-job"
+need_file "${APP_DIR}/root/usr/share/rpcd/ucode/omnia.uc"
+need_file "${APP_DIR}/root/usr/share/rpcd/acl.d/luci-app-omnia.json"
+need_file "${APP_DIR}/root/usr/share/luci/menu.d/luci-app-omnia.json"
+need_file "${APP_DIR}/root/usr/share/omnia/profiles/main-profile.json"
+need_file "${APP_DIR}/root/usr/share/omnia/defaults/profile-source.json"
+need_file "${APP_DIR}/root/usr/share/omnia/defaults/notify.json"
+need_file "${APP_DIR}/root/usr/share/omnia/defaults/dashboard.json"
+need_file "${APP_DIR}/root/usr/share/omnia/defaults/ruleset-policy.json"
+need_file "${APP_DIR}/root/usr/share/omnia/defaults/subscriptions.json"
+need_file "${APP_DIR}/root/usr/share/omnia/defaults/node-snapshot.json"
+need_file "${APP_DIR}/htdocs/luci-static/resources/view/omnia/overview.js"
 
 rm -rf "${BUILD_DIR}"
 if [ "$PACKAGE_MODE" = "apk" ]; then
@@ -80,18 +80,18 @@ cp -a "${APP_DIR}/root/." "${PKG_DIR}/"
 mkdir -p "${PKG_DIR}/www"
 cp -a "${APP_DIR}/htdocs/." "${PKG_DIR}/www/"
 if [ "$PACKAGE_MODE" = "apk" ]; then
-	printf '%s' "$apk_version" > "${PKG_DIR}/usr/share/shinra/package-version"
+	printf '%s' "$apk_version" > "${PKG_DIR}/usr/share/omnia/package-version"
 else
-	printf '%s' "${pkg_version}-${pkg_release}" > "${PKG_DIR}/usr/share/shinra/package-version"
+	printf '%s' "${pkg_version}-${pkg_release}" > "${PKG_DIR}/usr/share/omnia/package-version"
 fi
 
-chmod 0755 "${PKG_DIR}/etc/init.d/shinra"
-chmod 0755 "${PKG_DIR}/etc/uci-defaults/90-shinra"
-chmod 0755 "${PKG_DIR}/usr/libexec/shinra-auto-task"
-chmod 0755 "${PKG_DIR}/usr/libexec/shinra-ensure-auto-task"
-chmod 0755 "${PKG_DIR}/usr/libexec/shinra-runner"
-chmod 0755 "${PKG_DIR}/usr/libexec/shinra-native-api"
-chmod 0755 "${PKG_DIR}/usr/libexec/shinra-ruleset-sync-job"
+chmod 0755 "${PKG_DIR}/etc/init.d/omnia"
+chmod 0755 "${PKG_DIR}/etc/uci-defaults/90-omnia"
+chmod 0755 "${PKG_DIR}/usr/libexec/omnia-auto-task"
+chmod 0755 "${PKG_DIR}/usr/libexec/omnia-ensure-auto-task"
+chmod 0755 "${PKG_DIR}/usr/libexec/omnia-runner"
+chmod 0755 "${PKG_DIR}/usr/libexec/omnia-native-api"
+chmod 0755 "${PKG_DIR}/usr/libexec/omnia-ruleset-sync-job"
 
 write_ipk_scripts() {
 cat > "${CONTROL_DIR}/control" <<EOF
@@ -111,16 +111,16 @@ cat > "${CONTROL_DIR}/postinst" <<'EOF'
 set -e
 
 if [ -z "${IPKG_INSTROOT:-}" ]; then
-	if [ -x /etc/uci-defaults/90-shinra ]; then
-		/etc/uci-defaults/90-shinra || true
+	if [ -x /etc/uci-defaults/90-omnia ]; then
+		/etc/uci-defaults/90-omnia || true
 	fi
 
-	if [ -x /usr/libexec/shinra-ensure-auto-task ]; then
-		/usr/libexec/shinra-ensure-auto-task || true
+	if [ -x /usr/libexec/omnia-ensure-auto-task ]; then
+		/usr/libexec/omnia-ensure-auto-task || true
 	fi
 
-	if [ -x /etc/init.d/shinra ]; then
-		/etc/init.d/shinra enable 2>/dev/null || true
+	if [ -x /etc/init.d/omnia ]; then
+		/etc/init.d/omnia enable 2>/dev/null || true
 	fi
 
 	/etc/init.d/rpcd restart 2>/dev/null || true
@@ -136,11 +136,11 @@ cat > "${CONTROL_DIR}/prerm" <<'EOF'
 set -e
 
 if [ -z "${IPKG_INSTROOT:-}" ]; then
-	/etc/init.d/shinra disable 2>/dev/null || true
-	/etc/init.d/shinra stop 2>/dev/null || true
+	/etc/init.d/omnia disable 2>/dev/null || true
+	/etc/init.d/omnia stop 2>/dev/null || true
 
 	if [ -f /etc/crontabs/root ]; then
-		sed -i '\#/usr/libexec/shinra-auto-task#d' /etc/crontabs/root 2>/dev/null || true
+		sed -i '\#/usr/libexec/omnia-auto-task#d' /etc/crontabs/root 2>/dev/null || true
 		/etc/init.d/cron restart 2>/dev/null || true
 	fi
 fi
@@ -155,13 +155,13 @@ write_apk_scripts() {
 	find "${PKG_DIR}" -type f,l -printf '/%P\n' | sort > "${APK_META_DIR}/${pkg_name}.list"
 
 	cat > "${APK_META_DIR}/${pkg_name}.conffiles" <<EOF
-/etc/shinra/main-profile.json
-/etc/shinra/profile-source.json
-/etc/shinra/notify.json
-/etc/shinra/dashboard.json
-/etc/shinra/subscriptions.json
-/etc/shinra/node-snapshot.json
-/etc/shinra/runtime/config.json
+/etc/omnia/main-profile.json
+/etc/omnia/profile-source.json
+/etc/omnia/notify.json
+/etc/omnia/dashboard.json
+/etc/omnia/subscriptions.json
+/etc/omnia/node-snapshot.json
+/etc/omnia/runtime/config.json
 EOF
 
 	while IFS= read -r file; do
@@ -175,16 +175,16 @@ EOF
 [ "${IPKG_NO_SCRIPT}" = "1" ] && exit 0
 
 if [ -z "${IPKG_INSTROOT:-}" ]; then
-	if [ -x /etc/uci-defaults/90-shinra ]; then
-		/etc/uci-defaults/90-shinra || true
+	if [ -x /etc/uci-defaults/90-omnia ]; then
+		/etc/uci-defaults/90-omnia || true
 	fi
 
-	if [ -x /usr/libexec/shinra-ensure-auto-task ]; then
-		/usr/libexec/shinra-ensure-auto-task || true
+	if [ -x /usr/libexec/omnia-ensure-auto-task ]; then
+		/usr/libexec/omnia-ensure-auto-task || true
 	fi
 
-	if [ -x /etc/init.d/shinra ]; then
-		/etc/init.d/shinra enable 2>/dev/null || true
+	if [ -x /etc/init.d/omnia ]; then
+		/etc/init.d/omnia enable 2>/dev/null || true
 	fi
 
 	rm -f /tmp/luci-indexcache.* 2>/dev/null || true
@@ -201,16 +201,16 @@ EOF
 [ "${IPKG_NO_SCRIPT}" = "1" ] && exit 0
 
 if [ -z "${IPKG_INSTROOT:-}" ]; then
-	if [ -x /etc/uci-defaults/90-shinra ]; then
-		/etc/uci-defaults/90-shinra || true
+	if [ -x /etc/uci-defaults/90-omnia ]; then
+		/etc/uci-defaults/90-omnia || true
 	fi
 
-	if [ -x /usr/libexec/shinra-ensure-auto-task ]; then
-		/usr/libexec/shinra-ensure-auto-task || true
+	if [ -x /usr/libexec/omnia-ensure-auto-task ]; then
+		/usr/libexec/omnia-ensure-auto-task || true
 	fi
 
-	if [ -x /etc/init.d/shinra ]; then
-		/etc/init.d/shinra enable 2>/dev/null || true
+	if [ -x /etc/init.d/omnia ]; then
+		/etc/init.d/omnia enable 2>/dev/null || true
 	fi
 
 	rm -f /tmp/luci-indexcache.* 2>/dev/null || true
@@ -225,11 +225,11 @@ EOF
 #!/bin/sh
 
 if [ -z "${IPKG_INSTROOT:-}" ]; then
-	/etc/init.d/shinra disable 2>/dev/null || true
-	/etc/init.d/shinra stop 2>/dev/null || true
+	/etc/init.d/omnia disable 2>/dev/null || true
+	/etc/init.d/omnia stop 2>/dev/null || true
 
 	if [ -f /etc/crontabs/root ]; then
-		sed -i '\#/usr/libexec/shinra-auto-task#d' /etc/crontabs/root 2>/dev/null || true
+		sed -i '\#/usr/libexec/omnia-auto-task#d' /etc/crontabs/root 2>/dev/null || true
 		/etc/init.d/cron restart 2>/dev/null || true
 	fi
 fi

@@ -1,0 +1,46 @@
+{
+  "admin/services/omnia": {
+    "title": "Omnia",
+    "order": 60,
+    "action": {
+      "type": "firstchild"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-omnia"
+      ]
+    }
+  },
+  "admin/services/omnia/overview": {
+    "title": "\u6982\u89c8",
+    "order": 10,
+    "action": {
+      "type": "view",
+      "path": "omnia/overview"
+    }
+  },
+  "admin/services/omnia/panel": {
+    "title": "\u9762\u677f",
+    "order": 20,
+    "action": {
+      "type": "view",
+      "path": "omnia/panel"
+    }
+  },
+  "admin/services/omnia/resources": {
+    "title": "\u8d44\u6e90\u7ba1\u7406",
+    "order": 30,
+    "action": {
+      "type": "view",
+      "path": "omnia/resources"
+    }
+  },
+  "admin/services/omnia/diagnostics": {
+    "title": "\u7f51\u7edc\u8bca\u65ad",
+    "order": 40,
+    "action": {
+      "type": "view",
+      "path": "omnia/diagnostics"
+    }
+  }
+}

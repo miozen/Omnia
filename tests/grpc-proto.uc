@@ -1,5 +1,5 @@
 'use strict';
-import { field_string, decode_groups, decode_mode, grpc_frame, grpc_text_decode, grpc_first_message } from 'shinra.core.grpc_proto';
+import { field_string, decode_groups, decode_mode, grpc_frame, grpc_text_decode, grpc_first_message } from 'omnia.core.grpc_proto';
 
 let item = field_string(1, '🇭🇰 香港 / 01') + field_string(2, 'vless') + chr(0x20, 42);
 let group = field_string(1, '节点 选择') + field_string(2, 'selector') + chr(0x18, 1) + field_string(4, '🇭🇰 香港 / 01') + field_string(6, item);

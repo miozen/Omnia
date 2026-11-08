@@ -1,5 +1,5 @@
 'use strict';
-import { dispatch } from 'shinra.native_control';
+import { dispatch } from 'omnia.native_control';
 
 let list = dispatch('list', {}).selectors;
 assert(length(list) == 1 && list[0].name == 'test group', 'native-only group list');

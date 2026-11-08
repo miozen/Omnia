@@ -29,7 +29,7 @@ const context = vm.createContext({
 	E: (tag, attrs, children) => ({ tag, attrs, children, appendChild() {}, addEventListener() {} })
 });
 vm.runInContext("String.prototype.format = function() { let args = arguments, i = 0; return this.replace(/%s/g, () => args[i++]); };", context);
-const source = fs.readFileSync('luci-app-omnia/htdocs/luci-static/resources/view/shinra/panel.js', 'utf8');
+const source = fs.readFileSync('luci-app-omnia/htdocs/luci-static/resources/view/omnia/panel.js', 'utf8');
 context.panelView = vm.runInContext('(function(){' + source.replace('return view.extend({', 'globalThis.panelTest = { testNodes, switchNode, visibleOptions, disabled, flagForName, setAllExpanded, changeBackend, setGroups: value => { groups = value; }, isExpanded: name => expanded[name], getStatus: () => status, getBackend: () => backend, getApis: () => availableApis.join(",") }; return view.extend({') + '\n})()', context);
 
 (async () => {

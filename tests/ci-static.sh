@@ -6,16 +6,16 @@ if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
 	git diff --check HEAD^ HEAD
 fi
 
-jq empty luci-app-omnia/root/usr/share/rpcd/acl.d/luci-app-shinra.json
-jq empty luci-app-omnia/root/usr/share/shinra/defaults/dashboard.json
-jq empty luci-app-omnia/root/usr/share/shinra/defaults/ruleset-policy.json
+jq empty luci-app-omnia/root/usr/share/rpcd/acl.d/luci-app-omnia.json
+jq empty luci-app-omnia/root/usr/share/omnia/defaults/dashboard.json
+jq empty luci-app-omnia/root/usr/share/omnia/defaults/ruleset-policy.json
 
-if ! cmp -s profiles/main-profile.json luci-app-omnia/root/usr/share/shinra/profiles/main-profile.json; then
+if ! cmp -s profiles/main-profile.json luci-app-omnia/root/usr/share/omnia/profiles/main-profile.json; then
 	echo 'The development Profile and packaged default Profile must be identical' >&2
 	exit 1
 fi
 
-for profile in profiles/main-profile.json luci-app-omnia/root/usr/share/shinra/profiles/main-profile.json; do
+for profile in profiles/main-profile.json luci-app-omnia/root/usr/share/omnia/profiles/main-profile.json; do
 	jq empty "$profile"
 	JQ_SCHEMA=$(jq -r '."$schema" // empty' "$profile")
 	if [ "$JQ_SCHEMA" != 'https://sing-box.sagernet.org/schema.json' ]; then
@@ -28,19 +28,19 @@ for profile in profiles/main-profile.json luci-app-omnia/root/usr/share/shinra/p
 	fi
 done
 
-if [ "$(jq -r '.mode // empty' luci-app-omnia/root/usr/share/shinra/defaults/ruleset-policy.json)" != 'auto' ]; then
+if [ "$(jq -r '.mode // empty' luci-app-omnia/root/usr/share/omnia/defaults/ruleset-policy.json)" != 'auto' ]; then
 	echo 'The default Rule Set policy must retain auto mode' >&2
 	exit 1
 fi
 
-if rg -q 'validate_tun_contract|tun\.stack|auto_detect_interface must be true' luci-app-omnia/root/usr/share/ucode/shinra/generator_validate.uc; then
+if rg -q 'validate_tun_contract|tun\.stack|auto_detect_interface must be true' luci-app-omnia/root/usr/share/ucode/omnia/generator_validate.uc; then
 	echo 'The runtime contract must not validate sing-box version-specific TUN fields' >&2
 	exit 1
 fi
 
 python3 tests/validate-profile-schema.py \
 	profiles/main-profile.json \
-	luci-app-omnia/root/usr/share/shinra/profiles/main-profile.json
+	luci-app-omnia/root/usr/share/omnia/profiles/main-profile.json
 
 python3 - <<'PY'
 import pathlib

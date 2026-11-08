@@ -52,7 +52,11 @@ function visibleOptions(group, options) {
 	return result;
 }
 
-function error(result) { return result && (result.detail || result.message || result.code) || _('请求失败'); }
+function unavailableMessage() { return _('无法连接代理面板。请确认 sing-box 已运行、至少一个控制接口已启用，并检查当前账号权限，然后刷新重试。'); }
+function error(result) {
+	let message = result && (result.detail || result.message || result.code) || _('请求失败');
+	return /failed to parse json string/i.test(String(message)) ? unavailableMessage() : message;
+}
 function redraw() { let root = document.getElementById('omnia-panel-root'); if (root) root.replaceWith(renderPanel()); }
 function refresh() {
 	return Promise.all(backend === 'singbox' ? [nativeList(), nativeMode()] : [list(), getMode()]).then(function(results) { let r = results[0], m = results[1]; if (!r || !r.ok) throw new Error(error(r)); groups = r.data.selectors || []; if (m && m.ok) { mode = m.data.mode; modes = m.data.modes || []; status = ''; } else status = _('模式读取失败：%s').format(error(m)); redraw(); })
@@ -137,7 +141,7 @@ return view.extend({
 		backend = nativeReady ? 'singbox' : 'clash';
 		let r = results[backend === 'clash' ? 0 : 2], m = results[backend === 'clash' ? 1 : 3];
 		groups = r && r.ok ? r.data.selectors || [] : []; mode = m && m.ok ? m.data.mode : ''; modes = m && m.ok ? m.data.modes || [] : [];
-		status = !r || !r.ok ? error(r) : (!m || !m.ok ? _('模式读取失败：%s').format(error(m)) : '');
+		status = !availableApis.length ? unavailableMessage() : (!r || !r.ok ? error(r) : (!m || !m.ok ? _('模式读取失败：%s').format(error(m)) : ''));
 		return renderPanel();
 	},
 	handleSaveApply: null, handleSave: null, handleReset: null

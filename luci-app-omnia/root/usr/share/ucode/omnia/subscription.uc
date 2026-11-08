@@ -124,17 +124,19 @@ function preserve_unselected_source(source, strategy, old_snapshot, require_exis
 	}
 
 	let old_outbounds = old_outbounds_for_source(old_snapshot, source.id);
-	if (require_existing == true && length(old_outbounds) == 0)
+	let old_source = old_source_for_id(old_snapshot, source.id);
+	if (require_existing == true && (!old_snapshot.available || old_source == null))
 		die("Single-source refresh requires existing snapshot for unselected source: " + source.name);
 
 	preserve_source_attribution(old_outbounds, source.id, source.name);
-	let old_source = old_source_for_id(old_snapshot, source.id);
 	let status = type(old_source) == "object" && old_source != null && type(old_source.status) == "string" && old_source.status != "" ?
 		old_source.status :
-		"unchanged";
+		"not_refreshed";
+	let old_ok = type(old_source) == "object" && old_source != null && old_source.ok == true;
+	let old_error = type(old_source) == "object" && old_source != null && type(old_source.error) == "string" ? old_source.error : "";
 
 	return {
-		source: source_result_object(source, strategy, status, true, length(old_outbounds), ""),
+		source: source_result_object(source, strategy, status, old_ok, length(old_outbounds), old_error),
 		outbounds: old_outbounds
 	};
 }

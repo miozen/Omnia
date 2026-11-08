@@ -76,5 +76,7 @@ context.panelView = vm.runInContext('(function(){' + source.replace('return view
 	context.panelView.render([{ ok: true, data: { selectors: [] } }, { ok: true, data: { mode: 'rule', modes: ['rule'] } }, { ok: false }, { ok: false }]);
 	assert.equal(vm.runInContext('panelTest.getApis()', context), 'clash', 'unavailable native interface is not offered');
 	assert.equal(vm.runInContext('panelTest.getBackend()', context), 'clash', 'Clash is used when native interface is unavailable');
+	context.panelView.render([{ ok: false, detail: 'Failed to parse JSON string: unexpected character' }, { ok: false }, { ok: false }, { ok: false }]);
+	assert.match(vm.runInContext('panelTest.getStatus()', context), /无法连接代理面板/);
 	console.log('panel behavior OK');
 })().catch(error => { console.error(error); process.exitCode = 1; });

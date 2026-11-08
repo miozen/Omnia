@@ -79,11 +79,7 @@ fi
 cp -a "${APP_DIR}/root/." "${PKG_DIR}/"
 mkdir -p "${PKG_DIR}/www"
 cp -a "${APP_DIR}/htdocs/." "${PKG_DIR}/www/"
-if [ "$PACKAGE_MODE" = "apk" ]; then
-	printf '%s' "$apk_version" > "${PKG_DIR}/usr/share/omnia/package-version"
-else
-	printf '%s' "${pkg_version}-${pkg_release}" > "${PKG_DIR}/usr/share/omnia/package-version"
-fi
+printf '%s' "$pkg_version" > "${PKG_DIR}/usr/share/omnia/package-version"
 
 chmod 0755 "${PKG_DIR}/etc/init.d/omnia"
 chmod 0755 "${PKG_DIR}/etc/uci-defaults/90-omnia"

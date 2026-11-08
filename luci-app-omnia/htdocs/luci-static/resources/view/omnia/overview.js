@@ -541,9 +541,11 @@ function operationButtons() {
 
 function renderPage() {
 	const loadError = pageLoadError();
-	const header = omniaUi.pageHeader(_('Omnia'), _('概览是控制面首页。运行时策略组可在原生代理面板操作。'));
-	if (pageResults.packageVersion)
-		header.appendChild(E('div', { 'style': 'margin-top: .25rem; text-align: right; color: #667; font-size: .8rem;' }, pageResults.packageVersion));
+	const title = E('span', { 'style': 'display: inline-flex; align-items: baseline; gap: .35rem;' }, [
+		_('Omnia'),
+		pageResults.packageVersion ? E('span', { 'style': 'font-size: .48em; font-weight: normal; color: #667;' }, pageResults.packageVersion) : ''
+	]);
+	const header = omniaUi.pageHeader(title, _('概览是控制面首页。运行时策略组可在原生代理面板操作。'));
 	omniaMotion.inject();
 	ensureSupplementalLoad();
 

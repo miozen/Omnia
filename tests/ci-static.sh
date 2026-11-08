@@ -55,3 +55,4 @@ while IFS= read -r -d '' file; do
 done < <(find luci-app-omnia/htdocs -type f -name '*.js' -print0)
 
 node tests/panel-behavior.cjs
+node tests/subscription-ui.cjs

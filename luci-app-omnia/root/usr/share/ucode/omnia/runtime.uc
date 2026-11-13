@@ -369,4 +369,4 @@ function runtime_restart(trace_id, req) {
 	return runtime_action(trace_id, "restart", "Runtime restart requested", ERR.E_RUNTIME_RESTART_FAILED);
 }
 
-export { observe_runtime, runtime_status, runtime_start, runtime_stop, runtime_restart, runtime_restart_owned };
+export { observe_runtime, runtime_status, runtime_start, runtime_stop, runtime_restart, runtime_restart_owned, wait_runtime_ready, runtime_observation_ready };

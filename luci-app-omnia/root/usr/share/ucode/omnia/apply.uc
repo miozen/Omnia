@@ -10,7 +10,7 @@ import { ERR } from 'omnia.core.error';
 import { lock_acquire, lock_release } from 'omnia.core.lock';
 import { write_runtime_text_atomic, file_exists, ExecResult, json_stringify } from 'omnia.core.utils';
 import { artifact_check_config, artifact_commit_runtime, artifact_restore_runtime, artifact_swap_runtime_backup } from 'omnia.core.artifact';
-import { observe_runtime, runtime_restart_owned } from 'omnia.runtime';
+import { observe_runtime, runtime_restart_owned, wait_runtime_ready, runtime_observation_ready } from 'omnia.runtime';
 import { runtime_ownership_guard } from 'omnia.core.runtime_ownership';
 import { ruleset_transaction_confirm, ruleset_transaction_restore } from 'omnia.core.ruleset_artifact';
 
@@ -20,31 +20,6 @@ function write_last_error(detail) {
 
 function write_last_apply_result(detail) {
 	write_runtime_text_atomic(PATH.LAST_APPLY_RESULT, "" + detail);
-}
-
-function runtime_observation_ready(observed) {
-	let state = json(observed.state);
-	return observed.running && state.tun_exists == true;
-}
-
-function wait_runtime_ready(trace_id) {
-	let observed = null;
-	let ready = false;
-	let attempts = 0;
-
-	for (let i = 0; i < 8; i++) {
-		observed = observe_runtime(trace_id);
-		attempts = i + 1;
-		ready = runtime_observation_ready(observed);
-		if (ready)
-			break;
-		if (i < 7)
-			ExecResult(trace_id, [ "sleep", "1" ]);
-	}
-
-	observed.health_ready = ready;
-	observed.health_wait_attempts = attempts;
-	return observed;
 }
 
 function restart_runtime(trace_id) {

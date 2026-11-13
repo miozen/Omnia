@@ -25,10 +25,14 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Step 5: Conversion master pipeline (`convert/pipeline.uc`: dirty node filtering & tag deduplication).
   - [x] Step 6: Snapshot backward/forward compatibility (`source: "sub-store"` and `source: "omnia"`).
   - [x] Step 7: Seamless hook into `subscription.uc` refresh pipeline with automatic fallback and preservation.
+- [x] Completed M1 final audit and integration verification:
+  - [x] Resolved mock server dependency for `tests/subscription-refresh-integration.uc`, verified passing.
+  - [x] Added `tests/run-subscription-integration.sh` wrapper for automated testing with fixture server.
+  - [x] Clarified test categorization hierarchy: container pure-function, container HTTP integration, QEMU VM, real hardware.
 
 ## In Progress
 
-- [ ] User review and verification of M1 implementation.
+- [ ] Fix fallback bypass condition in `subscription.uc` (distinguish security rejection from unknown format).
 
 ## Remaining
 

@@ -16,17 +16,23 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
 - [x] CI verification pipeline (`build-ipk.yml`) operational.
 - [x] Project audit completed — architecture, code quality, risks identified.
 - [x] Core documentation structure established (AGENTS.md, ARCHITECTURE.md, DECISIONS.md, CURRENT_PLAN.md, HANDOFF.md).
-- [x] Switch branch to `dev`.
-- [x] Eliminated code duplication between `apply.uc` and `runtime.uc` (`wait_runtime_ready` / `runtime_observation_ready`).
+- [x] Switched branch to `dev` and eliminated code duplication between `apply.uc` and `runtime.uc`.
+- [x] Completed Milestone 1 (M1) of Native Subscription Conversion & Processing:
+  - [x] Step 1: Base utilities (`convert/utils.uc`), IR schema (`convert/ir.uc`), and sniffer (`convert/sniffer.uc`).
+  - [x] Step 2: Multi-protocol URI parser (`convert/parsers/uri.uc`: ss, vmess, vless, trojan, hy2, tuic, socks, http, anytls).
+  - [x] Step 3: Native sing-box JSON extractor (`convert/parsers/singbox.uc`: detour rejection, environment sanitization, raw field fidelity).
+  - [x] Step 4: sing-box outbound producer (`convert/producer.uc`: raw outbound baseline preservation & mapping).
+  - [x] Step 5: Conversion master pipeline (`convert/pipeline.uc`: dirty node filtering & tag deduplication).
+  - [x] Step 6: Snapshot backward/forward compatibility (`source: "sub-store"` and `source: "omnia"`).
+  - [x] Step 7: Seamless hook into `subscription.uc` refresh pipeline with automatic fallback and preservation.
 
 ## In Progress
 
-- [ ] Awaiting user feedback and confirmation for next actions.
+- [ ] User review and verification of M1 implementation.
 
 ## Remaining
 
-- [ ] Further test coverage additions (e.g., generator regression tests).
-- [ ] User-specified feature or refinement tasks.
+- [ ] Milestone 2 (M2): Restricted Clash YAML parser, ordered operators pipeline (filters, regex rename, sorting, flag emojis), traffic & expiration parsing.
 
 ## Acceptance Criteria
 

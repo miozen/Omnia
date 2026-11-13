@@ -78,8 +78,8 @@ function validate_snapshot_outbound_attribution(outbounds, source_map) {
 function validate_node_snapshot_object(snapshot) {
 	if (snapshot.schema_version != 1)
 		die("Node Snapshot schema_version must be 1");
-	if (snapshot.source != "sub-store")
-		die("Node Snapshot source must be sub-store");
+	if (snapshot.source != "sub-store" && snapshot.source != "omnia")
+		die("Node Snapshot source must be sub-store or omnia");
 	if (type(snapshot.refresh_strategy) == "string")
 		validate_refresh_strategy(snapshot.refresh_strategy);
 	if (type(snapshot.sources) != "array")

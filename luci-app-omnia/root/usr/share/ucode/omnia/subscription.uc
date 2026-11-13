@@ -15,7 +15,7 @@ import { validate_url, validate_subscriptions_content, refresh_strategy } from '
 import { preflight_for_url } from 'omnia.subscription_preflight';
 import { validate_outbounds, preserve_source_attribution, validate_node_snapshot_content, read_old_snapshot, old_outbounds_for_source, old_source_for_id } from 'omnia.subscription_snapshot';
 import { SUBSCRIPTION_REFRESH_TASK, subscription_refresh_task_enabled, progress_percent, redacted_url, write_subscription_refresh_task, subscriptions_refresh_status as task_subscriptions_refresh_status, subscriptions_refresh_start as task_subscriptions_refresh_start, subscription_refresh_source_start as task_subscription_refresh_source_start } from 'omnia.subscription_task';
-import { substore_outbounds, source_result_object, fetch_substore_output_checked, node_preview } from 'omnia.subscription_fetch';
+import { substore_outbounds, convert_to_outbounds, source_result_object, fetch_substore_output_checked, node_preview } from 'omnia.subscription_fetch';
 
 function append_outbounds(target, outbounds) {
 	for (let outbound in outbounds)
@@ -56,7 +56,12 @@ function refresh_source_safely(trace_id, source, strategy, old_snapshot) {
 	try {
 		let content = fetch_substore_output_checked(trace_id, source.url, strategy);
 		stage = "parse";
-		let outbounds = substore_outbounds(content);
+		let outbounds = null;
+		try {
+			outbounds = convert_to_outbounds(trace_id, content);
+		} catch (conv_err) {
+			outbounds = substore_outbounds(content);
+		}
 		stage = "validate";
 		validate_outbounds(outbounds);
 		if (length(outbounds) == 0) {
@@ -352,7 +357,12 @@ function subscription_test_source(trace_id, req) {
 		validate_refresh_strategy(strategy);
 
 		let content = fetch_substore_output_checked(trace_id, url, strategy);
-		let outbounds = substore_outbounds(content);
+		let outbounds = null;
+		try {
+			outbounds = convert_to_outbounds(trace_id, content);
+		} catch (conv_err) {
+			outbounds = substore_outbounds(content);
+		}
 		validate_outbounds(outbounds);
 
 		return Success({
@@ -500,7 +510,7 @@ function subscriptions_refresh_selected(trace_id, req, target_source_id) {
 		let snapshot_obj = {
 			schema_version: 1,
 			updated_at: timestamp,
-			source: "sub-store",
+			source: "omnia",
 			refresh_strategy: strategy,
 			sources: sources,
 			outbounds: outbounds

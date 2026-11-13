@@ -7,6 +7,14 @@
 import { json_escape } from 'omnia.core.utils';
 import { fetch_text } from 'omnia.resource_fetch';
 import { preflight_for_url, preflight_detail } from 'omnia.subscription_preflight';
+import { convert_subscription } from 'omnia.convert.pipeline';
+
+function convert_to_outbounds(trace_id, content) {
+	let conv = convert_subscription(trace_id, content);
+	if (!conv.ok)
+		die('Subscription conversion failed: ' + conv.error);
+	return conv.outbounds;
+}
 
 function substore_outbounds(content) {
 	let parsed = json(content);
@@ -79,6 +87,7 @@ function node_preview(outbounds) {
 }
 
 export {
+	convert_to_outbounds,
 	substore_outbounds,
 	source_result_json,
 	source_result_object,

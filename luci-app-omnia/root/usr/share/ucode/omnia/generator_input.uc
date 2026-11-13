@@ -20,8 +20,8 @@ function parse_node_snapshot() {
 	let snapshot = parse_json_object(read_text(PATH.NODE_SNAPSHOT), "Node Snapshot");
 	if (snapshot.schema_version != 1)
 		die("Node Snapshot schema_version must be 1");
-	if (snapshot.source != "sub-store")
-		die("Node Snapshot source must be sub-store");
+	if (snapshot.source != "sub-store" && snapshot.source != "omnia")
+		die("Node Snapshot source must be sub-store or omnia");
 	if (type(snapshot.outbounds) != "array")
 		die("Node Snapshot outbounds must be an array");
 	return snapshot;

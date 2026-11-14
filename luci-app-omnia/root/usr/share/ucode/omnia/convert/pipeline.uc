@@ -17,6 +17,7 @@ import { sniff_format } from 'omnia.convert.sniffer';
 import { parse_uri_list } from 'omnia.convert.parsers.uri';
 import { parse_singbox_outbounds } from 'omnia.convert.parsers.singbox';
 import { parse_clash_yaml } from 'omnia.convert.parsers.clash';
+import { parse_form_nodes } from 'omnia.convert.parsers.form';
 import { produce_singbox_outbounds } from 'omnia.convert.producer';
 import { apply_operators } from 'omnia.convert.operators.engine';
 
@@ -75,13 +76,54 @@ function filter_valid_outbounds(outbounds) {
 }
 
 /**
+ * Converts an array of form-based / manual entry nodes into sing-box outbounds.
+ * @param {array} nodes_list - Array of form node dictionaries
+ * @param {object} options - Optional pipeline configuration (e.g. { operators: [...] })
+ * @returns {object} { ok: bool, format: string, outbounds: array, stats: object, error: string }
+ */
+function convert_form_nodes(nodes_list, options) {
+	if (type(nodes_list) != 'array')
+		return { ok: false, format: 'form_nodes', outbounds: [], error: 'Expected array of form nodes' };
+
+	let parse_res = parse_form_nodes(nodes_list);
+	let ir_nodes = parse_res.nodes;
+
+	if (length(ir_nodes) == 0 && parse_res.stats.skipped > 0)
+		return { ok: false, format: 'form_nodes', outbounds: [], error: 'All form nodes failed validation' };
+
+	if (type(options) == 'object' && options != null && type(options.operators) == 'array') {
+		ir_nodes = apply_operators(ir_nodes, options.operators);
+	}
+
+	let raw_outbounds = produce_singbox_outbounds(ir_nodes);
+	let filtered = filter_valid_outbounds(raw_outbounds);
+	let final_outbounds = deduplicate_tags(filtered.outbounds);
+
+	return {
+		ok: true,
+		format: 'form_nodes',
+		outbounds: final_outbounds,
+		stats: {
+			format: 'form_nodes',
+			ir_count: length(ir_nodes),
+			outbound_count: length(final_outbounds),
+			skipped_invalid: filtered.skipped_count,
+			parse_stats: parse_res.stats
+		}
+	};
+}
+
+/**
  * Main conversion pipeline function.
  * @param {string} trace_id - Trace tracking identifier
- * @param {string} raw_content - Raw subscription text
+ * @param {string|array} raw_content - Raw subscription text or form nodes array
  * @param {object} options - Optional pipeline configuration (e.g. { operators: [...] })
  * @returns {object} { ok: bool, format: string, outbounds: array, stats: object, error: string }
  */
 function convert_subscription(trace_id, raw_content, options) {
+	if (type(raw_content) == 'array')
+		return convert_form_nodes(raw_content, options);
+
 	let sniff = sniff_format(raw_content);
 	let format = sniff.format;
 
@@ -147,6 +189,7 @@ function convert_subscription(trace_id, raw_content, options) {
 
 export {
 	convert_subscription,
+	convert_form_nodes,
 	deduplicate_tags,
 	filter_valid_outbounds
 };

@@ -49,14 +49,23 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Step 4: Deadlock prevention: rejecting proxy/selector detour on source dedicated DNS servers to prevent bootstrapping circular dependencies.
   - [x] Step 5: Reference validation & anti-dangling check (`generator_validate.uc` -> `validate_references`), verifying outbound `domain_resolver` and server `domain_resolver` against `profile.dns.servers` tags.
   - [x] Step 6: Dedicated test suite `tests/generator-dedicated-dns.uc` and unified runner update (12 tests passing).
+- [x] Completed Milestone 4 (M4) of Native Subscription Conversion & Processing:
+  - [x] Step 1: Form-based local node parser (`convert/parsers/form.uc`) supporting ss, vmess, vless, trojan, hysteria2 (hy2), tuic, socks (socks5), http, detour rejection, and protocol normalization into IR nodes.
+  - [x] Step 2: Sandboxed ucode script engine (`convert/operators/script.uc`) supporting batch mode and single node mode, built-in utilities (`flags`, `is_ip`, `trim`, `starts_with`, `ends_with`, `match`, `replace`), context/params injection, and comprehensive error trapping (compilation, runtime, return type).
+  - [x] Step 3: Ordered operator pipeline integration (`convert/operators/engine.uc`) adding `script` / `script_operator` / `script_filter` operator support.
+  - [x] Step 4: Pipeline integration (`convert/pipeline.uc` -> `convert_form_nodes`) and preview capability (`subscription_fetch.uc` -> `preview_subscription_nodes`).
+  - [x] Step 5: Subscription schema update (`subscription_policy_schema.uc`), supporting `type: "local"`, optional URL, and payload / nodes persistence.
+  - [x] Step 6: Local source refresh workflow (`subscription.uc`), bypassing HTTP fetch and safely converting local payload or form nodes with operators and DNS support.
+  - [x] Step 7: Comprehensive test suite (`tests/convert-step-m4-local-and-script.uc`) and unified test runner update (13 tests passing, module syntax compilation passing).
 
 ## In Progress
 
-- [ ] Await user confirmation to proceed to Milestone 4 (M4).
+- [ ] Native subscription conversion (v1.5) backend milestones M1-M4 completed; await user review / master merge planning.
 
 ## Remaining
 
-- [ ] Milestone 4 (M4): Local nodes (paste/form) & sandboxed ucode scripts.
+- [ ] LuCI UI frontend updates for Native Conversion & Nodes (subscription types, operators, script editor, preview, form node entry).
+- [ ] Acceptance testing on OpenWrt 25.12.x / real hardware before release.
 
 ## Acceptance Criteria
 

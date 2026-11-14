@@ -7,6 +7,8 @@ echo "=== Running M1 & M2 Pure-Function & Integration Tests ==="
 
 docker run --rm -v "${ROOT_DIR}:/work" openwrt/rootfs:latest sh -c '
 set -e
+mkdir -p /var/run/omnia /tmp/run
+
 echo "1. Step 1 base & IR..."
 ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/convert-step1.uc
 
@@ -43,10 +45,13 @@ ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/convert-step-m2-i
 echo "12. M3 Declarative dedicated DNS..."
 ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/generator-dedicated-dns.uc
 
-echo "13. Compiling all ucode modules (-c,module)..."
+echo "13. M4 Local nodes & sandboxed ucode scripts..."
+ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/convert-step-m4-local-and-script.uc
+
+echo "14. Compiling all ucode modules (-c,module)..."
 find /work/luci-app-omnia/root/usr/share/ucode -type f -name "*.uc" | while read -r f; do
 	ucode -L /work/luci-app-omnia/root/usr/share/ucode -c,module -o /tmp/check "$f" || exit 1
 done
 
-echo "=== All 12 Unit/Integration Tests & Module Compilation Passed! ==="
+echo "=== All 13 Unit/Integration Tests & Module Compilation Passed! ==="
 '

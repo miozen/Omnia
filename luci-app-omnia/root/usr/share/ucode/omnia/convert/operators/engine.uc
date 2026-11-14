@@ -17,6 +17,7 @@
 
 import { trim } from 'omnia.convert.utils';
 import { add_flag_to_name, remove_flag_from_name } from 'omnia.convert.operators.flags';
+import { execute_script_operator } from 'omnia.convert.operators.script';
 
 /**
  * Safely converts string or regex pattern to a ucode regexp object.
@@ -318,6 +319,10 @@ function op_flag(nodes, op) {
 	return nodes;
 }
 
+function op_script(nodes, op) {
+	return execute_script_operator(nodes, op);
+}
+
 /**
  * Master operator execution function.
  * Evaluates an ordered list of operators on Unified IR nodes.
@@ -356,6 +361,8 @@ function apply_operators(ir_nodes, operator_list) {
 			current_nodes = op_sort(current_nodes, op);
 		} else if (op_type == 'flag') {
 			current_nodes = op_flag(current_nodes, op);
+		} else if (op_type == 'script' || op_type == 'script_operator' || op_type == 'script_filter') {
+			current_nodes = op_script(current_nodes, op);
 		}
 	}
 
@@ -371,5 +378,6 @@ export {
 	op_quick_setting,
 	op_handle_duplicate,
 	op_sort,
-	op_flag
+	op_flag,
+	op_script
 };

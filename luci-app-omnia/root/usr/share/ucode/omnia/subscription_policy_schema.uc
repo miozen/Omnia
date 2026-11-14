@@ -580,18 +580,39 @@ function normalize_source(source, regions, index, seen_ids, reserved_ids) {
 	if (type(source.name) != "string" || source.name == "")
 		die("subscription source name must be a non-empty string");
 
-	validate_source_url(source.url);
-
 	let id = source_has_id(source) ? source.id : unique_generated_source_id(index, seen_ids, reserved_ids);
 	validate_source_id(id);
+
+	let source_type = type(source.type) == "string" && lc(source.type) == "local" ? "local" : "remote";
+	let url = "";
+
+	if (source_type == "remote") {
+		validate_source_url(source.url);
+		url = source.url;
+	} else {
+		if (type(source.url) == "string" && source.url != "")
+			url = source.url;
+		else
+			url = "local://" + id;
+	}
 
 	let normalized = {
 		id: id,
 		name: source.name,
-		url: source.url,
+		type: source_type,
+		url: url,
 		enabled: source.enabled == false ? false : true,
 		allowed_regions: normalize_allowed_regions(source, regions)
 	};
+
+	if (source_type == "local") {
+		if (source.payload != null)
+			normalized.payload = source.payload;
+		if (type(source.nodes) == "array")
+			normalized.nodes = source.nodes;
+		if (type(source.subtype) == "string" && source.subtype != "")
+			normalized.subtype = source.subtype;
+	}
 
 	if (type(source.operators) == "array")
 		normalized.operators = source.operators;
@@ -649,5 +670,5 @@ function normalize_subscriptions_policy(config) {
 	};
 }
 
-export { default_region_keywords, default_banned_keywords, default_urltest_params, default_dns_urltest, default_manual_selector, default_rate_filter, default_subscription_update_policy, validate_refresh_strategy, validate_fetch_strategy, normalize_subscriptions_policy, normalize_source_dns };
+export { default_region_keywords, default_banned_keywords, default_urltest_params, default_dns_urltest, default_manual_selector, default_rate_filter, default_subscription_update_policy, validate_refresh_strategy, validate_fetch_strategy, normalize_subscriptions_policy, normalize_source_dns, normalize_source };
 

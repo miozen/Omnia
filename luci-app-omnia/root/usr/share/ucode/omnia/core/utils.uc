@@ -141,8 +141,10 @@ function ensure_run_dir() {
 	if (type(info) == "object" && info != null)
 		return;
 
+	mkdir("/var", 0755);
+	mkdir("/var/run", 0755);
 	let ok = mkdir("/var/run/omnia", 0700);
-	if (!ok)
+	if (!ok && !stat("/var/run/omnia"))
 		die("Failed to create /var/run/omnia");
 }
 

@@ -16,6 +16,7 @@ import { preflight_for_url } from 'omnia.subscription_preflight';
 import { validate_outbounds, sanitize_and_validate_outbounds, preserve_source_attribution, validate_node_snapshot_content, read_old_snapshot, old_outbounds_for_source, old_source_for_id } from 'omnia.subscription_snapshot';
 import { SUBSCRIPTION_REFRESH_TASK, subscription_refresh_task_enabled, progress_percent, redacted_url, write_subscription_refresh_task, subscriptions_refresh_status as task_subscriptions_refresh_status, subscriptions_refresh_start as task_subscriptions_refresh_start, subscription_refresh_source_start as task_subscription_refresh_source_start } from 'omnia.subscription_task';
 import { substore_outbounds, convert_to_outbounds, parse_subscription_safely, source_result_object, fetch_substore_output_checked, fetch_subscription_checked, node_preview } from 'omnia.subscription_fetch';
+import { convert_form_nodes } from 'omnia.convert.pipeline';
 
 function append_outbounds(target, outbounds) {
 	for (let outbound in outbounds)
@@ -54,12 +55,32 @@ function refresh_source_safely(trace_id, source, strategy, old_snapshot) {
 		};
 
 	try {
-		let fetched = fetch_subscription_checked(trace_id, source.url, strategy, { user_agent: source.user_agent });
-		let content = fetched.body;
-		let userinfo = fetched.userinfo;
-		stage = "parse";
-		let parse_res = parse_subscription_safely(trace_id, content, { operators: source.operators });
-		let outbounds = parse_res.outbounds;
+		let content = "";
+		let userinfo = null;
+		let outbounds = [];
+
+		if (source.type == "local") {
+			stage = "parse";
+			if (type(source.nodes) == "array" || type(source.payload) == "array") {
+				let raw_nodes = type(source.nodes) == "array" ? source.nodes : source.payload;
+				let conv = convert_form_nodes(raw_nodes, { operators: source.operators });
+				if (!conv.ok)
+					die("Local form nodes conversion failed: " + conv.error);
+				outbounds = conv.outbounds;
+			} else {
+				let payload_str = type(source.payload) == "string" ? source.payload : "";
+				let parse_res = parse_subscription_safely(trace_id, payload_str, { operators: source.operators });
+				outbounds = parse_res.outbounds;
+			}
+		} else {
+			let fetched = fetch_subscription_checked(trace_id, source.url, strategy, { user_agent: source.user_agent });
+			content = fetched.body;
+			userinfo = fetched.userinfo;
+			stage = "parse";
+			let parse_res = parse_subscription_safely(trace_id, content, { operators: source.operators });
+			outbounds = parse_res.outbounds;
+		}
+
 		stage = "validate";
 		outbounds = sanitize_and_validate_outbounds(outbounds);
 		validate_outbounds(outbounds);

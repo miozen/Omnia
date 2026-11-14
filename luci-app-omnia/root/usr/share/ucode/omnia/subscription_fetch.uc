@@ -8,7 +8,7 @@ import { json_escape } from 'omnia.core.utils';
 import { trim } from 'omnia.convert.utils';
 import { fetch_text } from 'omnia.resource_fetch';
 import { preflight_for_url, preflight_detail } from 'omnia.subscription_preflight';
-import { convert_subscription } from 'omnia.convert.pipeline';
+import { convert_subscription, convert_form_nodes } from 'omnia.convert.pipeline';
 import { extract_userinfo_from_headers } from 'omnia.convert.traffic';
 
 function is_legacy_compatible_input(content) {
@@ -174,6 +174,18 @@ function node_preview(outbounds) {
 	return nodes;
 }
 
+function preview_subscription_nodes(input, options) {
+	let conv = null;
+	if (type(input) == 'array') {
+		conv = convert_form_nodes(input, options);
+	} else {
+		conv = convert_subscription('preview', input, options);
+	}
+	if (!conv.ok)
+		die('Preview conversion failed: ' + conv.error);
+	return conv.outbounds;
+}
+
 export {
 	convert_to_outbounds,
 	substore_outbounds,
@@ -184,5 +196,6 @@ export {
 	fetch_substore_output,
 	fetch_substore_output_checked,
 	fetch_subscription_checked,
-	node_preview
+	node_preview,
+	preview_subscription_nodes
 };

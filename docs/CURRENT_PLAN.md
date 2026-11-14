@@ -67,7 +67,8 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
 
 ## In Progress
 
-- [ ] Native subscription conversion (v1.5) completed across backend (M1-M4) and frontend (M5); prepare final verification and master merge readiness.
+- [x] Native subscription conversion (v1.5) completed across backend (M1-M4) and frontend (M5).
+- [x] Fixed single ruleset download failure for tags with exclamation marks (e.g., `geosite-category-ai-!cn`, `geosite-geolocation-!cn`) in `omnia-runner` and optimized LuCI UI tag reporting.
 
 ## Remaining
 

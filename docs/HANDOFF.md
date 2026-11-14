@@ -2,26 +2,26 @@
 
 ## Last Updated
 
-2026-11-14T21:48+08:00
+2026-11-14T23:25+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `ac17013` (feat: integrate native conversion and node processing into LuCI UI)
-- **Working Tree:** CLEAN
-- **Remote Sync:** Pushed to `origin/dev`
+- **HEAD:** (pending commit for ruleset runner tag pattern fix)
+- **Working Tree:** DIRTY (pending commit)
+- **Remote Sync:** Pending push to `origin/dev`
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Feature Development — Native Subscription Conversion (Milestones 1-5 Complete)
-- **Current Task:** Manual package assembly on `dev` and real hardware testing before master merge
+- **Current Phase:** Post-v0.1.0 Feature Development — Native Subscription Conversion & Bug Fixes
+- **Current Task:** Fixed single ruleset download failure for tags containing exclamation marks (`!`)
 - **Last Completed:**
-  1. Updated LuCI frontend model (`subscriptions.js`), ensuring `normalizePolicy` and `collectPolicyFromPage` preserve all native conversion fields (type, subtype, payload, nodes, user_agent, operators, dns, userinfo).
-  2. Upgraded subscription source editor drawer (`subscriptions.js`), supporting Remote URL vs Local Nodes, UA presets/custom, payload/form entry, dedicated DNS config, and operator pipeline with quick template buttons.
-  3. Integrated instant test and preview (`subscription.uc` -> `subscription_test_source`, `omnia.uc` -> rpcd args schema, `subscriptions.js` -> `testEditorSource`), enabling real-time node preview without saving to snapshot.
-  4. Added visual indicators to source matrix table (local node badge, dedicated DNS tag, operator count).
-  5. Cleaned up legacy Sub-Store text across frontend.
-  6. Verified `ci-static.sh` (panel, UI, version, release checks), all 13 conversion tests, module syntax compilation, and subscription integration tests.
+  1. Diagnosed single ruleset download failure on `geosite-category-ai-!cn` and `geosite-geolocation-!cn` (error: `Missing Rule Set tag`).
+  2. Fixed POSIX shell pattern whitelist in `/usr/libexec/omnia-runner` (`*[!A-Za-z0-9._!-]*)`), aligning with `ruleset_task.uc` (`safe_shell_arg`) to properly allow exclamation marks (`!`).
+  3. Optimized frontend `rulesets.js` `pollRulesetDownloadOne` to retain `downloadingTag` before status text rendering, ensuring error messages consistently report the target tag.
+  4. Validated tag pattern filtering with test cases (valid tags, tags with `!`, invalid/injection strings).
+  5. Verified all JS syntax checks (`node --check`) and UI behavior tests (`panel-behavior.cjs`, `subscription-ui.cjs`).
+  6. Verified JSON configurations.
 
 ## Uncommitted Work
 

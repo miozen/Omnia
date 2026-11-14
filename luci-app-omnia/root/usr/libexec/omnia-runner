@@ -54,7 +54,7 @@ case "$TRACE_ID" in
 esac
 
 case "$TAG" in
-	""|*[!A-Za-z0-9._-]*)
+	""|*[!A-Za-z0-9._!-]*)
 		TAG=""
 		;;
 esac

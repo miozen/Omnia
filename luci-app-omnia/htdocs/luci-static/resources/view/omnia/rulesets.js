@@ -686,9 +686,9 @@ function pollRulesetDownloadOne(token, runId, attempt) {
 			});
 		}
 
+		setStatus(rulesetDownloadOneStatusText(task, taskName), status === 'success');
 		downloadingTag = '';
 		downloadingRunId = '';
-		setStatus(rulesetDownloadOneStatusText(task, taskName), status === 'success');
 		return refreshAll();
 	}).catch(function(error) {
 		if (token !== actionToken)

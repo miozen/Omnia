@@ -29,10 +29,16 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Resolved mock server dependency for `tests/subscription-refresh-integration.uc`, verified passing.
   - [x] Added `tests/run-subscription-integration.sh` wrapper for automated testing with fixture server.
   - [x] Clarified test categorization hierarchy: container pure-function, container HTTP integration, QEMU VM, real hardware.
+- [x] Fixed M1 fallback bypass vulnerability and established unified security sanitization:
+  - [x] Implemented `is_legacy_compatible_input` and `parse_subscription_safely` in `subscription_fetch.uc` (fail-closed on unknown/corrupted formats).
+  - [x] Implemented `sanitize_and_validate_outbounds` in `subscription_snapshot.uc` (unified security gate, node-level rejection of non-empty detour, protocol filtering, environment and DNS field stripping, port normalization, tag deduplication).
+  - [x] Preserved existing snapshot upon zero valid nodes or unrecoverable parse failures in `subscription.uc`.
+  - [x] Added regression and security test suite `tests/subscription-fallback-security.uc`.
+  - [x] Verified M1 convert steps 1~7, fallback security test, subscription integration test, ucode module compilation, and `ci-static.sh` all passing.
 
 ## In Progress
 
-- [ ] Fix fallback bypass condition in `subscription.uc` (distinguish security rejection from unknown format).
+- [ ] Await user confirmation to proceed to Milestone 2 (M2).
 
 ## Remaining
 

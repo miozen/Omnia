@@ -2,6 +2,15 @@
 
 set -euo pipefail
 
+if ! command -v node >/dev/null 2>&1; then
+	if [ -d "${HOME}/.nvm/versions/node" ]; then
+		NVM_NODE="$(find "${HOME}/.nvm/versions/node" -maxdepth 2 -type d -name bin 2>/dev/null | sort -V | tail -n 1)"
+		if [ -n "$NVM_NODE" ]; then
+			export PATH="$NVM_NODE:$PATH"
+		fi
+	fi
+fi
+
 if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
 	git diff --check HEAD^ HEAD
 fi

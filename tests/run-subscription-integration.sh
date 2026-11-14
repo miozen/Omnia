@@ -1,18 +1,28 @@
 #!/usr/bin/env bash
 set -e
-export PATH="/home/mio/.nvm/versions/node/v22.23.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-node /home/mio/projects/Omnia/tests/subscription-fixture.cjs &
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if ! command -v node >/dev/null 2>&1; then
+	if [ -d "$HOME/.nvm/versions/node" ]; then
+		NVM_NODE="$(find "$HOME/.nvm/versions/node" -maxdepth 2 -type d -name bin 2>/dev/null | sort -V | tail -n 1)"
+		if [ -n "$NVM_NODE" ]; then
+			export PATH="$NVM_NODE:$PATH"
+		fi
+	fi
+fi
+
+node "${ROOT_DIR}/tests/subscription-fixture.cjs" &
 FIXTURE_PID=$!
 
 cleanup() {
-    kill -9 "$FIXTURE_PID" 2>/dev/null || true
+	kill -9 "$FIXTURE_PID" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
 sleep 1
 
-docker run --rm --net=host -v /home/mio/projects/Omnia:/work openwrt/rootfs:latest sh -c '
+docker run --rm --net=host -v "${ROOT_DIR}:/work" openwrt/rootfs:latest sh -c '
 mkdir -p /etc/omnia /var/run/omnia/locks /var/run/omnia/tasks
 ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/subscription-refresh-integration.uc
 '

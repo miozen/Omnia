@@ -7,6 +7,66 @@
 import { PATH } from 'omnia.core.constants';
 import { read_optional_text, parse_json_object } from 'omnia.core.utils';
 import { validate_refresh_strategy } from 'omnia.subscription_policy_schema';
+import { is_protocol_supported } from 'omnia.convert.ir';
+import { deduplicate_tags } from 'omnia.convert.pipeline';
+
+const ENVIRONMENT_FIELDS = [
+	'bind_interface',
+	'routing_mark',
+	'reuse_addr',
+	'netns',
+	'tcp_fast_open',
+	'tcp_multi_path',
+	'udp_fragment',
+	'inet4_bind_address',
+	'inet6_bind_address'
+];
+
+function sanitize_and_validate_outbounds(outbounds) {
+	if (type(outbounds) != 'array')
+		die("Outbounds must be a sing-box outbounds JSON array");
+
+	let valid = [];
+	for (let outbound in outbounds) {
+		if (type(outbound) != 'object' || outbound == null || type(outbound) == 'array')
+			continue;
+
+		let p_type = type(outbound.type) == 'string' ? outbound.type : '';
+		if (p_type == '' || !is_protocol_supported(p_type))
+			continue;
+
+		// Security constraint: Reject and drop any chained detour nodes
+		// Legacy parser or corrupted node must NEVER bypass detour restriction
+		if (outbound.detour != null && outbound.detour != '')
+			continue;
+
+		let tag = type(outbound.tag) == 'string' ? outbound.tag : '';
+		if (tag == '')
+			continue;
+
+		let server = type(outbound.server) == 'string' ? outbound.server : '';
+		let port = int(outbound.server_port || outbound.port || 0);
+		if (server == '' || port <= 0 || port > 65535)
+			continue;
+
+		// Normalize port to server_port
+		outbound.server_port = port;
+		delete outbound.port;
+
+		// Strip environment-bound fields
+		for (let env_key in ENVIRONMENT_FIELDS) {
+			delete outbound[env_key];
+		}
+
+		// Strip DNS fields
+		delete outbound.domain_resolver;
+		delete outbound.domain_strategy;
+
+		push(valid, outbound);
+	}
+
+	return deduplicate_tags(valid);
+}
 
 function validate_outbounds(outbounds) {
 	if (type(outbounds) != "array")
@@ -146,6 +206,7 @@ function old_source_for_id(old_snapshot, source_id) {
 
 export {
 	validate_outbounds,
+	sanitize_and_validate_outbounds,
 	preserve_source_attribution,
 	validate_snapshot_sources,
 	validate_snapshot_outbound_attribution,

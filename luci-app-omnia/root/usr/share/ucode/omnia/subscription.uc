@@ -13,9 +13,9 @@ import { validate_refresh_strategy } from 'omnia.subscription_policy_schema';
 import { finish_task, fail_task } from 'omnia.core.task';
 import { validate_url, validate_subscriptions_content, refresh_strategy } from 'omnia.subscription_config';
 import { preflight_for_url } from 'omnia.subscription_preflight';
-import { validate_outbounds, preserve_source_attribution, validate_node_snapshot_content, read_old_snapshot, old_outbounds_for_source, old_source_for_id } from 'omnia.subscription_snapshot';
+import { validate_outbounds, sanitize_and_validate_outbounds, preserve_source_attribution, validate_node_snapshot_content, read_old_snapshot, old_outbounds_for_source, old_source_for_id } from 'omnia.subscription_snapshot';
 import { SUBSCRIPTION_REFRESH_TASK, subscription_refresh_task_enabled, progress_percent, redacted_url, write_subscription_refresh_task, subscriptions_refresh_status as task_subscriptions_refresh_status, subscriptions_refresh_start as task_subscriptions_refresh_start, subscription_refresh_source_start as task_subscription_refresh_source_start } from 'omnia.subscription_task';
-import { substore_outbounds, convert_to_outbounds, source_result_object, fetch_substore_output_checked, node_preview } from 'omnia.subscription_fetch';
+import { substore_outbounds, convert_to_outbounds, parse_subscription_safely, source_result_object, fetch_substore_output_checked, node_preview } from 'omnia.subscription_fetch';
 
 function append_outbounds(target, outbounds) {
 	for (let outbound in outbounds)
@@ -56,13 +56,10 @@ function refresh_source_safely(trace_id, source, strategy, old_snapshot) {
 	try {
 		let content = fetch_substore_output_checked(trace_id, source.url, strategy);
 		stage = "parse";
-		let outbounds = null;
-		try {
-			outbounds = convert_to_outbounds(trace_id, content);
-		} catch (conv_err) {
-			outbounds = substore_outbounds(content);
-		}
+		let parse_res = parse_subscription_safely(trace_id, content);
+		let outbounds = parse_res.outbounds;
 		stage = "validate";
+		outbounds = sanitize_and_validate_outbounds(outbounds);
 		validate_outbounds(outbounds);
 		if (length(outbounds) == 0) {
 			if (old_count > 0) {
@@ -357,12 +354,8 @@ function subscription_test_source(trace_id, req) {
 		validate_refresh_strategy(strategy);
 
 		let content = fetch_substore_output_checked(trace_id, url, strategy);
-		let outbounds = null;
-		try {
-			outbounds = convert_to_outbounds(trace_id, content);
-		} catch (conv_err) {
-			outbounds = substore_outbounds(content);
-		}
+		let parse_res = parse_subscription_safely(trace_id, content);
+		let outbounds = sanitize_and_validate_outbounds(parse_res.outbounds);
 		validate_outbounds(outbounds);
 
 		return Success({

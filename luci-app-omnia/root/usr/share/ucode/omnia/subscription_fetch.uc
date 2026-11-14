@@ -5,9 +5,72 @@
 'use strict';
 
 import { json_escape } from 'omnia.core.utils';
+import { trim } from 'omnia.convert.utils';
 import { fetch_text } from 'omnia.resource_fetch';
 import { preflight_for_url, preflight_detail } from 'omnia.subscription_preflight';
 import { convert_subscription } from 'omnia.convert.pipeline';
+
+function is_legacy_compatible_input(content) {
+	if (type(content) != 'string')
+		return false;
+
+	let text = trim(content);
+	if (text == '')
+		return false;
+
+	let first_char = substr(text, 0, 1);
+	if (first_char != '{' && first_char != '[')
+		return false;
+
+	let parsed = null;
+	try {
+		parsed = json(text);
+	} catch (e) {
+		return false;
+	}
+
+	if (type(parsed) == 'array') {
+		if (length(parsed) == 0)
+			return false;
+		for (let item in parsed) {
+			if (type(item) == 'object' && item != null && type(item) != 'array')
+				return true;
+		}
+		return false;
+	}
+
+	if (type(parsed) == 'object' && parsed != null) {
+		if (type(parsed.outbounds) == 'array')
+			return true;
+		if (parsed.source == 'sub-store' || parsed.target == 'sing-box')
+			return true;
+	}
+
+	return false;
+}
+
+function parse_subscription_safely(trace_id, content) {
+	let conv = convert_subscription(trace_id, content);
+	if (conv.ok) {
+		return {
+			used_fallback: false,
+			outbounds: conv.outbounds
+		};
+	}
+
+	// Constraint 1: Unconditional fallback is prohibited.
+	// Only fall back to legacy parser when explicitly identified as legacy Sub-Store input.
+	// Malformed, unrecognized, or corrupted formats MUST fail closed.
+	if (!is_legacy_compatible_input(content)) {
+		die('Subscription conversion failed: ' + conv.error);
+	}
+
+	let legacy_outbounds = substore_outbounds(content);
+	return {
+		used_fallback: true,
+		outbounds: legacy_outbounds
+	};
+}
 
 function convert_to_outbounds(trace_id, content) {
 	let conv = convert_subscription(trace_id, content);
@@ -89,6 +152,8 @@ function node_preview(outbounds) {
 export {
 	convert_to_outbounds,
 	substore_outbounds,
+	is_legacy_compatible_input,
+	parse_subscription_safely,
 	source_result_json,
 	source_result_object,
 	fetch_substore_output,

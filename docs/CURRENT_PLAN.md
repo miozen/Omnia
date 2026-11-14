@@ -35,14 +35,22 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Preserved existing snapshot upon zero valid nodes or unrecoverable parse failures in `subscription.uc`.
   - [x] Added regression and security test suite `tests/subscription-fallback-security.uc`.
   - [x] Verified M1 convert steps 1~7, fallback security test, subscription integration test, ucode module compilation, and `ci-static.sh` all passing.
+- [x] Completed Milestone 2 (M2) of Native Subscription Conversion & Processing:
+  - [x] Step 1: Restricted Clash YAML parser (`convert/parsers/clash.uc` supporting Block and Flow style mapping, comment stripping, Reality/WS/gRPC sub-options, detour rejection, protocol normalization).
+  - [x] Step 2: Ordered operators pipeline (`convert/operators/engine.uc` supporting regex filter/inverse, type filter, conditional filter with AND/OR logic, regex rename/delete, quick setting, handle duplicate delete/rename, alphabetical & keyword priority sorting).
+  - [x] Step 3: Flag emoji recognition and manipulation (`convert/operators/flags.uc` with common regional codes and emojis).
+  - [x] Step 4: Subscription traffic quota & expiration header parsing (`convert/traffic.uc`).
+  - [x] Step 5: Master pipeline integration in `convert/pipeline.uc`, `subscription_fetch.uc`, and `subscription.uc`.
+  - [x] Step 6: Test suite covering Clash parser (`tests/convert-step-m2-clash.uc`), Operators (`tests/convert-step-m2-operators.uc`), Traffic headers (`tests/convert-step-m2-traffic.uc`), Cross-format consistency (`tests/convert-step-m2-integration.uc`), and unified runner (`tests/run-all-convert-tests.sh`).
 
 ## In Progress
 
-- [ ] Await user confirmation to proceed to Milestone 2 (M2).
+- [ ] Await user confirmation to proceed to Milestone 3 (M3).
 
 ## Remaining
 
-- [ ] Milestone 2 (M2): Restricted Clash YAML parser, ordered operators pipeline (filters, regex rename, sorting, flag emojis), traffic & expiration parsing.
+- [ ] Milestone 3 (M3): Declarative DNS configuration & dedicated subscription DNS tags.
+- [ ] Milestone 4 (M4): Local nodes (paste/form) & sandboxed ucode scripts.
 
 ## Acceptance Criteria
 

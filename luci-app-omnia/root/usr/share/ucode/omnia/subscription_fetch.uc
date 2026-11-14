@@ -9,6 +9,7 @@ import { trim } from 'omnia.convert.utils';
 import { fetch_text } from 'omnia.resource_fetch';
 import { preflight_for_url, preflight_detail } from 'omnia.subscription_preflight';
 import { convert_subscription } from 'omnia.convert.pipeline';
+import { extract_userinfo_from_headers } from 'omnia.convert.traffic';
 
 function is_legacy_compatible_input(content) {
 	if (type(content) != 'string')
@@ -49,8 +50,8 @@ function is_legacy_compatible_input(content) {
 	return false;
 }
 
-function parse_subscription_safely(trace_id, content) {
-	let conv = convert_subscription(trace_id, content);
+function parse_subscription_safely(trace_id, content, options) {
+	let conv = convert_subscription(trace_id, content, options);
 	if (conv.ok) {
 		return {
 			used_fallback: false,
@@ -104,8 +105,8 @@ function source_result_json(id, name, url, strategy, status, ok, node_count, err
 	"}";
 }
 
-function source_result_object(source, strategy, status, ok, node_count, error) {
-	return {
+function source_result_object(source, strategy, status, ok, node_count, error, userinfo) {
+	let res = {
 		id: source.id || "",
 		name: source.name || "",
 		url: source.url || "",
@@ -114,6 +115,30 @@ function source_result_object(source, strategy, status, ok, node_count, error) {
 		ok: ok == true,
 		node_count: node_count || 0,
 		error: error || ""
+	};
+	if (type(userinfo) == "object" && userinfo != null)
+		res.userinfo = userinfo;
+	else if (type(source.userinfo) == "object" && source.userinfo != null)
+		res.userinfo = source.userinfo;
+	return res;
+}
+
+function fetch_subscription_checked(trace_id, url, strategy, opts) {
+	let preflight = preflight_for_url(trace_id, url);
+	opts = type(opts) == "object" && opts != null ? opts : {};
+	let fetch_opts = {
+		timeout_sec: opts.timeout_sec || 10,
+		min_bytes: opts.min_bytes || 16,
+		user_agent: opts.user_agent || ""
+	};
+	let fetched = fetch_text(trace_id, url, strategy, fetch_opts);
+	if (!fetched.ok)
+		die("fetch failed: " + fetched.error + " exit=" + fetched.exit_code + " stderr=" + fetched.stderr + "; " + preflight_detail(preflight));
+
+	let userinfo = extract_userinfo_from_headers(fetched.stderr);
+	return {
+		body: fetched.body,
+		userinfo: userinfo
 	};
 }
 
@@ -158,5 +183,6 @@ export {
 	source_result_object,
 	fetch_substore_output,
 	fetch_substore_output_checked,
+	fetch_subscription_checked,
 	node_preview
 };

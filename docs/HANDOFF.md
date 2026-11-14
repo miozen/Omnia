@@ -2,25 +2,25 @@
 
 ## Last Updated
 
-2026-11-14T09:50+08:00
+2026-11-14T18:15+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `de95f3f` (fix: harden subscription conversion fallback and add unified security sanitization)
+- **HEAD:** `b89ea41` (feat: implement Milestone 2 native conversion and ordered operators pipeline)
 - **Working Tree:** CLEAN
 - **Remote Sync:** Pushed to `origin/dev`
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Feature Development — Native Subscription Conversion (M1 Fallback Security Fix Complete)
-- **Current Task:** Fix M1 fallback bypass vulnerability, add unified security sanitization & regression tests, push to dev
+- **Current Phase:** Post-v0.1.0 Feature Development — Native Subscription Conversion (Milestone 2 Complete)
+- **Current Task:** Implement Milestone 2 (Clash YAML parser, ordered operators pipeline, traffic & expiration headers, test suite)
 - **Last Completed:**
-  1. Implemented `is_legacy_compatible_input` and `parse_subscription_safely` in `subscription_fetch.uc`, eliminating unconditional legacy fallback on unknown or corrupted formats (fail-closed).
-  2. Implemented `sanitize_and_validate_outbounds` in `subscription_snapshot.uc` as unified security gate for both new pipeline and legacy fallback outputs (drops chained detour nodes, filters unsupported protocols, normalizes port, strips environment & DNS fields, deduplicates tags).
-  3. Ensured node-level rejection vs subscription-level failure separation; empty valid nodes or unrecoverable parse errors preserve existing snapshot without overwrite.
-  4. Added regression test suite `tests/subscription-fallback-security.uc` covering all 6 security invariants.
-  5. Verified all M1 tests (steps 1~7), new regression test, integration test wrapper, and `ci-static.sh` all passing.
+  1. Implemented restricted Clash YAML parser (`convert/parsers/clash.uc`) supporting block/flow style, comments, nested reality/ws/grpc options, and protocol normalization into IR nodes.
+  2. Implemented ordered operator pipeline engine (`convert/operators/engine.uc`) and flag emoji utility (`convert/operators/flags.uc`), supporting regex filter (with inverse), type filter, conditional filter (AND/OR, EQUALS/CONTAINS/IN/EXISTS), regex rename/delete, quick setting, duplicate handling, and sorting.
+  3. Implemented Subscription-Userinfo header parser (`convert/traffic.uc`) for traffic quotas (upload, download, total, expire) and wired into subscription fetch.
+  4. Integrated M2 into master pipeline (`convert/pipeline.uc`), `subscription_fetch.uc`, and `subscription.uc`.
+  5. Created comprehensive test suite for Clash parser, operators, traffic parsing, and cross-format consistency; added unified test runner `tests/run-all-convert-tests.sh` with 11 tests and ucode module syntax compilation.
 
 ## Uncommitted Work
 
@@ -28,7 +28,7 @@ None once committed.
 
 ## Validation Performed
 
-- OpenWrt rootfs container tests:
+- OpenWrt rootfs container tests via `tests/run-all-convert-tests.sh`:
   - `tests/convert-step1.uc` PASS
   - `tests/convert-step2-uri.uc` PASS
   - `tests/convert-step3-singbox.uc` PASS
@@ -36,8 +36,12 @@ None once committed.
   - `tests/convert-step5-pipeline.uc` PASS
   - `tests/convert-step6-7-integration.uc` PASS
   - `tests/subscription-fallback-security.uc` PASS
-  - `tests/run-subscription-integration.sh` (`subscription-refresh-integration.uc`) PASS
+  - `tests/convert-step-m2-clash.uc` PASS
+  - `tests/convert-step-m2-operators.uc` PASS
+  - `tests/convert-step-m2-traffic.uc` PASS
+  - `tests/convert-step-m2-integration.uc` PASS
   - UCode syntax compilation on all modules (`ucode -c,module`) PASS
+- Subscription refresh integration test (`tests/run-subscription-integration.sh`) PASS.
 - Full CI static suite (`tests/ci-static.sh`) PASS via Node.js v22.
 - `git diff --check` passed with 0 errors.
 
@@ -47,12 +51,12 @@ None once committed.
 
 ## Known Issues / Blockers
 
-None for M1. M1 is fully hardened and verified.
+None. M1 and M2 are fully verified.
 
 ## Exact Next Action
 
 1. Await user confirmation.
-2. Begin Milestone 2 (M2): Restricted Clash YAML parser, ordered operators pipeline (filters, regex rename, sorting, flag emojis), traffic & expiration parsing.
+2. Begin Milestone 3 (M3): Declarative DNS configuration & dedicated subscription DNS tags.
 
 ## Cross-machine Ready
 

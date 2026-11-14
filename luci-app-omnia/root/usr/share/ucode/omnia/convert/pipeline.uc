@@ -16,7 +16,9 @@
 import { sniff_format } from 'omnia.convert.sniffer';
 import { parse_uri_list } from 'omnia.convert.parsers.uri';
 import { parse_singbox_outbounds } from 'omnia.convert.parsers.singbox';
+import { parse_clash_yaml } from 'omnia.convert.parsers.clash';
 import { produce_singbox_outbounds } from 'omnia.convert.producer';
+import { apply_operators } from 'omnia.convert.operators.engine';
 
 function deduplicate_tags(outbounds) {
 	let seen = {};
@@ -76,9 +78,10 @@ function filter_valid_outbounds(outbounds) {
  * Main conversion pipeline function.
  * @param {string} trace_id - Trace tracking identifier
  * @param {string} raw_content - Raw subscription text
+ * @param {object} options - Optional pipeline configuration (e.g. { operators: [...] })
  * @returns {object} { ok: bool, format: string, outbounds: array, stats: object, error: string }
  */
-function convert_subscription(trace_id, raw_content) {
+function convert_subscription(trace_id, raw_content, options) {
 	let sniff = sniff_format(raw_content);
 	let format = sniff.format;
 
@@ -106,10 +109,17 @@ function convert_subscription(trace_id, raw_content) {
 		ir_nodes = res.nodes;
 		parse_stats = res.stats;
 	} else if (format == 'clash_yaml' || format == 'base64_clash_yaml') {
-		// Clash YAML is designated for M2
-		return { ok: false, format: format, outbounds: [], error: 'Clash YAML format is designated for Milestone 2' };
+		let yaml_text = format == 'base64_clash_yaml' ? sniff.decoded : raw_content;
+		let res = parse_clash_yaml(yaml_text);
+		ir_nodes = res.nodes;
+		parse_stats = res.stats;
 	} else {
-		return { ok: false, format: format, outbounds: [], error: 'Unsupported format in M1: ' + format };
+		return { ok: false, format: format, outbounds: [], error: 'Unsupported format: ' + format };
+	}
+
+	// Apply ordered operators pipeline if provided
+	if (type(options) == 'object' && options != null && type(options.operators) == 'array') {
+		ir_nodes = apply_operators(ir_nodes, options.operators);
 	}
 
 	// Produce sing-box outbounds from IR nodes

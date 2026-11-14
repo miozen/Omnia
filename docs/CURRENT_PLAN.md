@@ -42,14 +42,20 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Step 4: Subscription traffic quota & expiration header parsing (`convert/traffic.uc`).
   - [x] Step 5: Master pipeline integration in `convert/pipeline.uc`, `subscription_fetch.uc`, and `subscription.uc`.
   - [x] Step 6: Test suite covering Clash parser (`tests/convert-step-m2-clash.uc`), Operators (`tests/convert-step-m2-operators.uc`), Traffic headers (`tests/convert-step-m2-traffic.uc`), Cross-format consistency (`tests/convert-step-m2-integration.uc`), and unified runner (`tests/run-all-convert-tests.sh`).
+- [x] Completed Milestone 3 (M3) of Native Subscription Conversion & Processing:
+  - [x] Step 1: Declarative subscription source DNS schema (`subscription_policy_schema.uc`), supporting address, detour (direct-only enforcement), and optional address_resolver / strategy.
+  - [x] Step 2: Source dedicated DNS tag allocation and sing-box profile injection (`generator_dns.uc` -> `apply_source_dedicated_dns`), binding matching subscription node outbound `domain_resolver` to dedicated tag `dns-src-<id>`.
+  - [x] Step 3: Global fallback behavior: unconfigured subscription nodes retain no `domain_resolver`, falling back to `route.default_domain_resolver`.
+  - [x] Step 4: Deadlock prevention: rejecting proxy/selector detour on source dedicated DNS servers to prevent bootstrapping circular dependencies.
+  - [x] Step 5: Reference validation & anti-dangling check (`generator_validate.uc` -> `validate_references`), verifying outbound `domain_resolver` and server `domain_resolver` against `profile.dns.servers` tags.
+  - [x] Step 6: Dedicated test suite `tests/generator-dedicated-dns.uc` and unified runner update (12 tests passing).
 
 ## In Progress
 
-- [ ] Await user confirmation to proceed to Milestone 3 (M3).
+- [ ] Await user confirmation to proceed to Milestone 4 (M4).
 
 ## Remaining
 
-- [ ] Milestone 3 (M3): Declarative DNS configuration & dedicated subscription DNS tags.
 - [ ] Milestone 4 (M4): Local nodes (paste/form) & sandboxed ucode scripts.
 
 ## Acceptance Criteria

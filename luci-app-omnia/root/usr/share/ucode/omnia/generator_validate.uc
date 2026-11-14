@@ -163,20 +163,39 @@ function validate_references(profile) {
 			tags[outbound.tag] = true;
 	}
 
+	let dns_tags = {};
+	if (type(profile.dns) == "object" && profile.dns != null && type(profile.dns.servers) == "array") {
+		for (let server in profile.dns.servers) {
+			if (type(server) == "object" && server != null && type(server.tag) == "string" && server.tag != "")
+				dns_tags[server.tag] = true;
+		}
+	}
+
 	for (let outbound in profile.outbounds) {
-		if (type(outbound) != "object" || outbound == null || type(outbound.outbounds) != "array")
+		if (type(outbound) != "object" || outbound == null)
 			continue;
 
-		for (let tag in outbound.outbounds) {
-			if (!tags[tag])
-				die("Invalid outbound reference: " + outbound.tag + " -> " + tag);
+		if (type(outbound.outbounds) == "array") {
+			for (let tag in outbound.outbounds) {
+				if (!tags[tag])
+					die("Invalid outbound reference: " + outbound.tag + " -> " + tag);
+			}
+		}
+
+		if (type(outbound.domain_resolver) == "string" && outbound.domain_resolver != "") {
+			if (!dns_tags[outbound.domain_resolver])
+				die("Invalid domain_resolver reference on outbound: " + outbound.tag + " -> " + outbound.domain_resolver);
 		}
 	}
 
 	if (type(profile.dns) == "object" && profile.dns != null && type(profile.dns.servers) == "array") {
 		for (let server in profile.dns.servers) {
-			if (type(server) == "object" && server != null && type(server.detour) == "string" && server.detour != "" && !tags[server.detour])
+			if (type(server) != "object" || server == null)
+				continue;
+			if (type(server.detour) == "string" && server.detour != "" && !tags[server.detour])
 				die("Invalid DNS detour reference: " + server.tag + " -> " + server.detour);
+			if (type(server.domain_resolver) == "string" && server.domain_resolver != "" && !dns_tags[server.domain_resolver])
+				die("Invalid DNS domain_resolver reference: " + server.tag + " -> " + server.domain_resolver);
 		}
 	}
 }

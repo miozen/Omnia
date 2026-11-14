@@ -15,7 +15,7 @@ import { collect_profile_tags, normalized_nodes, collect_node_tags } from 'omnia
 import { generate_region_groups, grouped_node_tags, unmatched_node_tag_list, matched_node_count } from 'omnia.generator_groups';
 import { direct_outbound_tag, inject_selectors, main_selector_option_count, merge_outbounds } from 'omnia.generator_selectors';
 import { collect_manual_selector_consumers, restore_manual_selector_references, generate_manual_selector } from 'omnia.generator_manual_selector';
-import { generate_dns_urltest, route_dns_detours } from 'omnia.generator_dns';
+import { generate_dns_urltest, route_dns_detours, apply_source_dedicated_dns } from 'omnia.generator_dns';
 import { localize_rulesets } from 'omnia.generator_rulesets';
 import { apply_dashboard_api_service, ensure_control_plane_proxy_inbound } from 'omnia.generator_control_plane';
 
@@ -42,6 +42,7 @@ function generate_candidate(trace_id, req) {
 		restore_manual_selector_references(profile, manual_consumers);
 		let manual_selector = generate_manual_selector(subscriptions, nodes, direct_outbound_tag(profile), profile_tags, node_tags);
 		let main_options = main_selector_option_count(profile);
+		let dedicated_dns = apply_source_dedicated_dns(profile, subscriptions, nodes);
 		merge_outbounds(profile, groups, manual_selector, dns_group, nodes);
 		let dns_detours_adjusted = route_dns_detours(profile, dns_group, validated_main_selector_tag(profile));
 		let ruleset = localize_rulesets(profile, ruleset_policy);
@@ -65,6 +66,8 @@ function generate_candidate(trace_id, req) {
 			dns_group_nodes: dns_group != null ? length(dns_group.outbounds) : 0,
 			dns_detours_adjusted: dns_detours_adjusted,
 			dns_detours_fallback: dns_group == null,
+			dedicated_dns_servers: dedicated_dns.generated_dns_servers,
+			dedicated_dns_assigned_nodes: dedicated_dns.assigned_nodes,
 			matched_node_count: matched_count,
 			unmatched_node_count: unmatched_count,
 			main_selector_options: main_options,

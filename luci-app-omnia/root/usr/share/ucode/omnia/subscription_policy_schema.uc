@@ -547,6 +547,33 @@ function unique_generated_source_id(index, seen_ids, reserved_ids) {
 	die("Failed to generate unique subscription source id");
 }
 
+function normalize_source_dns(raw_dns) {
+	if (type(raw_dns) != "object" || raw_dns == null || type(raw_dns) == "array")
+		return null;
+
+	let enabled = raw_dns.enabled == true;
+	let dns_type = type(raw_dns.type) == "string" && raw_dns.type != "" ? lc(raw_dns.type) : "https";
+	let server = type(raw_dns.server) == "string" ? raw_dns.server : "";
+	let server_port = int(raw_dns.server_port || raw_dns.port || 0);
+	let domain_resolver = type(raw_dns.domain_resolver) == "string" ? raw_dns.domain_resolver : "";
+
+	let allowed_types = { 'udp': true, 'tcp': true, 'tls': true, 'https': true, 'quic': true, 'h3': true };
+	if (server != "" && !allowed_types[dns_type])
+		die("Invalid subscription source DNS type: " + dns_type);
+
+	// Invariant: Dedicated DNS cannot detour through proxy (prevents deadlock)
+	if (raw_dns.detour != null && raw_dns.detour != "" && raw_dns.detour != "direct" && raw_dns.detour != "🎯 全球直连")
+		die("Subscription source dedicated DNS cannot detour to proxy");
+
+	return {
+		enabled: enabled,
+		type: dns_type,
+		server: server,
+		server_port: server_port > 0 ? server_port : null,
+		domain_resolver: domain_resolver != "" ? domain_resolver : null
+	};
+}
+
 function normalize_source(source, regions, index, seen_ids, reserved_ids) {
 	if (type(source) != "object" || source == null || type(source) == "array")
 		die("subscription source must be an object");
@@ -558,13 +585,22 @@ function normalize_source(source, regions, index, seen_ids, reserved_ids) {
 	let id = source_has_id(source) ? source.id : unique_generated_source_id(index, seen_ids, reserved_ids);
 	validate_source_id(id);
 
-	return {
+	let normalized = {
 		id: id,
 		name: source.name,
 		url: source.url,
 		enabled: source.enabled == false ? false : true,
 		allowed_regions: normalize_allowed_regions(source, regions)
 	};
+
+	if (type(source.operators) == "array")
+		normalized.operators = source.operators;
+	if (type(source.dns) == "object" && source.dns != null)
+		normalized.dns = normalize_source_dns(source.dns);
+	if (type(source.userinfo) == "object" && source.userinfo != null)
+		normalized.userinfo = source.userinfo;
+
+	return normalized;
 }
 
 function normalize_subscriptions_policy(config) {
@@ -613,5 +649,5 @@ function normalize_subscriptions_policy(config) {
 	};
 }
 
-export { default_region_keywords, default_banned_keywords, default_urltest_params, default_dns_urltest, default_manual_selector, default_rate_filter, default_subscription_update_policy, validate_refresh_strategy, validate_fetch_strategy, normalize_subscriptions_policy };
+export { default_region_keywords, default_banned_keywords, default_urltest_params, default_dns_urltest, default_manual_selector, default_rate_filter, default_subscription_update_policy, validate_refresh_strategy, validate_fetch_strategy, normalize_subscriptions_policy, normalize_source_dns };
 

@@ -40,10 +40,13 @@ ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/convert-step-m2-t
 echo "11. M2 Integration & cross-format consistency..."
 ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/convert-step-m2-integration.uc
 
-echo "12. Compiling all ucode modules (-c,module)..."
+echo "12. M3 Declarative dedicated DNS..."
+ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/generator-dedicated-dns.uc
+
+echo "13. Compiling all ucode modules (-c,module)..."
 find /work/luci-app-omnia/root/usr/share/ucode -type f -name "*.uc" | while read -r f; do
 	ucode -L /work/luci-app-omnia/root/usr/share/ucode -c,module -o /tmp/check "$f" || exit 1
 done
 
-echo "=== All 11 Unit/Integration Tests & Module Compilation Passed! ==="
+echo "=== All 12 Unit/Integration Tests & Module Compilation Passed! ==="
 '

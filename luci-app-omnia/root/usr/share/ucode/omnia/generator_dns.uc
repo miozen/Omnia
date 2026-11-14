@@ -69,4 +69,70 @@ function route_dns_detours(profile, dns_group, fallback_tag) {
 	return adjusted;
 }
 
-export { DNS_OUTBOUND_TAG, generate_dns_urltest, route_dns_detours };
+/**
+ * Milestone 3: Declarative DNS scheme.
+ * Injects dedicated DNS servers for configured subscription sources and binds them to source nodes.
+ */
+function apply_source_dedicated_dns(profile, subscriptions, nodes) {
+	let generated_count = 0;
+	let assigned_count = 0;
+
+	if (type(profile.dns) != "object" || profile.dns == null)
+		return { generated_dns_servers: 0, assigned_nodes: 0 };
+	if (type(profile.dns.servers) != "array")
+		profile.dns.servers = [];
+
+	let existing_dns_tags = {};
+	for (let server in profile.dns.servers) {
+		if (type(server) == "object" && server != null && type(server.tag) == "string")
+			existing_dns_tags[server.tag] = true;
+	}
+
+	let source_dns_tag_map = {};
+
+	if (type(subscriptions) == "object" && subscriptions != null && type(subscriptions.sources) == "array") {
+		for (let source in subscriptions.sources) {
+			if (source.enabled == false)
+				continue;
+			if (type(source.dns) != "object" || source.dns == null || source.dns.enabled != true)
+				continue;
+			if (type(source.dns.server) != "string" || source.dns.server == "")
+				continue;
+
+			let tag = "dns-src-" + source.id;
+			if (existing_dns_tags[tag])
+				die("Dedicated DNS tag conflicts with profile DNS server: " + tag);
+
+			let dns_entry = {
+				tag: tag,
+				type: source.dns.type || "https",
+				server: source.dns.server
+			};
+			if (source.dns.server_port)
+				dns_entry.server_port = source.dns.server_port;
+			if (source.dns.domain_resolver)
+				dns_entry.domain_resolver = source.dns.domain_resolver;
+
+			push(profile.dns.servers, dns_entry);
+			existing_dns_tags[tag] = true;
+			source_dns_tag_map[source.id] = tag;
+			generated_count++;
+		}
+	}
+
+	// Assign domain_resolver to corresponding nodes
+	for (let node in nodes) {
+		let src_id = node.x_omnia_source_id;
+		if (src_id && source_dns_tag_map[src_id]) {
+			node.domain_resolver = source_dns_tag_map[src_id];
+			assigned_count++;
+		}
+	}
+
+	return {
+		generated_dns_servers: generated_count,
+		assigned_nodes: assigned_count
+	};
+}
+
+export { DNS_OUTBOUND_TAG, generate_dns_urltest, route_dns_detours, apply_source_dedicated_dns };

@@ -368,21 +368,41 @@ function node_snapshot_summary(trace_id, req) {
 function subscription_test_source(trace_id, req) {
 	try {
 		let name = source_arg(req, "name");
+		let source_type = source_arg(req, "type") || "remote";
 		let url = source_arg(req, "url");
 		let strategy = source_arg(req, "strategy");
-
-		validate_url(url);
 		if (strategy == "")
 			strategy = "direct";
-		validate_refresh_strategy(strategy);
+		let user_agent = source_arg(req, "user_agent");
+		let operators = type(req) == "object" && type(req.operators) == "array" ? req.operators : null;
+		let outbounds = [];
 
-		let content = fetch_substore_output_checked(trace_id, url, strategy);
-		let parse_res = parse_subscription_safely(trace_id, content);
-		let outbounds = sanitize_and_validate_outbounds(parse_res.outbounds);
+		if (source_type == "local") {
+			if (type(req) == "object" && (type(req.nodes) == "array" || type(req.payload) == "array")) {
+				let raw_nodes = type(req.nodes) == "array" ? req.nodes : req.payload;
+				let conv = convert_form_nodes(raw_nodes, { operators: operators });
+				if (!conv.ok)
+					die("Local form nodes conversion failed: " + conv.error);
+				outbounds = conv.outbounds;
+			} else {
+				let payload_str = type(req) == "object" && type(req.payload) == "string" ? req.payload : "";
+				let parse_res = parse_subscription_safely(trace_id, payload_str, { operators: operators });
+				outbounds = parse_res.outbounds;
+			}
+		} else {
+			validate_url(url);
+			validate_refresh_strategy(strategy);
+			let fetched = fetch_subscription_checked(trace_id, url, strategy, { user_agent: user_agent });
+			let parse_res = parse_subscription_safely(trace_id, fetched.body, { operators: operators });
+			outbounds = parse_res.outbounds;
+		}
+
+		outbounds = sanitize_and_validate_outbounds(outbounds);
 		validate_outbounds(outbounds);
 
 		return Success({
 			name: name,
+			type: source_type,
 			url: url,
 			refresh_strategy: strategy,
 			node_count: length(outbounds),

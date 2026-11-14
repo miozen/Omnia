@@ -2,27 +2,26 @@
 
 ## Last Updated
 
-2026-11-14T20:00+08:00
+2026-11-14T21:48+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `9af8c0b` (feat: implement Milestone 4 local nodes and sandboxed script engine)
+- **HEAD:** `ac17013` (feat: integrate native conversion and node processing into LuCI UI)
 - **Working Tree:** CLEAN
 - **Remote Sync:** Pushed to `origin/dev`
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Feature Development — Native Subscription Conversion (Milestones 1-4 Complete)
-- **Current Task:** LuCI UI integration for native conversion, local nodes, operators, and preview
+- **Current Phase:** Post-v0.1.0 Feature Development — Native Subscription Conversion (Milestones 1-5 Complete)
+- **Current Task:** Manual package assembly on `dev` and real hardware testing before master merge
 - **Last Completed:**
-  1. Implemented form-based local node parser (`convert/parsers/form.uc`) supporting ss, vmess, vless, trojan, hysteria2 (hy2), tuic, socks, http, detour rejection, and protocol normalization into IR nodes.
-  2. Implemented sandboxed ucode script engine (`convert/operators/script.uc`) supporting batch and single modes, built-in utilities (`flags`, `is_ip`, `trim`, `starts_with`, `ends_with`, `match`, `replace`), context/params injection, and comprehensive error trapping (compilation, runtime, return type).
-  3. Integrated script operator into ordered pipeline engine (`convert/operators/engine.uc`) and pipeline (`convert/pipeline.uc` -> `convert_form_nodes`).
-  4. Added preview conversion function (`subscription_fetch.uc` -> `preview_subscription_nodes`).
-  5. Updated subscription schema (`subscription_policy_schema.uc`), supporting `type: "local"`, optional URL, and payload / nodes persistence.
-  6. Updated subscription refresh workflow (`subscription.uc`), bypassing HTTP fetch for local sources and converting local payload or form nodes with operators and DNS support.
-  7. Created comprehensive test suite (`tests/convert-step-m4-local-and-script.uc`) and unified test runner update (13 tests passing, module syntax compilation passing).
+  1. Updated LuCI frontend model (`subscriptions.js`), ensuring `normalizePolicy` and `collectPolicyFromPage` preserve all native conversion fields (type, subtype, payload, nodes, user_agent, operators, dns, userinfo).
+  2. Upgraded subscription source editor drawer (`subscriptions.js`), supporting Remote URL vs Local Nodes, UA presets/custom, payload/form entry, dedicated DNS config, and operator pipeline with quick template buttons.
+  3. Integrated instant test and preview (`subscription.uc` -> `subscription_test_source`, `omnia.uc` -> rpcd args schema, `subscriptions.js` -> `testEditorSource`), enabling real-time node preview without saving to snapshot.
+  4. Added visual indicators to source matrix table (local node badge, dedicated DNS tag, operator count).
+  5. Cleaned up legacy Sub-Store text across frontend.
+  6. Verified `ci-static.sh` (panel, UI, version, release checks), all 13 conversion tests, module syntax compilation, and subscription integration tests.
 
 ## Uncommitted Work
 
@@ -51,15 +50,17 @@ None once committed.
 
 ## Validation Pending
 
-- Real device or OpenWrt 25.12.x VM acceptance before final master merge.
+- Package assembly (IPK/APK) and real device or OpenWrt 25.12.x VM acceptance before final master merge.
 
 ## Known Issues / Blockers
 
-None. M1, M2, M3, and M4 backend conversions and engines are fully verified.
+None. Native subscription conversion (v1.5) backend and frontend capabilities are fully implemented and verified.
 
 ## Exact Next Action
 
-1. Proceed with LuCI UI integration for native conversion, local nodes, operators, and preview.
+1. Build IPK package manually on `dev` branch.
+2. User deploys and tests IPK on real OpenWrt hardware.
+3. Upon real device confirmation, proceed with merge from `dev` to `master`.
 
 ## Cross-machine Ready
 

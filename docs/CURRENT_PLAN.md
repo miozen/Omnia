@@ -57,14 +57,20 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Step 5: Subscription schema update (`subscription_policy_schema.uc`), supporting `type: "local"`, optional URL, and payload / nodes persistence.
   - [x] Step 6: Local source refresh workflow (`subscription.uc`), bypassing HTTP fetch and safely converting local payload or form nodes with operators and DNS support.
   - [x] Step 7: Comprehensive test suite (`tests/convert-step-m4-local-and-script.uc`) and unified test runner update (13 tests passing, module syntax compilation passing).
+- [x] Completed Milestone 5 (M5) of Native Subscription Conversion & Processing (LuCI UI & Frontend Integration):
+  - [x] Step 1: Subscriptions UI model enhancement (`subscriptions.js` -> `normalizePolicy` & `collectPolicyFromPage`) preserving native conversion fields (type, subtype, payload, nodes, user_agent, operators, dns, userinfo).
+  - [x] Step 2: Source editor modal upgrade (`subscriptions.js` -> `sourceEditor`), supporting source type toggle (Remote vs Local), UA configuration, payload/form entry, dedicated DNS options, and operator pipeline with quick templates.
+  - [x] Step 3: Instant test and node preview (`subscriptions.js` -> `testEditorSource`, `subscription.uc` -> `subscription_test_source`, `omnia.uc` -> rpcd args schema) allowing real-time node preview before saving.
+  - [x] Step 4: Source matrix visual indicators (local node badge, dedicated DNS tag, operator count).
+  - [x] Step 5: Cleaned up legacy Sub-Store text across LuCI frontend.
+  - [x] Step 6: Verified static checks (`ci-static.sh`), UI tests (`subscription-ui.cjs`), convert suite (13 tests), and subscription integration tests.
 
 ## In Progress
 
-- [ ] Native subscription conversion (v1.5) backend milestones M1-M4 completed; await user review / master merge planning.
+- [ ] Native subscription conversion (v1.5) completed across backend (M1-M4) and frontend (M5); prepare final verification and master merge readiness.
 
 ## Remaining
 
-- [ ] LuCI UI frontend updates for Native Conversion & Nodes (subscription types, operators, script editor, preview, form node entry).
 - [ ] Acceptance testing on OpenWrt 25.12.x / real hardware before release.
 
 ## Acceptance Criteria

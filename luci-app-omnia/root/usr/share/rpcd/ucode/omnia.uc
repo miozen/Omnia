@@ -242,8 +242,13 @@ const methods = {
 	subscription_test_source: {
 		args: {
 			name: "",
+			type: "",
 			url: "",
-			strategy: ""
+			strategy: "",
+			user_agent: "",
+			payload: "",
+			nodes: [],
+			operators: []
 		},
 		call: function(req) {
 			let trace_id = gen_trace_id();

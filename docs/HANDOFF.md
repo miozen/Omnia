@@ -7,9 +7,9 @@
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** (pending commit for ruleset runner tag pattern fix)
-- **Working Tree:** DIRTY (pending commit)
-- **Remote Sync:** Pending push to `origin/dev`
+- **HEAD:** `4063a05` (fix(ruleset): allow exclamation mark in tag whitelist and improve status display)
+- **Working Tree:** CLEAN
+- **Remote Sync:** Pushed to `origin/dev`
 
 ## Development State
 

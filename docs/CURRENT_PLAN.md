@@ -70,6 +70,7 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
 - [x] Native subscription conversion (v1.5) completed across backend (M1-M4) and frontend (M5).
 - [x] Fixed single ruleset download failure for tags with exclamation marks (e.g., `geosite-category-ai-!cn`, `geosite-geolocation-!cn`) in `omnia-runner` and optimized LuCI UI tag reporting.
 - [x] Upgraded operator pipeline to Sub-Store style visual card UI with reordering/presets and fully aligned airport DNS settings with sing-box official schema.
+- [x] Converted LuCI profile template page (`profile.js`) into an editable JSON editor with offline sing-box official JSON Schema validation, formatting, Tab/Ctrl+S shortcuts, rollback/restore integration, and collapsible on-demand remote pull settings.
 
 ## Remaining
 

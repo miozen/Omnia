@@ -2,26 +2,29 @@
 
 ## Last Updated
 
-2026-11-15T10:10+08:00
+2026-11-15T19:35+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `6d6c33e` (feat(subscription): upgrade operator pipeline to sub-store visual cards and align airport dns with singbox official schema)
-- **Working Tree:** CLEAN
-- **Remote Sync:** Pushed to `origin/dev`
+- **HEAD:** (pending commit)
+- **Working Tree:** DIRTY (template editor implementation and schema assets ready to commit)
+- **Remote Sync:** Pending commit and push to `origin/dev`
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Feature Development — Native Subscription Conversion & Bug Fixes
-- **Current Task:** Replaced raw operator JSON with Sub-Store style visual cards & full sing-box official airport DNS settings
+- **Current Phase:** Post-v0.1.0 Feature Development — Editable Profile Template & Official JSON Schema Validation
+- **Current Task:** Convert profile template view to editable JSON editor with offline sing-box JSON schema validation
 - **Last Completed:**
-  1. Replaced the single JSON textarea in operator pipeline with Sub-Store style visual card list (supporting filter, rename, flag, quick setting, sort, script), with move up/down, delete, and preset examples.
-  2. Enhanced airport dedicated DNS to fully align with sing-box official specification (supporting tag, type, server, server_port, path, detour, domain_resolver, strategy, client_subnet).
-  3. Lifted the rigid detour restrictions in `subscription_policy_schema.uc`, allowing users to choose proxy or default direct detours for airport DNS.
-  4. Enabled seamless two-way switching between visual UI form mode and advanced JSON mode (with presets) for both DNS and operator pipeline.
-  5. Verified all 13 pure-function and integration tests via `tests/run-all-convert-tests.sh` in OpenWrt container.
-  6. Verified `ci-static.sh` (JS syntax, panel behavior, subscription UI, release scripts).
+  1. Converted `luci-app-omnia/htdocs/luci-static/resources/view/omnia/profile.js` into an interactive JSON editor with direct local saving to `/etc/omnia/profiles/main-profile.json` (via existing `profile_save` RPC).
+  2. Integrated sing-box official JSON Schema (`https://sing-box.sagernet.org/schema.json`) packaged locally as `luci-static/resources/omnia/sing-box-schema.json` for 100% offline schema validation.
+  3. Implemented robust client-side Schema validator adhering to sing-box Draft 2020-12 rules and ignoring Omnia `x_` extension properties.
+  4. Added validation pipeline: JSON syntax check, `$schema` URL check, sing-box JSON schema validation, and backend Omnia structure contract (`profile_validate`).
+  5. Added editor UX features: 2-space indentation formatting, Tab key indentation, Ctrl+S save shortcut, and dirty state tracking badge.
+  6. Preserved existing rollback (`callProfileRollback`) and default profile restore (`callProfileRestoreDefault`) mechanics.
+  7. Encapsulated remote template URL and fetch strategy inside a native collapsed `<details>` accordion for on-demand pull without remote uploads.
+  8. Created comprehensive test suite `tests/profile-ui.cjs` and integrated it into `ci-static.sh`.
+  9. Verified all 13 converter tests, static checks, unit tests, and python schema validation pass without errors.
 
 ## Uncommitted Work
 
@@ -44,8 +47,9 @@ None once committed.
   - `tests/generator-dedicated-dns.uc` PASS
   - `tests/convert-step-m4-local-and-script.uc` PASS
   - UCode syntax compilation on all modules (`ucode -c,module`) PASS
-- Subscription refresh integration test (`tests/run-subscription-integration.sh`) PASS.
-- Full CI static suite (`tests/ci-static.sh`) PASS via Node.js v22.
+- Python schema validator `tests/validate-profile-schema.py` PASS against local official schema cache.
+- Frontend profile UI unit test `tests/profile-ui.cjs` PASS.
+- Full CI static suite (`tests/ci-static.sh`) PASS.
 - `git diff --check` passed with 0 errors.
 
 ## Validation Pending
@@ -54,14 +58,14 @@ None once committed.
 
 ## Known Issues / Blockers
 
-None. Native subscription conversion (v1.5) backend and frontend capabilities are fully implemented and verified.
+None.
 
 ## Exact Next Action
 
-1. Build IPK package manually on `dev` branch.
-2. User deploys and tests IPK on real OpenWrt hardware.
-3. Upon real device confirmation, proceed with merge from `dev` to `master`.
+1. Commit changes to `dev` branch.
+2. Push to `origin/dev`.
+3. Inform user of completion.
 
 ## Cross-machine Ready
 
-**YES** — Committed and pushed to `origin/dev`. Working tree is CLEAN.
+**NO** — Pending commit and push to `origin/dev`.

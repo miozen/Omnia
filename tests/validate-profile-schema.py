@@ -26,6 +26,9 @@ def strip_omnia_extensions(value):
 
 
 def load_schema():
+    local_path = Path("luci-app-omnia/htdocs/luci-static/resources/omnia/sing-box-schema.json")
+    if local_path.is_file():
+        return json.loads(local_path.read_text(encoding="utf-8"))
     with urlopen(OFFICIAL_SCHEMA_URL, timeout=20) as response:
         return json.load(response)
 

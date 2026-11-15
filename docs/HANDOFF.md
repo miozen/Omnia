@@ -7,9 +7,9 @@
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** (pending commit for airport dns and sub-store operator ui)
-- **Working Tree:** DIRTY (pending commit)
-- **Remote Sync:** Pending push to `origin/dev`
+- **HEAD:** `6d6c33e` (feat(subscription): upgrade operator pipeline to sub-store visual cards and align airport dns with singbox official schema)
+- **Working Tree:** CLEAN
+- **Remote Sync:** Pushed to `origin/dev`
 
 ## Development State
 

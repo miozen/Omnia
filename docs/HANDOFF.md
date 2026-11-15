@@ -7,9 +7,9 @@
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** (pending commit)
-- **Working Tree:** DIRTY (template editor implementation and schema assets ready to commit)
-- **Remote Sync:** Pending commit and push to `origin/dev`
+- **HEAD:** `bddf441` (feat(profile): transform template view into editable json editor with singbox official schema validation)
+- **Working Tree:** CLEAN
+- **Remote Sync:** Pushed to `origin/dev`
 
 ## Development State
 
@@ -62,10 +62,10 @@ None.
 
 ## Exact Next Action
 
-1. Commit changes to `dev` branch.
-2. Push to `origin/dev`.
-3. Inform user of completion.
+1. Build IPK package manually on `dev` branch.
+2. User deploys and tests IPK on real OpenWrt hardware / VM.
+3. Upon real device confirmation, proceed with merge from `dev` to `master`.
 
 ## Cross-machine Ready
 
-**NO** — Pending commit and push to `origin/dev`.
+**YES** — Committed and pushed to `origin/dev`. Working tree is CLEAN.

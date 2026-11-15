@@ -2,26 +2,26 @@
 
 ## Last Updated
 
-2026-11-14T23:25+08:00
+2026-11-15T10:10+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `4063a05` (fix(ruleset): allow exclamation mark in tag whitelist and improve status display)
-- **Working Tree:** CLEAN
-- **Remote Sync:** Pushed to `origin/dev`
+- **HEAD:** (pending commit for airport dns and sub-store operator ui)
+- **Working Tree:** DIRTY (pending commit)
+- **Remote Sync:** Pending push to `origin/dev`
 
 ## Development State
 
 - **Current Phase:** Post-v0.1.0 Feature Development — Native Subscription Conversion & Bug Fixes
-- **Current Task:** Fixed single ruleset download failure for tags containing exclamation marks (`!`)
+- **Current Task:** Replaced raw operator JSON with Sub-Store style visual cards & full sing-box official airport DNS settings
 - **Last Completed:**
-  1. Diagnosed single ruleset download failure on `geosite-category-ai-!cn` and `geosite-geolocation-!cn` (error: `Missing Rule Set tag`).
-  2. Fixed POSIX shell pattern whitelist in `/usr/libexec/omnia-runner` (`*[!A-Za-z0-9._!-]*)`), aligning with `ruleset_task.uc` (`safe_shell_arg`) to properly allow exclamation marks (`!`).
-  3. Optimized frontend `rulesets.js` `pollRulesetDownloadOne` to retain `downloadingTag` before status text rendering, ensuring error messages consistently report the target tag.
-  4. Validated tag pattern filtering with test cases (valid tags, tags with `!`, invalid/injection strings).
-  5. Verified all JS syntax checks (`node --check`) and UI behavior tests (`panel-behavior.cjs`, `subscription-ui.cjs`).
-  6. Verified JSON configurations.
+  1. Replaced the single JSON textarea in operator pipeline with Sub-Store style visual card list (supporting filter, rename, flag, quick setting, sort, script), with move up/down, delete, and preset examples.
+  2. Enhanced airport dedicated DNS to fully align with sing-box official specification (supporting tag, type, server, server_port, path, detour, domain_resolver, strategy, client_subnet).
+  3. Lifted the rigid detour restrictions in `subscription_policy_schema.uc`, allowing users to choose proxy or default direct detours for airport DNS.
+  4. Enabled seamless two-way switching between visual UI form mode and advanced JSON mode (with presets) for both DNS and operator pipeline.
+  5. Verified all 13 pure-function and integration tests via `tests/run-all-convert-tests.sh` in OpenWrt container.
+  6. Verified `ci-static.sh` (JS syntax, panel behavior, subscription UI, release scripts).
 
 ## Uncommitted Work
 

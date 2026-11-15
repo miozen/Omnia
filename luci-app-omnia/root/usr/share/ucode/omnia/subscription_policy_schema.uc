@@ -554,23 +554,33 @@ function normalize_source_dns(raw_dns) {
 	let enabled = raw_dns.enabled == true;
 	let dns_type = type(raw_dns.type) == "string" && raw_dns.type != "" ? lc(raw_dns.type) : "https";
 	let server = type(raw_dns.server) == "string" ? raw_dns.server : "";
+	let tag = type(raw_dns.tag) == "string" ? raw_dns.tag : "";
 	let server_port = int(raw_dns.server_port || raw_dns.port || 0);
+	let path = type(raw_dns.path) == "string" ? raw_dns.path : "";
+	let detour = type(raw_dns.detour) == "string" ? raw_dns.detour : "";
 	let domain_resolver = type(raw_dns.domain_resolver) == "string" ? raw_dns.domain_resolver : "";
+	let strategy = type(raw_dns.strategy) == "string" ? lc(raw_dns.strategy) : "";
+	let client_subnet = type(raw_dns.client_subnet) == "string" ? raw_dns.client_subnet : "";
 
 	let allowed_types = { 'udp': true, 'tcp': true, 'tls': true, 'https': true, 'quic': true, 'h3': true };
 	if (server != "" && !allowed_types[dns_type])
 		die("Invalid subscription source DNS type: " + dns_type);
 
-	// Invariant: Dedicated DNS cannot detour through proxy (prevents deadlock)
-	if (raw_dns.detour != null && raw_dns.detour != "" && raw_dns.detour != "direct" && raw_dns.detour != "🎯 全球直连")
-		die("Subscription source dedicated DNS cannot detour to proxy");
+	let allowed_strategies = { 'prefer_ipv4': true, 'prefer_ipv6': true, 'ipv4_only': true, 'ipv6_only': true };
+	if (strategy != "" && !allowed_strategies[strategy])
+		strategy = "";
 
 	return {
 		enabled: enabled,
+		tag: tag != "" ? tag : null,
 		type: dns_type,
 		server: server,
 		server_port: server_port > 0 ? server_port : null,
-		domain_resolver: domain_resolver != "" ? domain_resolver : null
+		path: path != "" ? path : null,
+		detour: detour != "" ? detour : null,
+		domain_resolver: domain_resolver != "" ? domain_resolver : null,
+		strategy: strategy != "" ? strategy : null,
+		client_subnet: client_subnet != "" ? client_subnet : null
 	};
 }
 

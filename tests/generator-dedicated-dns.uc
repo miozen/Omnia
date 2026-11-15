@@ -35,20 +35,25 @@ assert(norm_valid.type == "https", "Type mismatch");
 assert(norm_valid.server == "223.5.5.5", "Server mismatch");
 assert(norm_valid.server_port == 443, "Port mismatch");
 
-// Deadlock rejection: detour through proxy
-let bad_detour_dns = {
+// Detour & official fields preservation: custom detour, path, strategy, tag
+let proxy_detour_dns = {
 	enabled: true,
+	tag: "custom-airport-dns",
 	type: "https",
-	server: "8.8.8.8",
-	detour: "proxy-node"
+	server: "doh.airport.com",
+	server_port: 8443,
+	path: "/dns-query",
+	detour: "proxy-node",
+	strategy: "prefer_ipv4",
+	client_subnet: "1.1.1.1/24"
 };
-let deadlock_caught = false;
-try {
-	normalize_source_dns(bad_detour_dns);
-} catch (e) {
-	deadlock_caught = true;
-}
-assert(deadlock_caught == true, "Dedicated DNS detouring through proxy MUST be rejected to prevent deadlock");
+let norm_detour = normalize_source_dns(proxy_detour_dns);
+assert(norm_detour.enabled == true, "Detour DNS enabled mismatch");
+assert(norm_detour.tag == "custom-airport-dns", "Tag mismatch");
+assert(norm_detour.detour == "proxy-node", "Detour must be preserved: " + norm_detour.detour);
+assert(norm_detour.path == "/dns-query", "Path mismatch");
+assert(norm_detour.strategy == "prefer_ipv4", "Strategy mismatch");
+assert(norm_detour.server_port == 8443, "Server port mismatch");
 
 // -----------------------------------------------------------------------------
 // 2. Dedicated DNS Injection and Node Binding

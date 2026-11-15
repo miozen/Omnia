@@ -99,7 +99,7 @@ function apply_source_dedicated_dns(profile, subscriptions, nodes) {
 			if (type(source.dns.server) != "string" || source.dns.server == "")
 				continue;
 
-			let tag = "dns-src-" + source.id;
+			let tag = (type(source.dns.tag) == "string" && source.dns.tag != "") ? source.dns.tag : ("dns-src-" + source.id);
 			if (existing_dns_tags[tag])
 				die("Dedicated DNS tag conflicts with profile DNS server: " + tag);
 
@@ -110,8 +110,16 @@ function apply_source_dedicated_dns(profile, subscriptions, nodes) {
 			};
 			if (source.dns.server_port)
 				dns_entry.server_port = source.dns.server_port;
+			if (source.dns.path)
+				dns_entry.path = source.dns.path;
+			if (source.dns.detour)
+				dns_entry.detour = source.dns.detour;
 			if (source.dns.domain_resolver)
 				dns_entry.domain_resolver = source.dns.domain_resolver;
+			if (source.dns.strategy)
+				dns_entry.strategy = source.dns.strategy;
+			if (source.dns.client_subnet)
+				dns_entry.client_subnet = source.dns.client_subnet;
 
 			push(profile.dns.servers, dns_entry);
 			existing_dns_tags[tag] = true;

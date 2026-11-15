@@ -875,8 +875,82 @@ function sourceEditor(policy, index) {
 	} : policy.sources[index] || {};
 	let keys = regionKeys(policy);
 	let isLocal = (source.type === 'local');
-	let dnsConfig = source.dns || {};
-	let operatorsText = source.operators && source.operators.length ? JSON.stringify(source.operators, null, 2) : '';
+	let dnsConfig = (source.dns && typeof source.dns === 'object') ? JSON.parse(JSON.stringify(source.dns)) : {};
+	let activeOps = Array.isArray(source.operators) ? JSON.parse(JSON.stringify(source.operators)) : [];
+	window.omniaActiveEditorOps = activeOps;
+
+	let dnsPresets = [
+		{
+			title: _('机场自建 DoH (带 Path 与前置解析)'),
+			data: {
+				tag: 'airport-doh',
+				type: 'https',
+				server: 'doh.airport.com',
+				server_port: 443,
+				path: '/dns-query',
+				domain_resolver: 'Ali-DNS',
+				strategy: 'prefer_ipv4'
+			}
+		},
+		{
+			title: _('自建传统 UDP DNS (带自定义端口)'),
+			data: {
+				tag: 'airport-udp',
+				type: 'udp',
+				server: '198.51.100.1',
+				server_port: 5353
+			}
+		},
+		{
+			title: _('经由代理出站的 DoT DNS'),
+			data: {
+				tag: 'airport-dot',
+				type: 'tls',
+				server: 'dot.airport.com',
+				server_port: 853,
+				detour: '🗽 节点选择'
+			}
+		},
+		{
+			title: _('自建 HTTP/3 (h3) DNS'),
+			data: {
+				tag: 'airport-h3',
+				type: 'h3',
+				server: 'doh.airport.com',
+				server_port: 443,
+				path: '/dns-query'
+			}
+		}
+	];
+
+	let opPresets = [
+		{
+			title: _('基础常用 (自动国旗 + 开启 UDP)'),
+			data: [
+				{ type: 'flag' },
+				{ type: 'quick_setting', udp: true }
+			]
+		},
+		{
+			title: _('地区保留与排序 (保留 HK/JP/SG/US + 字母排序)'),
+			data: [
+				{ type: 'regex_filter', pattern: '香港|日本|新加坡|美国|HK|JP|SG|US', invert: false, target: 'name' },
+				{ type: 'sort', mode: 'alphabetical' }
+			]
+		},
+		{
+			title: _('垃圾节点清洗 (过滤高倍率/官网/重置)'),
+			data: [
+				{ type: 'regex_filter', pattern: '(官网|重置|剩余|到期|2x|3x|5x|高倍)', invert: true, target: 'name' }
+			]
+		},
+		{
+			title: _('统一节点规范前缀 (正则重命名)'),
+			data: [
+				{ type: 'regex_rename', pattern: '^(.*?)(香港|HK)(.*)$', replacement: '🇭🇰 香港 $3' }
+			]
+		}
+	];
 
 	function onTypeChange(ev) {
 		let isLoc = ev.target.value === 'local';
@@ -888,28 +962,320 @@ function sourceEditor(policy, index) {
 
 	function onDnsToggle(ev) {
 		let box = document.getElementById('omnia-editor-dns-fields');
-		if (box) box.style.display = ev.target.checked ? 'block' : 'none';
+		let jsonBox = document.getElementById('omnia-editor-dns-json-box');
+		let modeBtn = document.getElementById('omnia-editor-dns-mode-btn');
+		let show = ev.target.checked;
+		if (box) box.style.display = (show && (!jsonBox || jsonBox.style.display === 'none')) ? 'block' : 'none';
+		if (modeBtn) modeBtn.style.display = show ? 'inline-block' : 'none';
+		if (!show && jsonBox) jsonBox.style.display = 'none';
 	}
 
-	function insertOp(op) {
-		let area = document.getElementById('omnia-editor-operators');
-		if (!area) return;
-		try {
-			let cur = area.value.trim() ? JSON.parse(area.value) : [];
-			if (!Array.isArray(cur)) cur = [];
-			cur.push(op);
-			area.value = JSON.stringify(cur, null, 2);
-		} catch (e) {
-			area.value = JSON.stringify([ op ], null, 2);
+	function toggleDnsMode(ev) {
+		if (ev) ev.preventDefault();
+		let uiBox = document.getElementById('omnia-editor-dns-fields');
+		let jsonBox = document.getElementById('omnia-editor-dns-json-box');
+		let modeBtn = document.getElementById('omnia-editor-dns-mode-btn');
+		let jsonArea = document.getElementById('omnia-editor-dns-json');
+		if (!uiBox || !jsonBox) return;
+
+		let toRaw = (uiBox.style.display !== 'none');
+		if (toRaw) {
+			let current = collectEditorDns() || {};
+			delete current.enabled;
+			jsonArea.value = JSON.stringify(current, null, 2);
+			uiBox.style.display = 'none';
+			jsonBox.style.display = 'block';
+			if (modeBtn) modeBtn.textContent = _('切换到表单模式');
+		} else {
+			try {
+				let parsed = jsonArea.value.trim() ? JSON.parse(jsonArea.value) : {};
+				let tagInput = document.getElementById('omnia-editor-dns-tag');
+				let typeSel = document.getElementById('omnia-editor-dns-type');
+				let serverInput = document.getElementById('omnia-editor-dns-server');
+				let portInput = document.getElementById('omnia-editor-dns-port');
+				let pathInput = document.getElementById('omnia-editor-dns-path');
+				let detourInput = document.getElementById('omnia-editor-dns-detour');
+				let resInput = document.getElementById('omnia-editor-dns-resolver');
+				let stratSel = document.getElementById('omnia-editor-dns-strategy');
+
+				if (tagInput) tagInput.value = parsed.tag || '';
+				if (typeSel) typeSel.value = parsed.type || 'https';
+				if (serverInput) serverInput.value = parsed.server || '';
+				if (portInput) portInput.value = parsed.server_port || '';
+				if (pathInput) pathInput.value = parsed.path || '';
+				if (detourInput) detourInput.value = parsed.detour || '';
+				if (resInput) resInput.value = parsed.domain_resolver || '';
+				if (stratSel) stratSel.value = parsed.strategy || '';
+			} catch (err) {
+				alert(_('JSON 格式有误，无法切回表单模式：') + err.message);
+				return;
+			}
+			jsonBox.style.display = 'none';
+			uiBox.style.display = 'block';
+			if (modeBtn) modeBtn.textContent = _('高级 JSON 模式');
 		}
 	}
+
+	function loadDnsPreset() {
+		let sel = document.getElementById('omnia-editor-dns-preset-select');
+		if (!sel || sel.value === '') return;
+		let idx = parseInt(sel.value, 10);
+		if (isNaN(idx) || !dnsPresets[idx]) return;
+		let p = dnsPresets[idx].data;
+		let jsonArea = document.getElementById('omnia-editor-dns-json');
+		if (jsonArea) jsonArea.value = JSON.stringify(p, null, 2);
+	}
+
+	function toggleOpsMode(ev) {
+		if (ev) ev.preventDefault();
+		let cardBox = document.getElementById('omnia-editor-ops-card-box');
+		let jsonBox = document.getElementById('omnia-editor-ops-json-box');
+		let modeBtn = document.getElementById('omnia-editor-ops-mode-btn');
+		let jsonArea = document.getElementById('omnia-editor-ops-json');
+		if (!cardBox || !jsonBox) return;
+
+		let toRaw = (cardBox.style.display !== 'none');
+		if (toRaw) {
+			jsonArea.value = JSON.stringify(activeOps, null, 2);
+			cardBox.style.display = 'none';
+			jsonBox.style.display = 'block';
+			if (modeBtn) modeBtn.textContent = _('切换到卡片模式');
+		} else {
+			try {
+				let parsed = jsonArea.value.trim() ? JSON.parse(jsonArea.value) : [];
+				if (!Array.isArray(parsed)) throw new Error(_('操作符配置必须是数组'));
+				activeOps = parsed;
+				renderOpCards();
+			} catch (err) {
+				alert(_('JSON 格式有误，无法切回卡片模式：') + err.message);
+				return;
+			}
+			jsonBox.style.display = 'none';
+			cardBox.style.display = 'block';
+			if (modeBtn) modeBtn.textContent = _('高级 JSON 模式');
+		}
+	}
+
+	function loadOpPreset() {
+		let sel = document.getElementById('omnia-editor-ops-preset-select');
+		if (!sel || sel.value === '') return;
+		let idx = parseInt(sel.value, 10);
+		if (isNaN(idx) || !opPresets[idx]) return;
+		let p = opPresets[idx].data;
+		let jsonArea = document.getElementById('omnia-editor-ops-json');
+		if (jsonArea) jsonArea.value = JSON.stringify(p, null, 2);
+	}
+
+	function addOp(type) {
+		let newOp = { type: type };
+		if (type === 'regex_filter') {
+			newOp.pattern = 'HK|JP';
+			newOp.invert = false;
+			newOp.target = 'name';
+		} else if (type === 'regex_rename') {
+			newOp.pattern = '^(.*?)$';
+			newOp.replacement = '$1';
+		} else if (type === 'quick_setting') {
+			newOp.udp = true;
+		} else if (type === 'sort') {
+			newOp.mode = 'alphabetical';
+		} else if (type === 'script') {
+			newOp.mode = 'single';
+			newOp.script = 'node.name = "[VIP] " + node.name;\nreturn node;';
+		}
+		activeOps.push(newOp);
+		renderOpCards();
+	}
+
+	function moveOp(idx, delta) {
+		let target = idx + delta;
+		if (target < 0 || target >= activeOps.length) return;
+		let temp = activeOps[idx];
+		activeOps[idx] = activeOps[target];
+		activeOps[target] = temp;
+		renderOpCards();
+	}
+
+	function removeOp(idx) {
+		activeOps.splice(idx, 1);
+		renderOpCards();
+	}
+
+	function renderSingleOpCard(op, idx) {
+		let typeNames = {
+			'regex_filter': _('正则过滤'),
+			'regex_rename': _('正则重命名'),
+			'flag': _('国旗添加'),
+			'quick_setting': _('属性批量设置'),
+			'sort': _('节点排序'),
+			'script': _('ucode 脚本')
+		};
+		let typeTitle = typeNames[op.type] || op.type;
+
+		let card = E('div', { 'style': 'border: 1px solid #cbd5e1; border-radius: 6px; padding: .65rem; margin-bottom: .5rem; background: #fff;' }, [
+			E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .45rem; border-bottom: 1px solid #f1f5f9; padding-bottom: .35rem;' }, [
+				E('div', { 'style': 'display: flex; align-items: center; gap: .45rem;' }, [
+					E('span', { 'style': 'font-weight: 700; color: #334155;' }, '#' + (idx + 1)),
+					E('span', { 'style': 'display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #e0f2fe; color: #0369a1;' }, typeTitle)
+				]),
+				E('div', { 'style': 'display: flex; gap: .25rem;' }, [
+					E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'padding: 1px 6px; font-size: 11px;', 'disabled': idx === 0 ? 'disabled' : null, 'click': function(ev) { ev.preventDefault(); moveOp(idx, -1); } }, '▲'),
+					E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'padding: 1px 6px; font-size: 11px;', 'disabled': idx === activeOps.length - 1 ? 'disabled' : null, 'click': function(ev) { ev.preventDefault(); moveOp(idx, 1); } }, '▼'),
+					E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'padding: 1px 6px; font-size: 11px; color: #ef4444;', 'click': function(ev) { ev.preventDefault(); removeOp(idx); } }, '✕')
+				])
+			])
+		]);
+
+		let body = E('div', { 'style': 'display: flex; flex-direction: column; gap: .45rem;' });
+
+		if (op.type === 'regex_filter') {
+			body.appendChild(E('div', { 'style': 'display: flex; gap: .5rem; flex-wrap: wrap;' }, [
+				E('label', { 'style': 'display: flex; align-items: center; gap: .35rem; font-size: 12px;' }, [
+					E('span', {}, _('模式：')),
+					E('select', {
+						'class': 'cbi-input-select',
+						'style': 'font-size: 12px;',
+						'change': function(ev) { op.invert = (ev.target.value === 'true'); }
+					}, [
+						E('option', { 'value': 'false', 'selected': !op.invert ? 'selected' : null }, _('保留匹配项 (Keep)')),
+						E('option', { 'value': 'true', 'selected': op.invert ? 'selected' : null }, _('排除匹配项 (Drop)'))
+					])
+				]),
+				E('label', { 'style': 'display: flex; align-items: center; gap: .35rem; font-size: 12px;' }, [
+					E('span', {}, _('目标：')),
+					E('select', {
+						'class': 'cbi-input-select',
+						'style': 'font-size: 12px;',
+						'change': function(ev) { op.target = ev.target.value; }
+					}, [
+						E('option', { 'value': 'name', 'selected': (!op.target || op.target === 'name') ? 'selected' : null }, _('节点名称')),
+						E('option', { 'value': 'type', 'selected': op.target === 'type' ? 'selected' : null }, _('协议类型')),
+						E('option', { 'value': 'server', 'selected': op.target === 'server' ? 'selected' : null }, _('服务器地址'))
+					])
+				])
+			]));
+			body.appendChild(E('input', {
+				'type': 'text',
+				'class': 'cbi-input-text',
+				'style': 'width: 100%; font-size: 12px;',
+				'placeholder': _('正则表达式，例如：香港|HK|日本|JP'),
+				'value': op.pattern || '',
+				'input': function(ev) { op.pattern = ev.target.value; }
+			}));
+		} else if (op.type === 'regex_rename') {
+			body.appendChild(E('div', { 'style': 'display: flex; gap: .5rem; flex-wrap: wrap;' }, [
+				E('div', { 'style': 'flex: 1; min-width: 180px;' }, [
+					E('div', { 'style': 'font-size: 11px; color: #64748b; margin-bottom: 2px;' }, _('匹配正则：')),
+					E('input', {
+						'type': 'text',
+						'class': 'cbi-input-text',
+						'style': 'width: 100%; font-size: 12px;',
+						'placeholder': _('例如：^(.*?)(香港|HK)(.*)$'),
+						'value': op.pattern || '',
+						'input': function(ev) { op.pattern = ev.target.value; }
+					})
+				]),
+				E('div', { 'style': 'flex: 1; min-width: 180px;' }, [
+					E('div', { 'style': 'font-size: 11px; color: #64748b; margin-bottom: 2px;' }, _('替换为：')),
+					E('input', {
+						'type': 'text',
+						'class': 'cbi-input-text',
+						'style': 'width: 100%; font-size: 12px;',
+						'placeholder': _('例如：🇭🇰 香港 $3'),
+						'value': op.replacement || '',
+						'input': function(ev) { op.replacement = ev.target.value; }
+					})
+				])
+			]));
+		} else if (op.type === 'flag') {
+			body.appendChild(E('div', { 'style': 'font-size: 12px; color: #64748b;' }, _('自动根据节点名称识别国家/地区代码（如 HK, JP, US 等）并追加标准国旗 Emoji。')));
+		} else if (op.type === 'quick_setting') {
+			body.appendChild(E('div', { 'style': 'display: flex; gap: 1rem; flex-wrap: wrap;' }, [
+				E('label', { 'style': 'display: inline-flex; align-items: center; gap: .35rem; font-size: 12px;' }, [
+					omniaUi.checkboxInput({
+						'checked': op.udp ? 'checked' : null,
+						'change': function(ev) { op.udp = ev.target.checked; }
+					}),
+					E('span', {}, _('强制开启 UDP (udp: true)'))
+				]),
+				E('label', { 'style': 'display: inline-flex; align-items: center; gap: .35rem; font-size: 12px;' }, [
+					omniaUi.checkboxInput({
+						'checked': op.allow_insecure ? 'checked' : null,
+						'change': function(ev) { op.allow_insecure = ev.target.checked; }
+					}),
+					E('span', {}, _('允许不安全证书 (allow_insecure)'))
+				]),
+				E('label', { 'style': 'display: inline-flex; align-items: center; gap: .35rem; font-size: 12px;' }, [
+					omniaUi.checkboxInput({
+						'checked': op.tcp_fast_open ? 'checked' : null,
+						'change': function(ev) { op.tcp_fast_open = ev.target.checked; }
+					}),
+					E('span', {}, _('TCP Fast Open'))
+				])
+			]));
+		} else if (op.type === 'sort') {
+			body.appendChild(E('label', { 'style': 'display: flex; align-items: center; gap: .35rem; font-size: 12px;' }, [
+				E('span', {}, _('排序模式：')),
+				E('select', {
+					'class': 'cbi-input-select',
+					'style': 'font-size: 12px;',
+					'change': function(ev) { op.mode = ev.target.value; }
+				}, [
+					E('option', { 'value': 'alphabetical', 'selected': (!op.mode || op.mode === 'alphabetical') ? 'selected' : null }, _('字母升序 (A-Z)')),
+					E('option', { 'value': 'reverse', 'selected': op.mode === 'reverse' ? 'selected' : null }, _('字母降序 (Z-A)')),
+					E('option', { 'value': 'keywords', 'selected': op.mode === 'keywords' ? 'selected' : null }, _('地区关键词优先级'))
+				])
+			]));
+		} else if (op.type === 'script') {
+			body.appendChild(E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center;' }, [
+				E('label', { 'style': 'display: flex; align-items: center; gap: .35rem; font-size: 12px;' }, [
+					E('span', {}, _('处理模式：')),
+					E('select', {
+						'class': 'cbi-input-select',
+						'style': 'font-size: 12px;',
+						'change': function(ev) { op.mode = ev.target.value; }
+					}, [
+						E('option', { 'value': 'single', 'selected': (!op.mode || op.mode === 'single') ? 'selected' : null }, _('单节点处理 (node) => node')),
+						E('option', { 'value': 'batch', 'selected': op.mode === 'batch' ? 'selected' : null }, _('全量数组处理 (nodes) => nodes'))
+					])
+				]),
+				E('span', { 'style': 'font-size: 11px; color: #94a3b8;' }, _('沙箱 ucode 语法'))
+			]));
+			body.appendChild(E('textarea', {
+				'class': 'cbi-input-textarea',
+				'style': 'width: 100%; min-height: 60px; font-family: monospace; font-size: 11px;',
+				'value': op.script || '',
+				'input': function(ev) { op.script = ev.target.value; }
+			}));
+		}
+
+		card.appendChild(body);
+		return card;
+	}
+
+	function renderOpCards() {
+		let listElem = document.getElementById('omnia-editor-ops-list');
+		if (!listElem) return;
+		listElem.innerHTML = '';
+		if (!activeOps.length) {
+			listElem.appendChild(E('div', { 'style': 'color: #94a3b8; font-size: 12px; text-align: center; padding: 1rem 0; border: 1px dashed #cbd5e1; border-radius: 6px;' }, _('暂无操作符。请点击上方按钮添加，或切换到高级 JSON 模式载入示例。')));
+			return;
+		}
+		activeOps.forEach(function(op, idx) {
+			listElem.appendChild(renderSingleOpCard(op, idx));
+		});
+	}
+
+	setTimeout(function() {
+		renderOpCards();
+	}, 10);
 
 	return E('div', {
 		'id': 'omnia-source-editor',
 		'data-index': isNew ? '-1' : index,
 		'style': 'position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(15, 23, 42, .32);'
 	}, [
-		E('div', { 'style': 'width: min(760px, 100%); max-height: min(780px, calc(100vh - 2rem)); overflow: auto; border: 1px solid #d8dde6; border-radius: 10px; padding: 1.25rem; background: #fff; box-shadow: 0 18px 50px rgba(15, 23, 42, .22);' }, [
+		E('div', { 'style': 'width: min(780px, 100%); max-height: min(840px, calc(100vh - 2rem)); overflow: auto; border: 1px solid #d8dde6; border-radius: 10px; padding: 1.25rem; background: #fff; box-shadow: 0 18px 50px rgba(15, 23, 42, .22);' }, [
 			E('div', { 'style': 'display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: 1rem;' }, [
 				E('h3', { 'style': 'margin: 0;' }, isNew ? _('添加订阅源') : _('编辑订阅源')),
 				E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'click': function(ev) { ev.preventDefault(); closeSourceEditor(); } }, _('取消'))
@@ -943,34 +1309,87 @@ function sourceEditor(policy, index) {
 			}))),
 			E('div', { 'style': 'margin-top: .75rem; border: 1px solid #e2e8f0; border-radius: 8px; padding: .65rem; background: #f8fafc;' }, [
 				E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem;' }, [
-					E('strong', {}, _('专用 DNS 设置')),
-					E('label', { 'style': 'display: inline-flex; align-items: center; gap: .35rem;' }, [
-						omniaUi.checkboxInput({ 'id': 'omnia-editor-dns-enabled', 'checked': dnsConfig.enabled ? 'checked' : null, 'change': onDnsToggle }),
-						E('span', {}, _('启用专用 DNS'))
+					E('strong', {}, _('机场自建 DNS 设置 (同步写入 sing-box 配置文件)')),
+					E('div', { 'style': 'display: flex; align-items: center; gap: .5rem;' }, [
+						E('button', {
+							'id': 'omnia-editor-dns-mode-btn',
+							'class': omniaMotion.buttonClass('btn cbi-button'),
+							'style': 'font-size: 11px; padding: 2px 6px;' + (dnsConfig.enabled ? '' : ' display: none;'),
+							'click': toggleDnsMode
+						}, _('高级 JSON 模式')),
+						E('label', { 'style': 'display: inline-flex; align-items: center; gap: .35rem;' }, [
+							omniaUi.checkboxInput({ 'id': 'omnia-editor-dns-enabled', 'checked': dnsConfig.enabled ? 'checked' : null, 'change': onDnsToggle }),
+							E('span', {}, _('启用自建 DNS'))
+						])
 					])
 				]),
 				E('div', { 'id': 'omnia-editor-dns-fields', 'style': dnsConfig.enabled ? 'display: block;' : 'display: none;' }, [
-					field(_('DNS 服务器地址'), E('input', { 'id': 'omnia-editor-dns-server', 'class': 'cbi-input-text', 'style': 'width: 100%;', 'placeholder': 'https://1.1.1.1/dns-query / tls://8.8.8.8', 'value': dnsConfig.server || '' })),
-					field(_('DNS 协议类型'), E('select', { 'id': 'omnia-editor-dns-type', 'class': 'cbi-input-select', 'style': 'width: 100%;' }, [
+					field(_('DNS 标签 (Tag)'), E('input', { 'id': 'omnia-editor-dns-tag', 'class': 'cbi-input-text', 'style': 'width: 100%;', 'placeholder': '例如：airport-dns (留空自动生成)', 'value': dnsConfig.tag || '' })),
+					field(_('协议类型 (Type)'), E('select', { 'id': 'omnia-editor-dns-type', 'class': 'cbi-input-select', 'style': 'width: 100%;' }, [
 						E('option', { 'value': 'https', 'selected': (!dnsConfig.type || dnsConfig.type === 'https') ? 'selected' : null }, 'DoH (https)'),
 						E('option', { 'value': 'tls', 'selected': dnsConfig.type === 'tls' ? 'selected' : null }, 'DoT (tls)'),
-						E('option', { 'value': 'udp', 'selected': dnsConfig.type === 'udp' ? 'selected' : null }, 'UDP (传统)'),
+						E('option', { 'value': 'udp', 'selected': dnsConfig.type === 'udp' ? 'selected' : null }, '传统 UDP (udp)'),
+						E('option', { 'value': 'tcp', 'selected': dnsConfig.type === 'tcp' ? 'selected' : null }, '传统 TCP (tcp)'),
 						E('option', { 'value': 'quic', 'selected': dnsConfig.type === 'quic' ? 'selected' : null }, 'DoQ (quic)'),
 						E('option', { 'value': 'h3', 'selected': dnsConfig.type === 'h3' ? 'selected' : null }, 'HTTP/3 (h3)')
+					])),
+					field(_('服务器地址 (Server)'), E('input', { 'id': 'omnia-editor-dns-server', 'class': 'cbi-input-text', 'style': 'width: 100%;', 'placeholder': '例如：dns.airport.com 或 1.1.1.1', 'value': dnsConfig.server || '' })),
+					field(_('服务端口 (Port)'), E('input', { 'id': 'omnia-editor-dns-port', 'type': 'number', 'class': 'cbi-input-text', 'style': 'width: 100%;', 'placeholder': '留空使用协议默认端口 (DoH: 443, DoT: 853, UDP: 53)', 'value': dnsConfig.server_port || '' })),
+					field(_('请求路径 (Path)'), E('input', { 'id': 'omnia-editor-dns-path', 'class': 'cbi-input-text', 'style': 'width: 100%;', 'placeholder': '/dns-query (仅 DoH/HTTP3 适用)', 'value': dnsConfig.path || '' })),
+					field(_('出站连接 (Detour)'), E('input', { 'id': 'omnia-editor-dns-detour', 'class': 'cbi-input-text', 'style': 'width: 100%;', 'placeholder': '留空为系统默认直连，亦可填写代理出站标签 (如 🗽 节点选择)', 'value': dnsConfig.detour || '' })),
+					field(_('前置解析器 (Domain Resolver)'), E('input', { 'id': 'omnia-editor-dns-resolver', 'class': 'cbi-input-text', 'style': 'width: 100%;', 'placeholder': '当自建 DNS 为域名时，用于解析此 DNS 自身的前置 DNS tag', 'value': dnsConfig.domain_resolver || '' })),
+					field(_('解析策略 (Strategy)'), E('select', { 'id': 'omnia-editor-dns-strategy', 'class': 'cbi-input-select', 'style': 'width: 100%;' }, [
+						E('option', { 'value': '', 'selected': !dnsConfig.strategy ? 'selected' : null }, _('默认 (跟随全局)')),
+						E('option', { 'value': 'prefer_ipv4', 'selected': dnsConfig.strategy === 'prefer_ipv4' ? 'selected' : null }, 'prefer_ipv4 (优先 IPv4)'),
+						E('option', { 'value': 'prefer_ipv6', 'selected': dnsConfig.strategy === 'prefer_ipv6' ? 'selected' : null }, 'prefer_ipv6 (优先 IPv6)'),
+						E('option', { 'value': 'ipv4_only', 'selected': dnsConfig.strategy === 'ipv4_only' ? 'selected' : null }, 'ipv4_only (仅 IPv4)'),
+						E('option', { 'value': 'ipv6_only', 'selected': dnsConfig.strategy === 'ipv6_only' ? 'selected' : null }, 'ipv6_only (仅 IPv6)')
 					]))
+				]),
+				E('div', { 'id': 'omnia-editor-dns-json-box', 'style': 'display: none;' }, [
+					E('div', { 'style': 'display: flex; gap: .35rem; align-items: center; margin-bottom: .45rem;' }, [
+						E('select', { 'id': 'omnia-editor-dns-preset-select', 'class': 'cbi-input-select', 'style': 'flex: 1; font-size: 12px;' }, [
+							E('option', { 'value': '' }, _('选择常用自建 DNS 模板...'))
+						].concat(dnsPresets.map(function(item, i) {
+							return E('option', { 'value': String(i) }, item.title);
+						}))),
+						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 8px;', 'click': function(ev) { ev.preventDefault(); loadDnsPreset(); } }, _('载入模板'))
+					]),
+					E('textarea', { 'id': 'omnia-editor-dns-json', 'class': 'cbi-input-textarea', 'style': 'width: 100%; min-height: 120px; font-family: monospace; font-size: 12px;', 'placeholder': '{\n  "tag": "airport-doh",\n  "type": "https",\n  "server": "doh.airport.com"\n}' })
 				])
 			]),
 			E('div', { 'style': 'margin-top: .75rem; border: 1px solid #e2e8f0; border-radius: 8px; padding: .65rem; background: #f8fafc;' }, [
 				E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem;' }, [
-					E('strong', {}, _('操作符管线与脚本 (有序执行)')),
-					E('div', { 'style': 'display: flex; gap: .25rem; flex-wrap: wrap;' }, [
-						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); insertOp({ type: 'regex_filter', pattern: 'HK|JP' }); } }, '+ 正则过滤'),
-						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); insertOp({ type: 'flag' }); } }, '+ 国旗'),
-						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); insertOp({ type: 'quick_setting', udp: true }); } }, '+ 属性'),
-						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); insertOp({ type: 'script', mode: 'single', script: 'node.name = "[VIP] " + node.name; return node;' }); } }, '+ ucode 脚本')
-					])
+					E('strong', {}, _('操作符管线 (参考 Sub-Store, 有序执行)')),
+					E('button', {
+						'id': 'omnia-editor-ops-mode-btn',
+						'class': omniaMotion.buttonClass('btn cbi-button'),
+						'style': 'font-size: 11px; padding: 2px 6px;',
+						'click': toggleOpsMode
+					}, _('高级 JSON 模式'))
 				]),
-				E('textarea', { 'id': 'omnia-editor-operators', 'class': 'cbi-input-textarea', 'style': 'width: 100%; min-height: 90px; font-family: monospace; font-size: 12px;', 'placeholder': '[ { "type": "flag" } ]' }, operatorsText)
+				E('div', { 'id': 'omnia-editor-ops-card-box' }, [
+					E('div', { 'style': 'display: flex; gap: .25rem; flex-wrap: wrap; margin-bottom: .5rem;' }, [
+						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); addOp('regex_filter'); } }, '+ 正则过滤'),
+						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); addOp('regex_rename'); } }, '+ 节点重命名'),
+						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); addOp('flag'); } }, '+ 国旗添加'),
+						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); addOp('quick_setting'); } }, '+ 属性设置'),
+						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); addOp('sort'); } }, '+ 节点排序'),
+						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 6px;', 'click': function(ev) { ev.preventDefault(); addOp('script'); } }, '+ ucode 脚本')
+					]),
+					E('div', { 'id': 'omnia-editor-ops-list' })
+				]),
+				E('div', { 'id': 'omnia-editor-ops-json-box', 'style': 'display: none;' }, [
+					E('div', { 'style': 'display: flex; gap: .35rem; align-items: center; margin-bottom: .45rem;' }, [
+						E('select', { 'id': 'omnia-editor-ops-preset-select', 'class': 'cbi-input-select', 'style': 'flex: 1; font-size: 12px;' }, [
+							E('option', { 'value': '' }, _('选择常用操作符模板...'))
+						].concat(opPresets.map(function(item, i) {
+							return E('option', { 'value': String(i) }, item.title);
+						}))),
+						E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'style': 'font-size: 11px; padding: 2px 8px;', 'click': function(ev) { ev.preventDefault(); loadOpPreset(); } }, _('载入模板'))
+					]),
+					E('textarea', { 'id': 'omnia-editor-ops-json', 'class': 'cbi-input-textarea', 'style': 'width: 100%; min-height: 120px; font-family: monospace; font-size: 12px;', 'placeholder': '[\n  {\n    "type": "flag"\n  }\n]' })
+				])
 			]),
 			E('div', { 'id': 'omnia-editor-test-report', 'style': 'display: none; border: 1px solid #ddd; border-radius: 8px; padding: .65rem; margin-top: .75rem; overflow-wrap: anywhere;' }),
 			E('div', { 'style': 'display: flex; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; margin-top: 1rem;' }, [
@@ -1222,14 +1641,68 @@ function closeSourceEditor() {
 	updateMain(collectPolicyFromPage(), window.omniaNodeSnapshotSummary || {}, null);
 }
 
+function collectEditorDns() {
+	if (!checked('omnia-editor-dns-enabled')) return null;
+	let jsonBox = document.getElementById('omnia-editor-dns-json-box');
+	let isJson = jsonBox && jsonBox.style.display !== 'none';
+	if (isJson) {
+		let str = getValue('omnia-editor-dns-json').trim();
+		if (!str) return null;
+		try {
+			let parsed = JSON.parse(str);
+			if (parsed && typeof parsed === 'object') {
+				parsed.enabled = true;
+				return parsed;
+			}
+		} catch (e) {
+			return null;
+		}
+	}
+	let server = getValue('omnia-editor-dns-server').trim();
+	if (!server) return null;
+	let portVal = parseInt(getValue('omnia-editor-dns-port'), 10);
+	let dnsObj = {
+		enabled: true,
+		type: getValue('omnia-editor-dns-type') || 'https',
+		server: server
+	};
+	let tag = getValue('omnia-editor-dns-tag').trim();
+	if (tag) dnsObj.tag = tag;
+	if (!isNaN(portVal) && portVal > 0) dnsObj.server_port = portVal;
+	let path = getValue('omnia-editor-dns-path').trim();
+	if (path) dnsObj.path = path;
+	let detour = getValue('omnia-editor-dns-detour').trim();
+	if (detour) dnsObj.detour = detour;
+	let resolver = getValue('omnia-editor-dns-resolver').trim();
+	if (resolver) dnsObj.domain_resolver = resolver;
+	let strategy = getValue('omnia-editor-dns-strategy');
+	if (strategy) dnsObj.strategy = strategy;
+	return dnsObj;
+}
+
+function collectEditorOperators() {
+	let jsonBox = document.getElementById('omnia-editor-ops-json-box');
+	let isJson = jsonBox && jsonBox.style.display !== 'none';
+	if (isJson) {
+		let str = getValue('omnia-editor-ops-json').trim();
+		if (!str) return [];
+		try {
+			let parsed = JSON.parse(str);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch (e) {
+			return [];
+		}
+	}
+	if (window.omniaActiveEditorOps && Array.isArray(window.omniaActiveEditorOps)) {
+		return window.omniaActiveEditorOps;
+	}
+	return [];
+}
+
 function testEditorSource() {
 	let policy = collectPolicyFromPage();
 	let sType = getValue('omnia-editor-type') || 'remote';
-	let ops = [];
-	try {
-		let opStr = getValue('omnia-editor-operators').trim();
-		if (opStr) ops = JSON.parse(opStr);
-	} catch (e) {}
+	let ops = collectEditorOperators();
 
 	let payloadStr = getValue('omnia-editor-payload');
 	let nodes = null;
@@ -1404,24 +1877,8 @@ function saveSourceEditor() {
 	}
 
 	let sType = getValue('omnia-editor-type') || 'remote';
-	let ops = [];
-	try {
-		let opStr = getValue('omnia-editor-operators').trim();
-		if (opStr) ops = JSON.parse(opStr);
-	} catch (e) {}
-
-	let dnsConfig = null;
-	if (checked('omnia-editor-dns-enabled')) {
-		let server = getValue('omnia-editor-dns-server').trim();
-		let dnsType = getValue('omnia-editor-dns-type') || 'https';
-		if (server) {
-			dnsConfig = {
-				enabled: true,
-				server: server,
-				type: dnsType
-			};
-		}
-	}
+	let ops = collectEditorOperators();
+	let dnsConfig = collectEditorDns();
 
 	let sourceObj = {
 		id: (index >= 0 && policy.sources[index] && policy.sources[index].id) ? policy.sources[index].id : '',

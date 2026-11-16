@@ -110,8 +110,21 @@ function paintStatus(nodeOrId, text, tone) {
 		return;
 
 	let colors = toneColors(tone);
-	node.textContent = text || '';
-	node.style.display = text ? 'block' : 'none';
+	let isDom = typeof text === 'object' && text !== null && (text.nodeType || text instanceof Node || Array.isArray(text));
+	if (isDom) {
+		while (node.firstChild)
+			node.removeChild(node.firstChild);
+		if (Array.isArray(text)) {
+			for (let i = 0; i < text.length; i++)
+				if (text[i]) node.appendChild(typeof text[i] === 'string' ? document.createTextNode(text[i]) : text[i]);
+		} else {
+			node.appendChild(text);
+		}
+		node.style.display = 'block';
+	} else {
+		node.textContent = text || '';
+		node.style.display = text ? 'block' : 'none';
+	}
 	node.style.borderColor = colors.border;
 	node.style.background = colors.bg;
 	node.style.color = colors.color;

@@ -34,8 +34,8 @@ context.panelView = vm.runInContext('(function(){' + source.replace('return view
 
 (async () => {
 	await vm.runInContext("panelTest.testNodes(['a', 'a', 'b'])", context);
-	assert.deepEqual(calls, [['test', 'a'], ['test', 'b']], 'batch tests each node only once');
-	assert.equal(peak, 1, 'tests are serialized to limit device load');
+	assert.deepEqual(calls.sort((x, y) => x[1].localeCompare(y[1])), [['test', 'a'], ['test', 'b']], 'batch tests each node only once');
+	assert.ok(peak >= 1 && peak <= 5, 'tests run concurrently within concurrency limit');
 	assert.equal(vm.runInContext("panelTest.flagForName('HK 01')", context), '🇭🇰 ', 'known region receives a flag');
 	assert.equal(vm.runInContext("panelTest.flagForName('🇭🇰 HK 01')", context), '', 'existing flag is not duplicated');
 	calls.length = 0;

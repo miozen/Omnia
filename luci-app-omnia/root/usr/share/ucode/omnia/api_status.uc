@@ -103,12 +103,22 @@ function singbox_status(trace_id, source, config, running) {
 		reason = "runtime_not_running";
 	else if (!runtime_configured)
 		reason = "runtime_service_missing";
-	else if (runtime_api.secret_configured || runtime_api.tls_enabled) {
+	else if (runtime_api.tls_enabled) {
 		available = null;
-		reason = runtime_api.secret_configured ? "probe_secret_unsupported" : "probe_tls_unsupported";
+		reason = "probe_tls_unsupported";
 	}
 	else if (listen_port <= 0 || listen_port > 65535)
 		reason = "invalid_endpoint";
+	else if (file_exists(PATH.NATIVE_API_SCRIPT)) {
+		let probe = ExecResult(trace_id, [ BIN.TIMEOUT, "5", "ucode", PATH.NATIVE_API_SCRIPT, "mode_get", "e30=" ]);
+		verified = true;
+		available = probe.code == 0;
+		reason = available ? "ok" : "probe_failed";
+	}
+	else if (runtime_api.secret_configured) {
+		available = null;
+		reason = "probe_secret_unsupported";
+	}
 	else {
 		let host = listen;
 		if (host == "0.0.0.0") host = "127.0.0.1";

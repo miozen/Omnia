@@ -31,6 +31,93 @@ const callRulesetPolicySave = rpc.declare({
 	expect: { '': {} }
 });
 
+const callGenerate = rpc.declare({
+	object: 'omnia',
+	method: 'config_generate',
+	expect: { '': {} }
+});
+
+const callCheck = rpc.declare({
+	object: 'omnia',
+	method: 'config_check_candidate',
+	expect: { '': {} }
+});
+
+const callApply = rpc.declare({
+	object: 'omnia',
+	method: 'config_apply',
+	expect: { '': {} }
+});
+
+function applyToRuntimeContextual(btn) {
+	if (btn) {
+		btn.disabled = true;
+		btn.innerText = _('⚡ 正在生成...');
+	}
+	setStatus(_('【1/3 生成配置】正在根据当前规则集与模板生成候选配置...'), true);
+
+	return callGenerate().then(function(genRes) {
+		if (!(genRes && genRes.ok)) {
+			let detail = genRes && (genRes.detail || genRes.message) || _('生成配置失败');
+			let errEl = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+				E('div', { 'style': 'font-weight: 700; color: #dc2626;' }, '❌ ' + _('第 1 阶段失败：候选配置生成失败')),
+				E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin: .3rem 0;' }, detail),
+				E('div', { 'style': 'font-size: 12px;' }, _('当前运行中的网络配置保持不变。'))
+			]);
+			setStatus(errEl, false);
+			return;
+		}
+
+		let genData = omniaUi.dataOf(genRes) || {};
+		let nodeCount = genData.node_count || 0;
+		let groupCount = genData.generated_groups || 0;
+
+		if (btn) btn.innerText = _('⚡ 正在校验...');
+		setStatus(_('【2/3 内核校验】sing-box 正在校验生成配置语法...'), true);
+
+		return callCheck().then(function(checkRes) {
+			if (!(checkRes && checkRes.ok)) {
+				let detail = checkRes && (checkRes.detail || checkRes.message) || _('语法校验未通过');
+				let errEl = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+					E('div', { 'style': 'font-weight: 700; color: #dc2626;' }, '❌ ' + _('第 2 阶段失败：sing-box 校验未通过')),
+					E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin: .3rem 0;' }, detail),
+					E('div', { 'style': 'font-size: 12px;' }, _('当前运行配置保持不变。请根据报错排查。'))
+				]);
+				setStatus(errEl, false);
+				return;
+			}
+
+			if (btn) btn.innerText = _('⚡ 正在应用...');
+			setStatus(_('【3/3 应用配置】正在重载 sing-box 运行时...'), true);
+
+			return callApply().then(function(applyRes) {
+				if (!(applyRes && applyRes.ok)) {
+					let detail = applyRes && (applyRes.detail || applyRes.message) || _('应用失败');
+					let errEl = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+						E('div', { 'style': 'font-weight: 700; color: #dc2626;' }, '❌ ' + _('第 3 阶段失败：应用配置失败（已自动回滚）')),
+						E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin: .3rem 0;' }, detail)
+					]);
+					setStatus(errEl, false);
+					return;
+				}
+
+				let successMsg = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+					E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .25rem;' }, '✓ ' + _('已成功应用到运行时！')),
+					E('div', { 'style': 'font-size: 12px; color: #15803d;' }, _('已加载 %d 个出站节点、%d 个策略组，sing-box 运行正常。').format(nodeCount, groupCount))
+				]);
+				setStatus(successMsg, true);
+			});
+		});
+	}).catch(function(err) {
+		setStatus(err.message || String(err), false);
+	}).finally(function() {
+		if (btn) {
+			btn.disabled = false;
+			btn.innerText = _('⚡ 立即生成并应用到运行时');
+		}
+	});
+}
+
 const callRulesetDownloadRequiredStart = rpc.declare({
 	object: 'omnia',
 	method: 'ruleset_download_required_start',
@@ -84,6 +171,8 @@ let actionStatusOk = true;
 let actionToken = 0;
 let downloadingTag = '';
 let rulesetListOpen = false;
+let rulesetFilter = 'all';
+let rulesetSearch = '';
 let syncingRunId = '';
 let downloadingRunId = '';
 
@@ -585,9 +674,55 @@ function rulesetList() {
 			runtimeStatusPill(inv),
 			E('span', { 'style': 'display: block; color: #667; font-size: 12px; margin-top: .25rem;' }, subtitle)
 		]),
-		E('div', { 'style': 'color: #667; margin-top: .75rem; overflow-wrap: anywhere;' },
+		E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .6rem; margin-top: .75rem;' }, [
+			E('div', { 'style': 'display: flex; align-items: center; gap: .35rem;' }, [
+				[ 'all', _('全部') ],
+				[ 'ready', _('已就绪') ],
+				[ 'missing', _('缺失') ],
+				[ 'extra', _('未使用') ]
+			].map(function(tab) {
+				return E('button', {
+					'type': 'button',
+					'class': 'btn cbi-button' + (rulesetFilter === tab[0] ? ' cbi-button-apply' : ''),
+					'style': 'padding: .2rem .6rem; font-size: 12px;',
+					'click': function(ev) {
+						ev.preventDefault();
+						rulesetFilter = tab[0];
+						redraw();
+					}
+				}, tab[1]);
+			})),
+			E('div', { 'style': 'display: flex; align-items: center; gap: .4rem;' }, [
+				E('input', {
+					'type': 'text',
+					'class': 'cbi-input-text',
+					'style': 'padding: .2rem .5rem; font-size: 12px; width: 180px;',
+					'placeholder': _('搜索规则集标签...'),
+					'value': rulesetSearch,
+					'input': function(ev) {
+						rulesetSearch = ev.target.value.trim().toLowerCase();
+						redraw();
+					}
+				})
+			])
+		]),
+		E('div', { 'style': 'color: #667; margin-top: .5rem; font-size: 12px; overflow-wrap: anywhere;' },
 			_('运行状态按当前规则集策略计算；列表中的“缺失”仅表示 /etc/omnia/rules 本地缓存未找到文件。')),
-		rulesetListContent(items)
+		rulesetListContent(items.filter(function(entry) {
+			if (rulesetFilter === 'ready' && (!entry || entry.status === 'missing' || entry.status === 'extra'))
+				return false;
+			if (rulesetFilter === 'missing' && (!entry || entry.status !== 'missing'))
+				return false;
+			if (rulesetFilter === 'extra' && (!entry || entry.status !== 'extra'))
+				return false;
+			if (rulesetSearch) {
+				let tag = String((entry && entry.tag) || '').toLowerCase();
+				let path = String((entry && entry.local_path) || '').toLowerCase();
+				if (tag.indexOf(rulesetSearch) < 0 && path.indexOf(rulesetSearch) < 0)
+					return false;
+			}
+			return true;
+		}))
 	]);
 }
 
@@ -648,7 +783,21 @@ function pollRulesetSync(token, runId, attempt) {
 
 		const ok = status === 'success' || status === 'partial';
 		syncingRunId = '';
-		setStatus(rulesetTaskStatusText(task, taskName), ok && Number(task.failed_count || 0) === 0);
+		if (ok && Number(task.failed_count || 0) === 0) {
+			let statusEl = E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;' }, [
+				E('span', {}, rulesetTaskStatusText(task, taskName)),
+				E('button', {
+					'class': 'cbi-button cbi-button-action',
+					'style': 'margin-left: auto; font-weight: 600;',
+					'click': function(ev) {
+						applyToRuntimeContextual(ev.target);
+					}
+				}, _('⚡ 立即生成并应用到运行时'))
+			]);
+			setStatus(statusEl, true);
+		} else {
+			setStatus(rulesetTaskStatusText(task, taskName), false);
+		}
 		return refreshAll();
 	}).catch(function(error) {
 		if (token !== actionToken)
@@ -686,7 +835,21 @@ function pollRulesetDownloadOne(token, runId, attempt) {
 			});
 		}
 
-		setStatus(rulesetDownloadOneStatusText(task, taskName), status === 'success');
+		if (status === 'success') {
+			let statusEl = E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;' }, [
+				E('span', {}, rulesetDownloadOneStatusText(task, taskName)),
+				E('button', {
+					'class': 'cbi-button cbi-button-action',
+					'style': 'margin-left: auto; font-weight: 600;',
+					'click': function(ev) {
+						applyToRuntimeContextual(ev.target);
+					}
+				}, _('⚡ 立即生成并应用到运行时'))
+			]);
+			setStatus(statusEl, true);
+		} else {
+			setStatus(rulesetDownloadOneStatusText(task, taskName), false);
+		}
 		downloadingTag = '';
 		downloadingRunId = '';
 		return refreshAll();

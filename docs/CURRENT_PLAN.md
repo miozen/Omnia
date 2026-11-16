@@ -58,6 +58,36 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Step 6: Local source refresh workflow (`subscription.uc`), bypassing HTTP fetch and safely converting local payload or form nodes with operators and DNS support.
   - [x] Step 7: Comprehensive test suite (`tests/convert-step-m4-local-and-script.uc`) and unified test runner update (13 tests passing, module syntax compilation passing).
 - [x] Completed Milestone 5 (M5) of Native Subscription Conversion & Processing (LuCI UI & Frontend Integration):
+- [x] Completed Post-v0.1.0 Diagnostics & Editor Enhancements:
+  - [x] Tab order prioritization with Running Config JSON Viewer in Diagnostics (`diagnostics.js`).
+  - [x] Line numbers gutter with synchronized scrolling and auto-updates in Diagnostics viewer and Profile editor (`profile.js`).
+  - [x] Schema auto-validation and `ensureSchema` auto-injection without hard requirement (`profile.js`).
+- [x] System Audit Slice 1 (Underlying Communication & Status Fidelity):
+  - [x] Added `-S` (`--server-response`) to `wget_argv` in `core/netexec.uc` so HTTP response headers flow into stderr for subscription userinfo extraction.
+  - [x] Enhanced `api_status.uc` to probe sing-box API via `NATIVE_API_SCRIPT` (`/usr/libexec/omnia-native-api`) when secret is configured, avoiding erroneous "未确认" (gray) status.
+  - [x] Implemented traffic quota (GB/MB) and expiration date badges in `subscriptions.js` source tables and snapshot summary.
+  - [x] Added unit tests in `tests/subscription-ui.cjs` and validated all 13 suites + static checks.
+- [x] System Audit Slice 2 (Subscription Source Atomic Persistence):
+  - [x] Changed editor modal button from "保存草稿" to "保存订阅源", performing in-place atomic persistence via `callSubscriptionsSave`.
+  - [x] Added strict input validation for source name, URL protocol (must start with http:// or https:// for remote), and local payload/nodes.
+  - [x] Replaced manual second-click "保存订阅设置" with automatic reload from backend on modal save, eliminating lost subscription drafts.
+  - [x] Added user confirmation dialog and atomic persistence on deleting subscription sources (`removeSource`).
+  - [x] Added unit tests for atomic save and atomic delete in `tests/subscription-ui.cjs`.
+
+- [x] System Audit Slice 3 (Overview One-Click Apply Pipeline & Diagnostics):
+  - [x] Designed and implemented 4-stage streaming pipeline: Generate -> Kernel Syntax Check -> Apply & Reload -> Healthcheck.
+  - [x] Elevated "⚡ 一键生成并应用" to prominent full-width primary action button while retaining all 6 granular debugging tools below a clear divider.
+  - [x] Implemented structured diagnostic alert boxes detailing stage number, exact kernel/backend error logs, security fused status (old config preserved), and targeted user action hints.
+  - [x] Upgraded `omniaUi.paintStatus` in `resources/omnia/ui.js` to natively mount DOM element payloads and document fragments.
+  - [x] Created comprehensive test suite `tests/overview-ui.cjs` and integrated into `tests/ci-static.sh`.
+
+## In Progress
+
+- [x] System Audit Slice 1: Underlying communication & status fidelity (wget `-S`, native gRPC secret probe, traffic & expiry badges).
+- [x] System Audit Slice 2: Subscriptions source modal in-place atomic persistence (eliminate double-save friction & lost drafts).
+- [x] System Audit Slice 3: Overview page "⚡ 一键生成并应用" (One-Click Apply) 4-stage streaming pipeline with precise failure diagnostics and preserved granular debugging tools.
+- [x] System Audit Slice 4: Contextual CTA actions ("⚡ 立即生成并应用到运行时") in Subscriptions, Rulesets, and Profile editors.
+- [x] System Audit Slice 5: Panel test concurrency boost (1 -> 5) and search filter, ruleset list status tabs/search.
   - [x] Step 1: Subscriptions UI model enhancement (`subscriptions.js` -> `normalizePolicy` & `collectPolicyFromPage`) preserving native conversion fields (type, subtype, payload, nodes, user_agent, operators, dns, userinfo).
   - [x] Step 2: Source editor modal upgrade (`subscriptions.js` -> `sourceEditor`), supporting source type toggle (Remote vs Local), UA configuration, payload/form entry, dedicated DNS options, and operator pipeline with quick templates.
   - [x] Step 3: Instant test and node preview (`subscriptions.js` -> `testEditorSource`, `subscription.uc` -> `subscription_test_source`, `omnia.uc` -> rpcd args schema) allowing real-time node preview before saving.

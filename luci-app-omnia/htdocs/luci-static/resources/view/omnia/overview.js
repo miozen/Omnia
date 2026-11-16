@@ -294,6 +294,103 @@ function pageLoadError() {
 	}).join(' | ');
 }
 
+let pipelineRunning = false;
+
+function formatDiagnosticError(stage, title, detail, hint) {
+	return E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+		E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .4rem; display: flex; align-items: center; gap: .35rem;' }, [
+			E('span', {}, '❌ ' + _('第 %d 阶段失败：%s').format(stage, title))
+		]),
+		detail ? E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: .4rem; overflow-wrap: anywhere; white-space: pre-wrap;' }, detail) : '',
+		E('div', { 'style': 'font-size: 12px; margin-bottom: .2rem;' }, [
+			E('strong', {}, _('【运行安全】')),
+			_('已自动熔断终止应用。当前运行配置保持不变，网络连接未被破坏。')
+		]),
+		hint ? E('div', { 'style': 'font-size: 12px; color: #b45309;' }, [
+			E('strong', {}, _('【排查建议】')),
+			hint
+		]) : ''
+	]);
+}
+
+function runOneClickApply() {
+	if (pipelineRunning)
+		return Promise.resolve();
+
+	pipelineRunning = true;
+	let btn = document.getElementById('omnia-one-click-apply-btn');
+	if (btn) {
+		btn.disabled = true;
+		btn.innerText = _('⚡ 正在执行一键生成并应用...');
+	}
+
+	setActionStatus(_('【1/4 正在生成候选配置】正在解析模板、订阅节点与分流规则...'), true);
+
+	return callGenerate().then(function(genRes) {
+		if (!(genRes && genRes.ok)) {
+			let detail = genRes && (genRes.detail || genRes.message) || _('生成配置时发生未知异常');
+			let hint = _('请检查配置模板语法是否正确，引用的出站或策略组是否存在。');
+			if (detail.indexOf('RUNTIME_CONTRACT') >= 0) {
+				hint = _('模板必须包含有效的 inbounds.tun 契约配置。请前往【配置模板】检查 tun 配置。');
+			} else if (detail.indexOf('CLASH_API_PORT_CONFLICT') >= 0) {
+				hint = _('Clash API 端口与 sing-box 原生服务端口冲突，请修改端口配置。');
+			}
+			setActionStatus(formatDiagnosticError(1, _('候选配置生成失败'), detail, hint), false);
+			throw new Error('STAGE_1_FAILED');
+		}
+
+		let genData = omniaUi.dataOf(genRes) || {};
+		let nodeCount = genData.node_count || 0;
+		let groupCount = genData.generated_groups || 0;
+
+		setActionStatus(_('【2/4 正在进行内核语法校验】sing-box 正在校验生成配置的合法性...'), true);
+		return callCheck().then(function(checkRes) {
+			if (!(checkRes && checkRes.ok)) {
+				let detail = checkRes && (checkRes.detail || checkRes.message) || _('内核语法校验未通过');
+				let hint = _('sing-box 内核拒绝了该配置。请前往【配置模板】根据上方内核具体报错修改 JSON。');
+				setActionStatus(formatDiagnosticError(2, _('sing-box 内核语法检查失败'), detail, hint), false);
+				throw new Error('STAGE_2_FAILED');
+			}
+
+			setActionStatus(_('【3/4 正在应用运行配置】正在重载 sing-box 服务进程...'), true);
+			return callApply().then(function(applyRes) {
+				if (!(applyRes && applyRes.ok)) {
+					let detail = applyRes && (applyRes.detail || applyRes.message) || _('应用运行配置失败');
+					let hint = _('服务拉起失败，已自动回滚。请在【网络诊断 - 控制面】查看系统运行日志排查端口或权限冲突。');
+					setActionStatus(formatDiagnosticError(3, _('运行配置应用失败（已自动回滚）'), detail, hint), false);
+					throw new Error('STAGE_3_FAILED');
+				}
+
+				let applyData = omniaUi.dataOf(applyRes) || {};
+				let healthReady = applyData.health_ready === true;
+
+				if (!healthReady) {
+					setActionStatus(formatDiagnosticError(4, _('服务健康存活检查未就绪'), _('服务进程未在预期时间内完成健康监听'), _('请前往【网络诊断】检查 sing-box 是否处于崩溃循环或端口被占用。')), false);
+					return refreshPage();
+				}
+
+				let successMsg = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+					E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .25rem;' }, '✓ ' + _('一键生成并应用成功！')),
+					E('div', { 'style': 'font-size: 12px; color: #15803d;' }, _('已成功加载 %d 个出站节点、%d 个策略组。sing-box 运行时健康，网络代理正常服务中。').format(nodeCount, groupCount))
+				]);
+				setActionStatus(successMsg, true);
+				return refreshPage();
+			});
+		});
+	}).catch(function(err) {
+		if (err && (err.message === 'STAGE_1_FAILED' || err.message === 'STAGE_2_FAILED' || err.message === 'STAGE_3_FAILED')) {
+			return;
+		}
+		setActionStatus(err && (err.message || String(err)) || _('操作异常中断'), false);
+	}).finally(function() {
+		pipelineRunning = false;
+		if (btn) {
+			btn.disabled = false;
+			btn.innerText = _('⚡ 一键生成并应用');
+		}
+	});
+}
+
 function runAction(label, rpcCall, confirmText) {
 	if (confirmText && !window.confirm(confirmText))
 		return Promise.resolve();
@@ -522,19 +619,33 @@ function resourceStatusSection() {
 
 function operationButtons() {
 	return E('div', { 'style': omniaUi.sectionStyle() }, [
-		omniaUi.sectionTitle(_('运行时操作')),
-		omniaUi.sectionDescription(_('资源准备完成后，在这里执行生成、检查、应用和回滚。策略组切换和延迟测速可在原生代理面板操作。')),
+		omniaUi.sectionTitle(_('运行控制')),
+		omniaUi.sectionDescription(_('一键流式执行生成、校验与应用；也可使用下方高级调试工具进行分步排查。')),
+		E('div', { 'style': 'margin-bottom: .85rem;' }, [
+			E('button', {
+				'id': 'omnia-one-click-apply-btn',
+				'class': omniaMotion.buttonClass('btn cbi-button cbi-button-apply'),
+				'style': 'width: 100%; font-size: 15px; font-weight: 700; padding: .65rem 1.25rem; letter-spacing: 0.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.12);',
+				'click': function(ev) {
+					ev.preventDefault();
+					return runOneClickApply();
+				}
+			}, _('⚡ 一键生成并应用'))
+		]),
 		omniaUi.statusBox('omnia-overview-action-status', actionStatus, actionStatusOk ? 'ok' : 'error', {
 			padding: '.75rem',
-			margin: '0 0 .75rem'
+			margin: '0 0 .85rem'
 		}),
-		E('div', { 'style': 'display: flex; flex-wrap: wrap; gap: .5rem;' }, [
-			operationButton(_('生成'), _('生成候选配置'), callGenerate),
-			operationButton(_('检查'), _('检查候选配置'), callCheck),
-			operationButton(_('应用'), _('应用运行配置'), callApply, 'cbi-button-apply', _('现在将候选配置应用到运行时吗？')),
-			operationButton(_('重启'), _('重启运行时'), callRestart, 'cbi-button-neutral', _('现在重启 Omnia 运行时吗？短时间内流量可能会中断。')),
-			operationButton(_('停止'), _('停止运行时'), callStop, 'cbi-button-reset', _('现在停止 Omnia 运行时吗？流量将不再由 sing-box 接管。')),
-			operationButton(_('回滚'), _('回滚运行配置'), callRollback, 'cbi-button-reset', _('现在回滚运行配置吗？'))
+		E('div', { 'style': 'border-top: 1px dashed #e2e8f0; padding-top: .75rem; margin-top: .25rem;' }, [
+			E('div', { 'style': 'font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: .45rem;' }, _('高级调试与单步工具：')),
+			E('div', { 'style': 'display: flex; flex-wrap: wrap; gap: .5rem;' }, [
+				operationButton(_('📄 生成配置'), _('生成候选配置'), callGenerate),
+				operationButton(_('🔍 语法检查'), _('检查候选配置'), callCheck),
+				operationButton(_('🚀 应用配置'), _('应用运行配置'), callApply, 'cbi-button-action', _('现在将候选配置应用到运行时吗？')),
+				operationButton(_('🔄 重启服务'), _('重启运行时'), callRestart, 'cbi-button-neutral', _('现在重启 Omnia 运行时吗？短时间内流量可能会中断。')),
+				operationButton(_('⏹ 停止服务'), _('停止运行时'), callStop, 'cbi-button-reset', _('现在停止 Omnia 运行时吗？流量将不再由 sing-box 接管。')),
+				operationButton(_('⏪ 回滚配置'), _('回滚运行配置'), callRollback, 'cbi-button-reset', _('现在回滚运行配置吗？'))
+			])
 		])
 	]);
 }

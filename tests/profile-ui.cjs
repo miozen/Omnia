@@ -18,7 +18,10 @@ const responses = {
 	profile_source_save: async () => ({ ok: true, data: {} }),
 	profile_sync_remote: async () => ({ ok: true, data: {} }),
 	profile_restore_default: async () => ({ ok: true, data: {} }),
-	profile_rollback: async () => ({ ok: true, data: {} })
+	profile_rollback: async () => ({ ok: true, data: {} }),
+	config_generate: async () => ({ ok: true, data: { node_count: 30, generated_groups: 3 } }),
+	config_check_candidate: async () => ({ ok: true, data: {} }),
+	config_apply: async () => ({ ok: true, data: { health_ready: true } })
 };
 
 const domElements = {};
@@ -71,6 +74,7 @@ const context = vm.createContext({
 vm.runInContext("String.prototype.format = function() { let args = arguments, i = 0; return this.replace(/%s/g, () => args[i++]); };", context);
 
 const mockOmniaUi = {
+	dataOf: res => (res && res.data ? res.data : (res || {})),
 	sectionStyle: () => 'section;',
 	sectionTitle: t => createElement('h3', {}, t),
 	sectionDescription: d => createElement('p', {}, d),
@@ -108,6 +112,7 @@ const source = fs.readFileSync('luci-app-omnia/htdocs/luci-static/resources/view
 const wrapped = `
 (function() {
 	const omniaUi = ${JSON.stringify(mockOmniaUi)};
+	omniaUi.dataOf = res => (res && res.data ? res.data : (res || {}));
 	omniaUi.sectionStyle = () => 'section;';
 	omniaUi.sectionTitle = t => E('h3', {}, t);
 	omniaUi.sectionDescription = d => E('p', {}, d);
@@ -147,6 +152,7 @@ const wrapped = `
 				formatEditorJson,
 				validateEditorJson,
 				saveProfile,
+				saveAndApplyProfile,
 				handleEditorKeydown,
 				handleEditorInput,
 				syncRemote,
@@ -233,6 +239,12 @@ const viewObj = vm.runInContext(wrapped, context);
 	assert.ok(profileValidateCalled, 'profile_validate backend RPC invoked');
 	assert.ok(savedContent, 'profile_save saved content');
 	assert.ok(savedContent.includes('https://sing-box.sagernet.org/schema.json'), 'Saved content automatically ensures $schema is present');
+
+	// 8. Test Save and Apply Flow
+	savedContent = null;
+	await mod.saveAndApplyProfile();
+	assert.ok(savedContent != null, 'saveAndApplyProfile saved content');
+	assert.equal(context.statusOk, true, 'Status is marked ok on successful save and apply');
 
 	console.log('All profile-ui tests passed successfully!');
 })().catch(err => {

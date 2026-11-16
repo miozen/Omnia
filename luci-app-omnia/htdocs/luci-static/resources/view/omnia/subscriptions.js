@@ -18,6 +18,93 @@ const callSubscriptionsSave = rpc.declare({
 	expect: { '': {} }
 });
 
+const callGenerate = rpc.declare({
+	object: 'omnia',
+	method: 'config_generate',
+	expect: { '': {} }
+});
+
+const callCheck = rpc.declare({
+	object: 'omnia',
+	method: 'config_check_candidate',
+	expect: { '': {} }
+});
+
+const callApply = rpc.declare({
+	object: 'omnia',
+	method: 'config_apply',
+	expect: { '': {} }
+});
+
+function applyToRuntimeContextual(btn) {
+	if (btn) {
+		btn.disabled = true;
+		btn.innerText = _('⚡ 正在生成...');
+	}
+	setStatus(_('【1/3 生成配置】正在根据当前订阅与模板生成候选配置...'), true);
+
+	return callGenerate().then(function(genRes) {
+		if (!(genRes && genRes.ok)) {
+			let detail = genRes && (genRes.detail || genRes.message) || _('生成配置失败');
+			let errEl = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+				E('div', { 'style': 'font-weight: 700; color: #dc2626;' }, '❌ ' + _('第 1 阶段失败：候选配置生成失败')),
+				E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin: .3rem 0;' }, detail),
+				E('div', { 'style': 'font-size: 12px;' }, _('当前运行中的网络配置保持不变。'))
+			]);
+			setStatus(errEl, false);
+			return;
+		}
+
+		let genData = omniaUi.dataOf(genRes) || {};
+		let nodeCount = genData.node_count || 0;
+		let groupCount = genData.generated_groups || 0;
+
+		if (btn) btn.innerText = _('⚡ 正在校验...');
+		setStatus(_('【2/3 内核校验】sing-box 正在校验生成配置语法...'), true);
+
+		return callCheck().then(function(checkRes) {
+			if (!(checkRes && checkRes.ok)) {
+				let detail = checkRes && (checkRes.detail || checkRes.message) || _('语法校验未通过');
+				let errEl = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+					E('div', { 'style': 'font-weight: 700; color: #dc2626;' }, '❌ ' + _('第 2 阶段失败：sing-box 校验未通过')),
+					E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin: .3rem 0;' }, detail),
+					E('div', { 'style': 'font-size: 12px;' }, _('当前运行配置保持不变。请根据报错排查。'))
+				]);
+				setStatus(errEl, false);
+				return;
+			}
+
+			if (btn) btn.innerText = _('⚡ 正在应用...');
+			setStatus(_('【3/3 应用配置】正在重载 sing-box 运行时...'), true);
+
+			return callApply().then(function(applyRes) {
+				if (!(applyRes && applyRes.ok)) {
+					let detail = applyRes && (applyRes.detail || applyRes.message) || _('应用失败');
+					let errEl = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+						E('div', { 'style': 'font-weight: 700; color: #dc2626;' }, '❌ ' + _('第 3 阶段失败：应用配置失败（已自动回滚）')),
+						E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin: .3rem 0;' }, detail)
+					]);
+					setStatus(errEl, false);
+					return;
+				}
+
+				let successMsg = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+					E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .25rem;' }, '✓ ' + _('已成功应用到运行时！')),
+					E('div', { 'style': 'font-size: 12px; color: #15803d;' }, _('已加载 %d 个出站节点、%d 个策略组，sing-box 运行正常。').format(nodeCount, groupCount))
+				]);
+				setStatus(successMsg, true);
+			});
+		});
+	}).catch(function(err) {
+		setStatus(err.message || String(err), false);
+	}).finally(function() {
+		if (btn) {
+			btn.disabled = false;
+			btn.innerText = _('⚡ 立即生成并应用到运行时');
+		}
+	});
+}
+
 const callSubscriptionRefreshSourceStart = rpc.declare({
 	object: 'omnia',
 	method: 'subscription_refresh_source_start',
@@ -431,6 +518,40 @@ function refreshResultText(result) {
 	return _('刷新失败，已保留 %d 个节点。').format(result.node_count || 0);
 }
 
+function formatTrafficBytes(bytes) {
+	if (!bytes || isNaN(bytes) || bytes <= 0) return '0 B';
+	const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+	let u = 0;
+	let val = Number(bytes);
+	while (val >= 1024 && u < units.length - 1) {
+		val /= 1024;
+		u++;
+	}
+	return (u === 0 ? val : val.toFixed(2)) + ' ' + units[u];
+}
+
+function formatTrafficExpire(timestamp) {
+	if (!timestamp || isNaN(timestamp) || timestamp <= 0) return '';
+	let d = new Date(Number(timestamp) * 1000);
+	if (isNaN(d.getTime())) return '';
+	return d.toISOString().slice(0, 10);
+}
+
+function formatTrafficBadge(userinfo) {
+	if (!userinfo || typeof userinfo !== 'object') return null;
+	let parts = [];
+	if (userinfo.total > 0) {
+		let used = userinfo.used != null ? userinfo.used : ((userinfo.upload || 0) + (userinfo.download || 0));
+		parts.push(_('已用 %s / 总计 %s').format(formatTrafficBytes(used), formatTrafficBytes(userinfo.total)));
+	}
+	if (userinfo.expire > 0) {
+		let expStr = formatTrafficExpire(userinfo.expire);
+		if (expStr) parts.push(_('到期: %s').format(expStr));
+	}
+	if (!parts.length) return null;
+	return E('div', { 'style': 'font-size: 11px; color: #0284c7; margin-top: 2px; font-weight: normal;' }, parts.join(' | '));
+}
+
 function matrixId(index, field, region) {
 	return 'omnia-matrix-' + index + '-' + field + (region ? '-' + region : '');
 }
@@ -505,6 +626,7 @@ function sourceMatrix(policy, summary) {
 								source.dns && source.dns.server ? E('span', { 'style': 'color: #059669;' }, 'DNS: ' + source.dns.server) : '',
 								source.operators && source.operators.length ? E('span', { 'style': 'color: #d97706;' }, source.operators.length + _(' 操作符')) : ''
 							]),
+							(formatTrafficBadge(source.userinfo || item.userinfo) || ''),
 							refresh ? E('div', { 'style': 'font-size: 12px; color: %s; overflow-wrap: anywhere; margin-top: .25rem;'.format(refresh.ok || refresh.status === 'running' ? '#2563eb' : '#991b1b') }, refreshResultText(refresh)) : item.error ? E('div', { 'style': 'font-size: 12px; color: #991b1b; overflow-wrap: anywhere; margin-top: .25rem;' }, item.error) : E('div')
 						]),
 						E('td', { 'style': 'text-align: center;' }, omniaUi.checkboxInput({
@@ -1395,7 +1517,7 @@ function sourceEditor(policy, index) {
 			E('div', { 'style': 'display: flex; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; margin-top: 1rem;' }, [
 				E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'click': function(ev) { ev.preventDefault(); closeSourceEditor(); } }, _('取消')),
 				E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'click': function(ev) { ev.preventDefault(); testEditorSource(); } }, _('测试与预览')),
-				E('button', { 'class': omniaMotion.buttonClass('btn cbi-button cbi-button-save'), 'click': function(ev) { ev.preventDefault(); saveSourceEditor(); } }, _('保存草稿'))
+				E('button', { 'id': 'omnia-editor-save-btn', 'class': omniaMotion.buttonClass('btn cbi-button cbi-button-save'), 'click': function(ev) { ev.preventDefault(); saveSourceEditor(); } }, _('保存订阅源'))
 			])
 		])
 	]);
@@ -1407,8 +1529,12 @@ function sourceRows(summary) {
 		return [ E('div', { 'style': 'color: #667; padding: .35rem 0;' }, _('没有观测到订阅源。')) ];
 
 	return sources.map(function(source) {
+		let trafficBadge = formatTrafficBadge(source.userinfo);
 		return E('div', { 'class': omniaMotion.softRowClass(), 'style': 'display: grid; grid-template-columns: minmax(0, 1.4fr) 80px 90px minmax(0, 1fr); gap: .75rem; padding: .45rem 0; border-bottom: 1px solid #eee; align-items: center;' }, [
-			E('div', { 'style': 'overflow-wrap: anywhere; font-weight: 600;' }, source.name || '-'),
+			E('div', { 'style': 'overflow-wrap: anywhere; font-weight: 600;' }, [
+				E('div', {}, source.name || '-'),
+				trafficBadge || ''
+			]),
 			E('div', {}, source.ok ? _('成功') : _('失败')),
 			E('div', {}, '%d'.format(source.node_count || 0)),
 			E('div', { 'style': 'overflow-wrap: anywhere; color: #667;' }, source.error || '-')
@@ -1627,10 +1753,25 @@ function addSource() {
 
 function removeSource(index) {
 	let policy = collectPolicyFromPage();
+	let source = policy.sources[index] || {};
+	let name = source.name || _('未命名订阅源');
+	if (window.confirm && !window.confirm(_('确定要删除订阅源 “%s” 吗？').format(name)))
+		return;
 	policy.sources.splice(index, 1);
 	setDraft(policy);
 	updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
-	setStatus(_('草稿已更新。请保存订阅设置以持久化更改。'), true);
+	setStatus(_('正在删除订阅源 “%s” 并保存...').format(name), true);
+	return callSubscriptionsSave(JSON.stringify(policy, null, 2)).then(function(result) {
+		if (result && result.ok) {
+			return reloadPolicyFromBackend().then(function() {
+				setStatus(_('订阅源 “%s” 已删除并保存。').format(name), true);
+			});
+		} else {
+			setStatus('%s: %s'.format(result && (result.message || result.code) || _('删除失败'), result && (result.detail || result.code) || _('无详细信息')), false);
+		}
+	}).catch(function(error) {
+		setStatus(error.message || String(error), false);
+	});
 }
 
 function openSourceEditor(index) {
@@ -1790,7 +1931,21 @@ function waitRefresh(runId, attempt) {
 			if (summary && summary.ok && summary.data)
 				updateSummary(summary.data);
 			let ok = refresh.task.status === 'success';
-			setStatus(refreshFinishedText(refresh), ok);
+			if (ok) {
+				let statusEl = E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;' }, [
+					E('span', {}, refreshFinishedText(refresh)),
+					E('button', {
+						'class': 'cbi-button cbi-button-action',
+						'style': 'margin-left: auto; font-weight: 600;',
+						'click': function(ev) {
+							applyToRuntimeContextual(ev.target);
+						}
+					}, _('⚡ 立即生成并应用到运行时'))
+				]);
+				setStatus(statusEl, true);
+			} else {
+				setStatus(refreshFinishedText(refresh), false);
+			}
 			redrawRefreshState();
 		});
 	}).catch(function(error) {
@@ -1880,9 +2035,17 @@ function saveSourceEditor() {
 	let ops = collectEditorOperators();
 	let dnsConfig = collectEditorDns();
 
+	let name = getValue('omnia-editor-name').trim();
+	if (!name) {
+		setStatus(_('订阅源名称不能为空。'), false);
+		let nameInput = document.getElementById('omnia-editor-name');
+		if (nameInput && typeof nameInput.focus === 'function') nameInput.focus();
+		return;
+	}
+
 	let sourceObj = {
 		id: (index >= 0 && policy.sources[index] && policy.sources[index].id) ? policy.sources[index].id : '',
-		name: getValue('omnia-editor-name').trim(),
+		name: name,
 		type: sType,
 		url: sType === 'remote' ? getValue('omnia-editor-url').trim() : '',
 		enabled: checked('omnia-editor-enabled'),
@@ -1892,6 +2055,18 @@ function saveSourceEditor() {
 	};
 
 	if (sType === 'remote') {
+		if (!sourceObj.url) {
+			setStatus(_('订阅源 URL 不能为空。'), false);
+			let urlInput = document.getElementById('omnia-editor-url');
+			if (urlInput && typeof urlInput.focus === 'function') urlInput.focus();
+			return;
+		}
+		if (sourceObj.url.indexOf('http://') !== 0 && sourceObj.url.indexOf('https://') !== 0) {
+			setStatus(_('订阅源 URL 必须以 http:// 或 https:// 开头。'), false);
+			let urlInput = document.getElementById('omnia-editor-url');
+			if (urlInput && typeof urlInput.focus === 'function') urlInput.focus();
+			return;
+		}
 		let ua = getValue('omnia-editor-user-agent').trim();
 		if (ua) sourceObj.user_agent = ua;
 	} else {
@@ -1907,7 +2082,14 @@ function saveSourceEditor() {
 		} else {
 			sourceObj.payload = payload;
 		}
+		if (!sourceObj.payload && (!sourceObj.nodes || !sourceObj.nodes.length)) {
+			setStatus(_('本地节点内容不能为空。'), false);
+			return;
+		}
 	}
+
+	if (index >= 0 && policy.sources[index] && policy.sources[index].userinfo)
+		sourceObj.userinfo = policy.sources[index].userinfo;
 
 	if (index < 0 || !policy.sources[index])
 		policy.sources.push(sourceObj);
@@ -1915,8 +2097,43 @@ function saveSourceEditor() {
 		policy.sources[index] = sourceObj;
 
 	setDraft(policy);
-	updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
-	setStatus(_('草稿已更新。请保存订阅设置以持久化更改。'), true);
+	setStatus(_('正在保存订阅源设置...'), true);
+
+	let saveBtn = document.getElementById('omnia-editor-save-btn');
+	if (saveBtn) {
+		saveBtn.disabled = true;
+		saveBtn.innerText = _('正在保存...');
+	}
+
+	return callSubscriptionsSave(JSON.stringify(policy, null, 2)).then(function(result) {
+		if (result && result.ok) {
+			return reloadPolicyFromBackend().then(function() {
+				let statusEl = E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;' }, [
+					E('span', {}, _('订阅源 “%s” 已成功保存！').format(name)),
+					E('button', {
+						'class': 'cbi-button cbi-button-action',
+						'style': 'margin-left: auto; font-weight: 600;',
+						'click': function(ev) {
+							applyToRuntimeContextual(ev.target);
+						}
+					}, _('⚡ 立即生成并应用到运行时'))
+				]);
+				setStatus(statusEl, true);
+			});
+		} else {
+			setStatus('%s: %s'.format(result && (result.message || result.code) || _('保存失败'), result && (result.detail || result.code) || _('无详细信息')), false);
+			if (saveBtn) {
+				saveBtn.disabled = false;
+				saveBtn.innerText = _('保存订阅源');
+			}
+		}
+	}).catch(function(error) {
+		setStatus(error.message || String(error), false);
+		if (saveBtn) {
+			saveBtn.disabled = false;
+			saveBtn.innerText = _('保存订阅源');
+		}
+	});
 }
 
 function updateSummary(summary) {

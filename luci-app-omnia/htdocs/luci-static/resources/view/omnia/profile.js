@@ -55,6 +55,24 @@ const callProfileRollback = rpc.declare({
 	expect: { '': {} }
 });
 
+const callGenerate = rpc.declare({
+	object: 'omnia',
+	method: 'config_generate',
+	expect: { '': {} }
+});
+
+const callCheck = rpc.declare({
+	object: 'omnia',
+	method: 'config_check_candidate',
+	expect: { '': {} }
+});
+
+const callApply = rpc.declare({
+	object: 'omnia',
+	method: 'config_apply',
+	expect: { '': {} }
+});
+
 const OFFICIAL_SCHEMA_URL = 'https://sing-box.sagernet.org/schema.json';
 const DEFAULT_TEMPLATE_URL = 'https://testingcf.jsdelivr.net/gh/miozen/Omnia@master/profiles/main-profile.json';
 
@@ -404,6 +422,108 @@ function saveProfile() {
 	});
 }
 
+function formatDiagnosticError(stage, title, detail, hint) {
+	return E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+		E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .4rem; display: flex; align-items: center; gap: .35rem;' }, [
+			E('span', {}, '❌ ' + _('第 %d 阶段失败：%s').format(stage, title))
+		]),
+		detail ? E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: .4rem; overflow-wrap: anywhere; white-space: pre-wrap;' }, detail) : '',
+		E('div', { 'style': 'font-size: 12px; margin-bottom: .2rem;' }, [
+			E('strong', {}, _('【运行安全】')),
+			_('已自动熔断终止应用。当前运行配置保持不变，网络连接未被破坏。')
+		]),
+		hint ? E('div', { 'style': 'font-size: 12px; color: #b45309;' }, [
+			E('strong', {}, _('【排查建议】')),
+			hint
+		]) : ''
+	]);
+}
+
+function saveAndApplyProfile() {
+	const textarea = document.getElementById('omnia-profile-editor');
+	if (!textarea) return Promise.resolve();
+	let content = textarea.value;
+
+	const btn = document.getElementById('omnia-profile-save-apply-btn');
+	if (btn) {
+		btn.disabled = true;
+		btn.innerText = _('⚡ 正在保存并应用...');
+	}
+
+	setStatus(_('正在校验模板 Schema...'), true);
+
+	return doValidateProfile(content).then(function() {
+		setStatus(_('Schema 校验通过，正在保存模板...'), true);
+		const preparedContent = ensureSchema(content);
+		if (preparedContent !== content) {
+			content = preparedContent;
+			textarea.value = content;
+		}
+		return callProfileSave(content).then(function(saveRes) {
+			if (!(saveRes && saveRes.ok)) {
+				setStatus(resultError(saveRes, _('保存模板失败')), false);
+				return saveRes;
+			}
+			editorDirty = false;
+			updateEditorBadge();
+
+			setStatus(_('【1/3 生成配置】正在根据新模板生成候选配置...'), true);
+			return callGenerate().then(function(genRes) {
+				if (!(genRes && genRes.ok)) {
+					let detail = genRes && (genRes.detail || genRes.message) || _('生成配置失败');
+					let hint = _('模板已保存，但未能生成有效候选配置。请检查出站策略组等依赖。');
+					setStatus(formatDiagnosticError(1, _('候选配置生成失败'), detail, hint), false);
+					return genRes;
+				}
+
+				let genData = omniaUi.dataOf(genRes) || {};
+				let nodeCount = genData.node_count || 0;
+				let groupCount = genData.generated_groups || 0;
+
+				setStatus(_('【2/3 内核校验】sing-box 正在校验生成配置语法...'), true);
+				return callCheck().then(function(checkRes) {
+					if (!(checkRes && checkRes.ok)) {
+						let detail = checkRes && (checkRes.detail || checkRes.message) || _('语法校验未通过');
+						let hint = _('sing-box 内核拒绝了该配置。当前运行中的网络保持原配置未中断，请根据报错修改模板。');
+						setStatus(formatDiagnosticError(2, _('sing-box 内核校验未通过'), detail, hint), false);
+						return checkRes;
+					}
+
+					setStatus(_('【3/3 应用配置】正在重载 sing-box 运行时...'), true);
+					return callApply().then(function(applyRes) {
+						if (!(applyRes && applyRes.ok)) {
+							let detail = applyRes && (applyRes.detail || applyRes.message) || _('应用失败');
+							let hint = _('服务拉起异常已自动回滚。请前往【网络诊断】查看日志。');
+							setStatus(formatDiagnosticError(3, _('运行配置应用失败（已回滚）'), detail, hint), false);
+							return applyRes;
+						}
+
+						let applyData = omniaUi.dataOf(applyRes) || {};
+						if (applyData.health_ready === false) {
+							setStatus(formatDiagnosticError(4, _('健康检查未就绪'), _('服务未能在预期时间内就绪'), _('请前往【网络诊断】排查。')), false);
+							return refreshPage();
+						}
+
+						let successMsg = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+							E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .25rem;' }, '✓ ' + _('模板已保存并成功应用到运行时！')),
+							E('div', { 'style': 'font-size: 12px; color: #15803d;' }, _('已加载 %d 个出站节点、%d 个策略组，sing-box 运行正常。').format(nodeCount, groupCount))
+						]);
+						setStatus(successMsg, true);
+						return refreshPage();
+					});
+				});
+			});
+		});
+	}).catch(function(err) {
+		setStatus(err.message || String(err), false);
+	}).finally(function() {
+		if (btn) {
+			btn.disabled = false;
+			btn.innerText = _('⚡ 保存并立即应用');
+		}
+	});
+}
+
 function refreshPage() {
 	return Promise.all([
 		callProfileGet(),
@@ -553,13 +673,19 @@ function profileEditor() {
 		E('div', { 'style': 'display: flex; justify-content: space-between; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: .75rem;' }, [
 			E('div', {}, [
 				omniaUi.sectionTitle(_('模板编辑器 (main-profile.json)')),
-				omniaUi.sectionDescription(_('直接编辑本地模板。支持快捷键：Tab 插入 2 空格，Ctrl+S 保存。保存前将自动执行 Schema 校验。'))
+				omniaUi.sectionDescription(_('直接编辑本地模板。支持快捷键：Tab 插入 2 空格，Ctrl+S 保存；点击「⚡ 保存并立即应用」一步生效。'))
 			]),
 			omniaUi.pill(editorDirty ? _('未保存修改') : _('已同步落盘'), editorDirty ? 'warning' : 'ok', {
 				id: 'omnia-profile-editor-badge'
 			})
 		]),
 		omniaUi.actionRow([
+			E('button', {
+				'type': 'button',
+				'id': 'omnia-profile-save-apply-btn',
+				'class': omniaMotion.buttonClass('btn cbi-button cbi-button-action'),
+				'click': function(ev) { ev.preventDefault(); return saveAndApplyProfile(); }
+			}, _('⚡ 保存并立即应用')),
 			E('button', {
 				'type': 'button',
 				'class': omniaMotion.buttonClass('btn cbi-button cbi-button-save'),
@@ -661,7 +787,7 @@ function remoteSourceAccordion() {
 
 function redraw() {
 	const root = document.getElementById('omnia-profile-root');
-	if (root)
+	if (root && root.parentNode)
 		root.parentNode.replaceChild(renderPage(), root);
 }
 

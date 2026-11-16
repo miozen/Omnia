@@ -92,6 +92,7 @@ function wget_argv(opts, output_path) {
 	}
 
 	push(argv, BIN.WGET);
+	push(argv, "-S");
 	push(argv, "-T");
 	push(argv, "" + timeout_sec);
 	push(argv, "-Y");

@@ -12,9 +12,9 @@ const nativeSelect = rpc.declare({ object: 'omnia', method: 'native_select', par
 const nativeTest = rpc.declare({ object: 'omnia', method: 'native_test', params: [ 'node' ], expect: { '': {} } });
 const nativeMode = rpc.declare({ object: 'omnia', method: 'native_mode_get', expect: { '': {} } });
 const nativeSetMode = rpc.declare({ object: 'omnia', method: 'native_mode_set', params: [ 'mode' ], expect: { '': {} } });
-let groups = [], delays = Object.create(null), expanded = Object.create(null), limits = Object.create(null), busy = false, status = '', testingNodes = Object.create(null), activeTab = 'all', mode = '', modes = [], backend = 'clash', availableApis = ['clash'];
+let groups = [], delays = Object.create(null), expanded = Object.create(null), limits = Object.create(null), busy = false, status = '', testingNodes = Object.create(null), activeTab = 'all', mode = '', modes = [], backend = 'clash', availableApis = ['clash'], searchKeyword = '';
 const PAGE_SIZE = 60;
-const TEST_CONCURRENCY = 1;
+const TEST_CONCURRENCY = 5;
 
 function flagForName(name) {
 	if (/\p{Regional_Indicator}{2}/u.test(name)) return '';
@@ -110,14 +110,35 @@ function renderPanel() {
 	let anyExpanded = groups.some(function(group) { return expanded[group.name] === true; });
 	let expandLabel = anyExpanded ? _('全部收起') : _('全部展开');
 	root.appendChild(E('div', { class: 'omnia-tools' }, [ E('h2', {}, _('代理')), modeSelect, apiSelect, E('div', { style: 'display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-left:auto' }, [ E('button', { class: 'btn cbi-button', disabled: disabled(busy), click: refresh, title: _('刷新'), 'aria-label': _('刷新') }, '↻'), E('button', { class: 'btn cbi-button', click: function() { setAllExpanded(!anyExpanded); }, title: expandLabel, 'aria-label': expandLabel }, anyExpanded ? '⌃' : '⌄'), E('button', { class: 'btn cbi-button', disabled: disabled(busy), click: function() { return testNodes(groups.reduce(function(a, g) { return a.concat(g.all || []); }, [])); }, title: _('全部测速'), 'aria-label': _('全部测速') }, '⚡') ]) ]));
-	root.appendChild(E('div', { class: 'omnia-tabs' }, [ ['all', _('全部')], ['policy', _('策略组')], ['node', _('节点组')] ].map(function(tab) { return E('button', { class: 'btn cbi-button' + (activeTab === tab[0] ? ' cbi-button-apply' : ''), click: function() { activeTab = tab[0]; redraw(); } }, tab[1]); })));
+	let tabsContainer = E('div', { class: 'omnia-tabs' }, [ ['all', _('全部')], ['policy', _('策略组')], ['node', _('节点组')] ].map(function(tab) { return E('button', { class: 'btn cbi-button' + (activeTab === tab[0] ? ' cbi-button-apply' : ''), click: function() { activeTab = tab[0]; redraw(); } }, tab[1]); }));
+	let searchInput = E('input', {
+		type: 'text',
+		class: 'cbi-input-text',
+		style: 'padding:.3rem .6rem;font-size:12px;width:180px;margin-left:auto',
+		placeholder: _('搜索节点或策略组…'),
+		value: searchKeyword,
+		input: function(ev) {
+			searchKeyword = ev.target.value.trim().toLowerCase();
+			redraw();
+		}
+	});
+	tabsContainer.appendChild(searchInput);
+	root.appendChild(tabsContainer);
 	if (status) root.appendChild(E('div', { class: 'omnia-status', role: 'status' }, status));
 	if (!groups.length && !status) root.appendChild(E('div', {}, _('暂无代理组')));
 	let container = E('div', { class: 'omnia-groups' });
 	groups.forEach(function(g) {
 		if (activeTab !== 'all' && groupCategory(g) !== activeTab) return;
 		let options = g.options || [];
-		let open = !!expanded[g.name];
+		if (searchKeyword) {
+			let groupMatch = String(g.name || '').toLowerCase().indexOf(searchKeyword) >= 0;
+			let matchingOptions = options.filter(function(o) {
+				return String(o.name || '').toLowerCase().indexOf(searchKeyword) >= 0;
+			});
+			if (!groupMatch && !matchingOptions.length) return;
+			if (!groupMatch && matchingOptions.length) options = matchingOptions;
+		}
+		let open = !!expanded[g.name] || (searchKeyword ? true : false);
 		let section = E('section', { class: 'omnia-group', contextmenu: function(ev) { ev.preventDefault(); return testNodes(g.all || []); } }, [ E('div', { class: 'omnia-head' }, [ E('button', { class: 'omnia-title', 'aria-expanded': open, click: function() { expanded[g.name] = !open; redraw(); } }, [ E('strong', {}, g.name), E('div', { class: 'omnia-sub' }, '%s · %s · %s · %s'.format(g.type || '-', (g.all || []).length, g.now || '-', open ? '▴' : '▾')) ]), E('button', { class: 'btn cbi-button', disabled: disabled(busy), click: function() { return testNodes(g.all || []); }, title: _('组测速'), 'aria-label': _('组测速') }, '⚡') ]) ]);
 		let shown = visibleOptions(g, options);
 		if (open) section.appendChild(E('div', { class: 'omnia-grid' }, shown.map(function(o) {

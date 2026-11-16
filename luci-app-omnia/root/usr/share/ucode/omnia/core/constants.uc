@@ -21,6 +21,7 @@ const PATH = {
 	CANDIDATE_CONFIG: "/var/run/omnia/config.candidate.json",
 	RUNTIME_STATE: "/var/run/omnia/runtime.state.json",
 	AUTO_TASK_SCRIPT: "/usr/libexec/omnia-auto-task",
+	NATIVE_API_SCRIPT: "/usr/libexec/omnia-native-api",
 	CRON_ROOT: "/etc/crontabs/root",
 	TASK_DIR: "/var/run/omnia/tasks",
 	RUNNER_DIR: "/var/run/omnia/runner",

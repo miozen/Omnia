@@ -2,29 +2,37 @@
 
 ## Last Updated
 
-2026-11-16T16:15+08:00
+2026-11-16T20:12+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `dd10071` (fix: resolve profile pillClass exception and handle unrefreshed sources on single refresh)
-- **Working Tree:** CLEAN (after commit)
+- **HEAD:** `a42c4a5` (feat(diagnostics,profile): add running singbox config preview and line numbers gutter to editors)
+- **Working Tree:** CLEAN
 - **Remote Sync:** Pushed to `origin/dev`
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Real-Device Acceptance & Bug Fixes
-- **Current Task:** Fix UI pillClass exception and single-source refresh fallback for unrefreshed sources
+- **Current Phase:** Post-v0.1.0 Real-Device Acceptance & Diagnostics/Editor UX Enhancement
+- **Current Task:** Add running sing-box config preview in diagnostics and line number gutters
 - **Last Completed:**
-  1. Fixed UI runtime exception `TypeError: omniaUi.pillClass is not a function`:
-     - Added `pillClass`, `pillStyle`, and `paintPill` helpers to `omnia/ui.js` and exported them.
-     - Updated `profile.js` to create badge using `omniaUi.pill(...)` and update dynamic states with `omniaUi.paintPill(...)`.
-     - Updated `tests/profile-ui.cjs` mock to align with exported methods.
-  2. Fixed backend single-source refresh exception `Single-source refresh requires existing snapshot for unselected source: ...`:
-     - Added `old_outbounds_for_name` in `subscription_snapshot.uc`.
-     - Updated `preserve_unselected_source` in `subscription.uc` to gracefully treat unselected sources without prior snapshots as `not_refreshed` (with 0 nodes) while preserving the security check against orphaned nodes if an unselected source had nodes under a renamed id.
-     - Added regression test case to `tests/subscription-refresh-integration.uc`.
-  3. Ran all test suites: 13 convert tests (`run-all-convert-tests.sh`), integration test (`run-subscription-integration.sh`), and CI static suite (`tests/ci-static.sh`) all pass with 0 errors.
+  1. Implemented backend `runtime_config_get` method (`diagnostics.uc`):
+     - Safely reads `/etc/omnia/runtime/config.json` and retrieves file stat (size, mtime).
+     - Registered in rpcd gateway `rpcd/ucode/omnia.uc` and declared in ACL `luci-app-omnia.json`.
+  2. Enhanced Network Diagnostics page (`diagnostics.js`):
+     - Prioritized Tab order: `[运行配置]` (default active) -> `[数据面]` -> `[控制面]`.
+     - Built read-only JSON viewer with synchronized line numbers gutter, status/line-count/size/mtime badges, "📋 复制全部配置", and "🔄 重新加载".
+     - Implemented unit test `tests/diagnostics-ui.cjs` and integrated into `ci-static.sh`.
+  3. Enhanced Profile Template Editor (`profile.js`):
+     - Added synchronized line numbers gutter with lockstep scrolling and automatic line count updates on typing, Tab indentation, and formatting.
+     - Embedded sing-box schema auto-validation and `ensureSchema` auto-injection.
+     - Harmonized remote template source card styling.
+  4. All tests and static validations verified:
+     - `tests/diagnostics-ui.cjs`: PASS.
+     - `tests/profile-ui.cjs`: PASS.
+     - `tests/ci-static.sh`: PASS.
+     - `tests/run-all-convert-tests.sh`: PASS (13 suites + ucode compilation).
+     - `git diff --check`: 0 errors.
 
 ## Uncommitted Work
 
@@ -32,18 +40,15 @@ None once committed.
 
 ## Validation Performed
 
-- OpenWrt rootfs container tests via `tests/run-all-convert-tests.sh`:
-  - 13 pure-function and integration test suites: PASS
-  - UCode syntax compilation on all modules (`ucode -c,module`): PASS
-- Container HTTP integration test via `tests/run-subscription-integration.sh`: PASS
-- Python schema validator `tests/validate-profile-schema.py`: PASS
-- Frontend profile UI unit test `tests/profile-ui.cjs`: PASS
-- Full CI static suite (`tests/ci-static.sh`): PASS
+- `node tests/diagnostics-ui.cjs`: PASS
+- `node tests/profile-ui.cjs`: PASS
+- `tests/ci-static.sh`: PASS
+- `tests/run-all-convert-tests.sh`: PASS (13 suites + ucode compilation)
 - `git diff --check`: 0 errors
 
 ## Validation Pending
 
-- Real device deployment and verification of the fixes.
+- Real device deployment and verification of the UI and editor experience.
 
 ## Known Issues / Blockers
 
@@ -51,9 +56,9 @@ None.
 
 ## Exact Next Action
 
-1. Build IPK package manually on `dev` branch or let GitHub Actions build.
-2. User deploys and tests IPK on real OpenWrt hardware / VM.
-3. Upon real device confirmation, proceed with merge from `dev` to `master`.
+1. Build APK/IPK package manually on `dev` branch or let GitHub Actions build.
+2. User deploys and tests package on real OpenWrt hardware / VM.
+3. Upon real device confirmation, proceed with PR merge from `dev` to `master`.
 
 ## Cross-machine Ready
 

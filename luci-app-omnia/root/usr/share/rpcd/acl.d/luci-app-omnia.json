@@ -45,7 +45,8 @@
           "logs_get",
           "last_error_get",
           "task_locks_get",
-          "diagnostics_get"
+          "diagnostics_get",
+          "runtime_config_get"
         ]
       }
     },

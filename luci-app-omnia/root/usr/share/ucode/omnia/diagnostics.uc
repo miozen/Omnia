@@ -10,6 +10,7 @@ import { ERR } from 'omnia.core.error';
 import { read_optional_text, file_exists, ExecResult } from 'omnia.core.utils';
 import { observe_runtime } from 'omnia.runtime';
 import { all_task_lock_status, recover_task_lock } from 'omnia.core.task_lock';
+import { stat } from 'fs';
 
 function redact_line(line) {
 	let value = "" + line;
@@ -178,4 +179,31 @@ function diagnostics_get(trace_id, req) {
 	}
 }
 
-export { logs_get, last_error_get, task_locks_get, task_lock_recover, diagnostics_get };
+function runtime_config_get(trace_id, req) {
+	try {
+		if (!file_exists(PATH.RUNTIME_CONFIG)) {
+			return Success({
+				exists: false,
+				path: PATH.RUNTIME_CONFIG,
+				content: "",
+				size: 0,
+				mtime: 0
+			}, 200, trace_id, "Runtime config does not exist");
+		}
+
+		let info = stat(PATH.RUNTIME_CONFIG);
+		let content = read_optional_text(PATH.RUNTIME_CONFIG);
+		return Success({
+			exists: true,
+			path: PATH.RUNTIME_CONFIG,
+			content: content,
+			size: info && info.size != null ? info.size : length(content),
+			mtime: info && info.mtime != null ? info.mtime : 0
+		}, 200, trace_id, "Runtime config loaded");
+	} catch (e) {
+		let err = "" + e;
+		return Fail(ERR.E_INTERNAL, "Failed to read runtime config", trace_id, err);
+	}
+}
+
+export { logs_get, last_error_get, task_locks_get, task_lock_recover, diagnostics_get, runtime_config_get };

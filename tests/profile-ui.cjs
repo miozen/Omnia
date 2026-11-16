@@ -142,6 +142,7 @@ const wrapped = `
 		.replace(/'require omnia.motion as omniaMotion';/, '')
 		.replace('return view.extend({', `
 			globalThis.profileModule = {
+				ensureSchema,
 				doValidateProfile,
 				formatEditorJson,
 				validateEditorJson,
@@ -169,7 +170,7 @@ const viewObj = vm.runInContext(wrapped, context);
 	const rendered = viewObj.render(data);
 	assert.ok(rendered, 'View renders DOM elements');
 	assert.ok(domElements['omnia-profile-editor'], 'Editor textarea rendered');
-	assert.ok(domElements['omnia-profile-remote-accordion'], 'Remote source accordion rendered');
+	assert.ok(domElements['omnia-profile-remote-accordion'], 'Remote source section rendered');
 
 	const mod = context.profileModule;
 	const editor = domElements['omnia-profile-editor'];
@@ -185,14 +186,13 @@ const viewObj = vm.runInContext(wrapped, context);
 		'Rejects malformed JSON syntax'
 	);
 
-	// 3. Validate missing $schema rejection
+	// 3. Validate template without $schema passes validation automatically (embedded schema auto-check)
 	const noSchema = JSON.parse(editor.value);
 	delete noSchema.$schema;
-	await assert.rejects(
-		async () => await mod.doValidateProfile(JSON.stringify(noSchema)),
-		/缺少或错误的 \$schema 声明/,
-		'Rejects missing official $schema'
-	);
+	const noSchemaResult = await mod.doValidateProfile(JSON.stringify(noSchema));
+	assert.ok(noSchemaResult.ok, 'Template without $schema passes validation automatically against embedded schema');
+	const ensured = mod.ensureSchema(JSON.stringify(noSchema));
+	assert.ok(ensured.includes('https://sing-box.sagernet.org/schema.json'), 'ensureSchema automatically adds official $schema');
 
 	// 4. Validate schema violation rejection
 	const invalidSchemaProfile = JSON.parse(editor.value);
@@ -223,12 +223,16 @@ const viewObj = vm.runInContext(wrapped, context);
 	assert.equal(editor.value, 'a  bc', 'Tab inserts 2 spaces');
 	assert.equal(editor.selectionStart, 3, 'Cursor placed after spaces');
 
-	// 7. Test Save Flow
-	editor.value = JSON.stringify(profile, null, 2);
+	// 7. Test Save Flow (with auto-ensured $schema)
+	const rawProfileWithoutSchema = JSON.parse(JSON.stringify(profile));
+	delete rawProfileWithoutSchema.$schema;
+	editor.value = JSON.stringify(rawProfileWithoutSchema, null, 2);
 	profileValidateCalled = false;
+	savedContent = null;
 	await mod.saveProfile();
 	assert.ok(profileValidateCalled, 'profile_validate backend RPC invoked');
 	assert.ok(savedContent, 'profile_save saved content');
+	assert.ok(savedContent.includes('https://sing-box.sagernet.org/schema.json'), 'Saved content automatically ensures $schema is present');
 
 	console.log('All profile-ui tests passed successfully!');
 })().catch(err => {

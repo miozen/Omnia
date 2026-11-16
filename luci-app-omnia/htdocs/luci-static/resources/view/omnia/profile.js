@@ -281,6 +281,26 @@ function validateSchema(data, subSchema, root, path) {
 	return null;
 }
 
+function ensureSchema(rawConfig) {
+	if (typeof rawConfig !== 'string')
+		return rawConfig;
+	try {
+		const obj = JSON.parse(rawConfig);
+		if (!obj || typeof obj !== 'object' || Array.isArray(obj))
+			return rawConfig;
+		const ordered = { '$schema': OFFICIAL_SCHEMA_URL };
+		const keys = Object.keys(obj);
+		for (let i = 0; i < keys.length; i++) {
+			const k = keys[i];
+			if (k !== '$schema')
+				ordered[k] = obj[k];
+		}
+		return JSON.stringify(ordered, null, 2) + '\n';
+	} catch (e) {
+		return rawConfig;
+	}
+}
+
 function doValidateProfile(content) {
 	let parsed;
 	try {
@@ -291,10 +311,6 @@ function doValidateProfile(content) {
 
 	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
 		return Promise.reject(new Error(_('模板内容必须是合法的 JSON 对象')));
-	}
-
-	if (parsed.$schema !== OFFICIAL_SCHEMA_URL) {
-		return Promise.reject(new Error(_('缺少或错误的 $schema 声明，必须为: ') + OFFICIAL_SCHEMA_URL));
 	}
 
 	return loadSingboxSchema().then(function(schema) {
@@ -334,24 +350,12 @@ function formatEditorJson() {
 	}
 
 	try {
-		const obj = JSON.parse(text);
-		if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
-			setStatus(_('格式化失败：内容不是 JSON 对象'), false);
-			return;
-		}
-
-		const ordered = { '$schema': OFFICIAL_SCHEMA_URL };
-		const keys = Object.keys(obj);
-		for (let i = 0; i < keys.length; i++) {
-			const k = keys[i];
-			if (k !== '$schema')
-				ordered[k] = obj[k];
-		}
-
-		textarea.value = JSON.stringify(ordered, null, 2) + '\n';
+		const formatted = ensureSchema(text);
+		textarea.value = formatted;
 		editorDirty = true;
 		updateEditorBadge();
-		setStatus(_('JSON 已按 2 空格缩进格式化，并已确保声明 official $schema。'), true);
+		updateProfileLineNumbers();
+		setStatus(_('JSON 已按 2 空格缩进格式化，并已确保官方 $schema。'), true);
 	} catch (e) {
 		setStatus(_('JSON 语法错误，无法格式化') + ': ' + e.message, false);
 	}
@@ -365,7 +369,7 @@ function validateEditorJson() {
 	setStatus(_('正在校验模板结构与 sing-box 官方 JSON Schema...'), true);
 
 	return doValidateProfile(content).then(function() {
-		setStatus(_('校验通过：JSON 语法、official $schema 及 Omnia 基础结构完整有效。'), true);
+		setStatus(_('校验通过：JSON 语法有效，符合 sing-box 官方规范及 Omnia 基础结构。'), true);
 	}).catch(function(err) {
 		setStatus(err.message || String(err), false);
 	});
@@ -374,12 +378,17 @@ function validateEditorJson() {
 function saveProfile() {
 	const textarea = document.getElementById('omnia-profile-editor');
 	if (!textarea) return Promise.resolve();
-	const content = textarea.value;
+	let content = textarea.value;
 
 	setStatus(_('正在校验模板...'), true);
 
 	return doValidateProfile(content).then(function() {
 		setStatus(_('校验通过，正在保存模板...'), true);
+		const preparedContent = ensureSchema(content);
+		if (preparedContent !== content) {
+			content = preparedContent;
+			textarea.value = content;
+		}
 		return callProfileSave(content).then(function(result) {
 			if (result && result.ok) {
 				editorDirty = false;
@@ -498,6 +507,18 @@ function restoreDefault() {
 	});
 }
 
+function updateProfileLineNumbers() {
+	const textarea = document.getElementById('omnia-profile-editor');
+	const gutter = document.getElementById('omnia-profile-editor-gutter');
+	if (!textarea || !gutter) return;
+	const count = (textarea.value || '').split('\n').length;
+	let str = '';
+	for (let i = 1; i <= count; i++) {
+		str += i + '\n';
+	}
+	gutter.textContent = str;
+}
+
 function handleEditorKeydown(ev) {
 	if (ev.key === 'Tab') {
 		ev.preventDefault();
@@ -509,6 +530,7 @@ function handleEditorKeydown(ev) {
 		textarea.selectionStart = textarea.selectionEnd = start + 2;
 		editorDirty = true;
 		updateEditorBadge();
+		updateProfileLineNumbers();
 	} else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 's' || ev.key === 'S')) {
 		ev.preventDefault();
 		saveProfile();
@@ -520,10 +542,12 @@ function handleEditorInput() {
 		editorDirty = true;
 		updateEditorBadge();
 	}
+	updateProfileLineNumbers();
 }
 
 function profileEditor() {
 	const content = profileContent(profileResult);
+	setTimeout(updateProfileLineNumbers, 0);
 
 	return E('div', { 'style': omniaUi.sectionStyle() }, [
 		E('div', { 'style': 'display: flex; justify-content: space-between; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: .75rem;' }, [
@@ -568,59 +592,69 @@ function profileEditor() {
 			}, _('⚠️ 恢复内置模板'))
 		]),
 		actionStatusBox(),
-		E('div', { 'style': 'margin-top: .85rem;' }, [
+		E('div', {
+			'style': 'margin-top: .85rem; display: flex; background: #0f172a; border: 1px solid #334155; border-radius: 8px; overflow: hidden; min-height: 32rem; height: 38rem;'
+		}, [
+			E('div', {
+				'id': 'omnia-profile-editor-gutter',
+				'style': 'box-sizing: border-box; padding: 1rem .5rem 1rem .75rem; background: #090d16; color: #475569; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 13px; line-height: 1.5; text-align: right; user-select: none; border-right: 1px solid #1e293b; overflow: hidden; min-width: 3.5rem; white-space: pre;'
+			}),
 			E('textarea', {
 				'id': 'omnia-profile-editor',
 				'class': 'cbi-input-textarea',
-				'style': 'width: 100%; box-sizing: border-box; min-height: 32rem; height: 38rem; padding: 1rem; border-radius: 8px; background: #0f172a; color: #f8fafc; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 13px; line-height: 1.5; border: 1px solid #334155; resize: vertical; tab-size: 2;',
+				'style': 'flex: 1; height: 100%; border: none; box-sizing: border-box; background: transparent; color: #f8fafc; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 13px; line-height: 1.5; padding: 1rem; resize: none; outline: none; tab-size: 2; white-space: pre; overflow: auto;',
+				'wrap': 'off',
 				'spellcheck': 'false',
 				'autocomplete': 'off',
 				'autocorrect': 'off',
 				'autocapitalize': 'off',
 				'keydown': handleEditorKeydown,
-				'input': handleEditorInput
+				'input': handleEditorInput,
+				'scroll': function(ev) {
+					const gutter = document.getElementById('omnia-profile-editor-gutter');
+					if (gutter) gutter.scrollTop = ev.target.scrollTop;
+				}
 			}, content)
 		])
 	]);
 }
 
 function remoteSourceAccordion() {
-	return E('details', {
+	return E('div', {
 		'id': 'omnia-profile-remote-accordion',
-		'style': 'margin-top: 1rem; border: 1px solid #334155; border-radius: 8px; padding: .85rem 1rem; background: rgba(15, 23, 42, 0.4);'
+		'style': omniaUi.sectionStyle()
 	}, [
-		E('summary', {
-			'style': 'cursor: pointer; font-weight: 600; font-size: 14px; color: #94a3b8; outline: none; user-select: none; display: flex; align-items: center; justify-content: space-between;'
-		}, [
-			E('span', {}, _('🌐 在线模板与拉取设置 (点击展开)')),
-			E('span', { 'style': 'font-size: 12px; font-weight: normal; color: #64748b;' }, _('按需拉取，修改本地模板不上传远程'))
-		]),
-		E('div', { 'style': 'margin-top: 1rem; border-top: 1px solid #1e293b; padding-top: .85rem;' }, [
-			omniaUi.sectionDescription(_('配置远程 sing-box 基础模板 URL 与拉取网络策略。通过“从在线拉取最新”按钮即可按需下载覆盖本地模板。本地修改仅在设备本地生效，绝不向远程同步。')),
-			E('label', { 'style': 'display: block; margin-top: .6rem;' }, [
+		omniaUi.sectionTitle(_('在线模板与拉取设置')),
+		omniaUi.sectionDescription(_('配置远程 sing-box 基础模板 URL 与拉取网络策略。通过“从在线拉取最新”按钮即可按需下载覆盖本地模板。本地修改仅在设备本地生效，绝不向远程同步。')),
+		E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .75rem; margin-top: .75rem;' }, [
+			E('div', {}, [
 				omniaUi.fieldLabel(_('模板地址')),
 				E('input', {
 					'id': 'omnia-profile-source-url',
 					'class': 'cbi-input-text',
-					'style': 'width: 100%; max-width: 100%; box-sizing: border-box;',
+					'style': 'width: 100%; box-sizing: border-box;',
 					'placeholder': DEFAULT_TEMPLATE_URL,
 					'value': sourceInputUrl()
 				})
 			]),
-			E('label', { 'style': 'display: block; margin-top: .6rem;' }, [
+			E('div', {}, [
 				omniaUi.fieldLabel(_('下载策略')),
-				E('select', { 'id': 'omnia-profile-fetch-strategy', 'class': 'cbi-input-select', 'style': 'min-width: 220px;' }, [
+				E('select', {
+					'id': 'omnia-profile-fetch-strategy',
+					'class': 'cbi-input-select',
+					'style': 'width: 100%; box-sizing: border-box;'
+				}, [
 					E('option', { 'value': 'direct', 'selected': sourceFetchStrategy() === 'direct' ? 'selected' : null }, _('直连')),
 					E('option', { 'value': 'proxy', 'selected': sourceFetchStrategy() === 'proxy' ? 'selected' : null }, _('代理'))
 				])
-			]),
-			omniaUi.actionRow([
-				E('button', {
-					'type': 'button',
-					'class': omniaMotion.buttonClass('btn cbi-button cbi-button-save'),
-					'click': function(ev) { ev.preventDefault(); return saveSource(); }
-				}, _('保存在线设置'))
 			])
+		]),
+		omniaUi.actionRow([
+			E('button', {
+				'type': 'button',
+				'class': omniaMotion.buttonClass('btn cbi-button cbi-button-save'),
+				'click': function(ev) { ev.preventDefault(); return saveSource(); }
+			}, _('保存在线设置'))
 		])
 	]);
 }

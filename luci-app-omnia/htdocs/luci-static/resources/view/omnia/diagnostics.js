@@ -48,10 +48,17 @@ const callApiStatus = rpc.declare({
 	expect: { '': {} }
 });
 
-let activeTab = 'dataplane';
+const callRuntimeConfigGet = rpc.declare({
+	object: 'omnia',
+	method: 'runtime_config_get',
+	expect: { '': {} }
+});
+
+let activeTab = 'config';
 let pageResults = {};
 let logsLoading = false;
 let connectivityLoading = false;
+let runtimeConfigLoading = false;
 
 function yesNo(value) {
 	return value ? _('是') : _('否');
@@ -187,12 +194,151 @@ function loadConnectivityLazy() {
 	});
 }
 
+function loadRuntimeConfigLazy(force) {
+	if ((pageResults.runtimeConfig && !force) || runtimeConfigLoading)
+		return Promise.resolve();
+
+	runtimeConfigLoading = true;
+	return callRuntimeConfigGet().catch(function(e) {
+		return { ok: false, message: _('运行配置加载失败'), detail: e.message || String(e) };
+	}).then(function(result) {
+		pageResults.runtimeConfig = result;
+		runtimeConfigLoading = false;
+		redraw();
+	}).catch(function() {
+		runtimeConfigLoading = false;
+	});
+}
+
 function ensureLazyLoads() {
-	window.setTimeout(function() {
-		loadLogsLazy();
-		if (activeTab === 'dataplane')
+	setTimeout(function() {
+		if (activeTab === 'config') {
+			loadRuntimeConfigLazy();
+		} else if (activeTab === 'dataplane') {
+			loadLogsLazy();
 			loadConnectivityLazy();
+		} else if (activeTab === 'controlplane') {
+			loadLogsLazy();
+		}
 	}, 0);
+}
+
+function updateConfigLineNumbers() {
+	const textarea = document.getElementById('omnia-runtime-config-viewer');
+	const gutter = document.getElementById('omnia-runtime-config-gutter');
+	if (!textarea || !gutter) return;
+	const lineCount = (textarea.value || '').split('\n').length;
+	let numbers = '';
+	for (let i = 1; i <= lineCount; i++) {
+		numbers += i + '\n';
+	}
+	gutter.textContent = numbers;
+}
+
+function formattedConfigContent(content) {
+	if (!content || typeof content !== 'string')
+		return '';
+	try {
+		const obj = JSON.parse(content);
+		return JSON.stringify(obj, null, 2);
+	} catch (e) {
+		return content;
+	}
+}
+
+function runtimeConfigPanel() {
+	if (!pageResults.runtimeConfig && runtimeConfigLoading) {
+		return E('div', { 'style': omniaUi.sectionStyle() }, [
+			omniaUi.sectionTitle(_('当前运行配置 (sing-box)')),
+			omniaUi.sectionDescription(_('正在从设备 /etc/omnia/runtime/config.json 读取运行配置...')),
+			E('div', { 'style': omniaUi.mutedStyle() }, _('加载中...'))
+		]);
+	}
+
+	const data = omniaUi.dataOf(pageResults.runtimeConfig);
+	const exists = data.exists === true;
+	const rawContent = data.content || '';
+	const formatted = exists ? formattedConfigContent(rawContent) : '';
+	const lineCount = exists ? formatted.split('\n').length : 0;
+	const sizeText = data.size != null && data.size !== '' ? (Number(data.size) > 1024 ? (Number(data.size) / 1024).toFixed(1) + ' KB' : data.size + ' B') : '-';
+
+	setTimeout(updateConfigLineNumbers, 0);
+
+	return E('div', {}, [
+		E('div', { 'style': omniaUi.sectionStyle() }, [
+			E('div', { 'style': 'display: flex; justify-content: space-between; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: .6rem;' }, [
+				E('div', {}, [
+					omniaUi.sectionTitle(_('当前运行配置 (sing-box)')),
+					omniaUi.sectionDescription(_('当前 sing-box 进程实际加载的运行配置文件 (/etc/omnia/runtime/config.json)。只读预览，便于排查出站节点、分流规则及 DNS 配置。'))
+				]),
+				E('div', { 'style': 'display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;' }, [
+					omniaUi.pill(exists ? _('生效中') : _('未生成'), exists ? 'ok' : 'error'),
+					exists ? omniaUi.pill(_('%d 行').format(lineCount), 'neutral') : '',
+					data.mtime ? omniaUi.pill(_('修改于: %s').format(omniaTime.formatMaybeTime(data.mtime)), 'neutral') : ''
+				])
+			]),
+			omniaUi.actionRow([
+				E('button', {
+					'type': 'button',
+					'class': omniaMotion.buttonClass('btn cbi-button cbi-button-apply'),
+					'disabled': exists ? null : 'disabled',
+					'click': function(ev) {
+						ev.preventDefault();
+						if (!exists || !formatted) return;
+						const btn = ev.target;
+						if (navigator.clipboard && navigator.clipboard.writeText) {
+							navigator.clipboard.writeText(formatted).then(function() {
+								btn.textContent = _('✅ 已复制到剪贴板！');
+								setTimeout(function() { btn.textContent = _('📋 复制全部配置'); }, 2500);
+							});
+						} else {
+							const ta = document.getElementById('omnia-runtime-config-viewer');
+							if (ta) {
+								ta.select();
+								document.execCommand('copy');
+								btn.textContent = _('✅ 已复制！');
+								setTimeout(function() { btn.textContent = _('📋 复制全部配置'); }, 2500);
+							}
+						}
+					}
+				}, _('📋 复制全部配置')),
+				E('button', {
+					'type': 'button',
+					'class': omniaMotion.buttonClass('btn cbi-button cbi-button-neutral'),
+					'click': function(ev) {
+						ev.preventDefault();
+						loadRuntimeConfigLazy(true);
+					}
+				}, _('🔄 重新加载'))
+			]),
+			E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; margin-top: .75rem; padding-top: .75rem; border-top: 1px solid #eef0f3; color: #667; font-size: 12px;' }, [
+				E('div', {}, [ E('strong', {}, _('配置文件路径：')), E('span', {}, ' ' + (data.path || '/etc/omnia/runtime/config.json')) ]),
+				E('div', {}, [ E('strong', {}, _('配置总行数：')), E('span', {}, ' ' + (exists ? _('%d 行').format(lineCount) : '-')) ]),
+				E('div', {}, [ E('strong', {}, _('文件大小：')), E('span', {}, ' ' + sizeText) ]),
+				E('div', {}, [ E('strong', {}, _('最后生成时间：')), E('span', {}, ' ' + (data.mtime ? omniaTime.formatMaybeTime(data.mtime) : '-')) ])
+			]),
+			E('div', {
+				'style': 'margin-top: .85rem; display: flex; background: #0f172a; border: 1px solid #334155; border-radius: 8px; overflow: hidden; min-height: 28rem; height: 38rem;'
+			}, [
+				E('div', {
+					'id': 'omnia-runtime-config-gutter',
+					'style': 'box-sizing: border-box; padding: 1rem .5rem 1rem .75rem; background: #090d16; color: #475569; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 13px; line-height: 1.5; text-align: right; user-select: none; border-right: 1px solid #1e293b; overflow: hidden; min-width: 3.5rem; white-space: pre;'
+				}),
+				E('textarea', {
+					'id': 'omnia-runtime-config-viewer',
+					'class': 'cbi-input-textarea',
+					'readonly': 'readonly',
+					'style': 'flex: 1; height: 100%; border: none; box-sizing: border-box; background: transparent; color: #f8fafc; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 13px; line-height: 1.5; padding: 1rem; resize: none; outline: none; tab-size: 2; white-space: pre; overflow: auto;',
+					'wrap': 'off',
+					'spellcheck': 'false',
+					'scroll': function(ev) {
+						const gutter = document.getElementById('omnia-runtime-config-gutter');
+						if (gutter) gutter.scrollTop = ev.target.scrollTop;
+					}
+				}, exists ? formatted : (rawContent || _('// 运行配置尚未生成，请在控制面板生成并应用配置后查看。')))
+			])
+		])
+	]);
 }
 
 function dataplanePanel() {
@@ -384,8 +530,9 @@ function renderPage() {
 	const errorPanel = loadErrorPanel();
 	omniaMotion.inject();
 	const children = [
-		omniaUi.pageHeader(_('网络诊断'), _('用于排查控制面任务和数据面接管。高层摘要集中在概览页。')),
+		omniaUi.pageHeader(_('网络诊断'), _('用于排查运行配置、控制面任务和数据面接管。高层摘要集中在概览页。')),
 		E('div', { 'style': 'display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: 0 0 .75rem;' }, [
+			tabButton('config', _('运行配置')),
 			tabButton('dataplane', _('数据面')),
 			tabButton('controlplane', _('控制面'))
 		])
@@ -394,7 +541,13 @@ function renderPage() {
 	if (errorPanel)
 		children.push(errorPanel);
 
-	children.push(activeTab === 'dataplane' ? dataplanePanel() : controlplanePanel());
+	if (activeTab === 'config')
+		children.push(runtimeConfigPanel());
+	else if (activeTab === 'dataplane')
+		children.push(dataplanePanel());
+	else
+		children.push(controlplanePanel());
+
 	ensureLazyLoads();
 
 	return E('div', { 'id': 'omnia-diagnostics-root', 'class': 'cbi-map' }, [
@@ -411,16 +564,18 @@ function redraw() {
 return view.extend({
 	load: function() {
 		return Promise.all([
+			callRuntimeConfigGet().catch(function(e) { return { ok: false, message: _('运行配置加载失败'), detail: e.message || String(e) }; }),
 			callApiStatus().catch(function(e) { return { ok: false, message: _('API 状态加载失败'), detail: e.message || String(e) }; }),
 			callDiagnosticsGet().catch(function(e) { return { ok: false, message: _('控制面诊断加载失败'), detail: e.message || String(e) }; }),
 			callLastErrorGet().catch(function(e) { return { ok: false, message: _('最近错误加载失败'), detail: e.message || String(e) }; }),
 			callTaskLocksGet().catch(function(e) { return { ok: false, message: _('任务锁状态加载失败'), detail: e.message || String(e) }; })
 		]).then(function(results) {
 			return {
-				apiStatus: results[0],
-				diagnostics: results[1],
-				lastError: results[2],
-				taskLocks: results[3]
+				runtimeConfig: results[0],
+				apiStatus: results[1],
+				diagnostics: results[2],
+				lastError: results[3],
+				taskLocks: results[4]
 			};
 		});
 	},
@@ -429,6 +584,7 @@ return view.extend({
 		pageResults = results || {};
 		logsLoading = false;
 		connectivityLoading = false;
+		runtimeConfigLoading = false;
 		return renderPage();
 	},
 

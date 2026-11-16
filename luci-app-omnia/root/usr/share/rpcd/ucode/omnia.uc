@@ -11,7 +11,7 @@ import { config_apply, config_rollback, runtime_healthcheck } from 'omnia.apply'
 import { dashboard_overview, dashboard_metrics } from 'omnia.dashboard';
 import { dashboard_source_get, dashboard_source_save, dashboard_status } from 'omnia.dashboard_config';
 import { api_status } from 'omnia.api_status';
-import { logs_get, last_error_get, task_locks_get, task_lock_recover, diagnostics_get } from 'omnia.diagnostics';
+import { logs_get, last_error_get, task_locks_get, task_lock_recover, diagnostics_get, runtime_config_get } from 'omnia.diagnostics';
 import { selector_list, selector_delay_test, node_delay_test, selector_set, mode_get, mode_set } from 'omnia.control';
 import { connections_list } from 'omnia.connections';
 import { connectivity_probe } from 'omnia.connectivity';
@@ -651,6 +651,14 @@ const methods = {
 		call: function(req) {
 			let trace_id = gen_trace_id();
 			return gateway(trace_id, diagnostics_get, req);
+		}
+	},
+
+	runtime_config_get: {
+		args: {},
+		call: function(req) {
+			let trace_id = gen_trace_id();
+			return gateway(trace_id, runtime_config_get, req);
 		}
 	}
 };

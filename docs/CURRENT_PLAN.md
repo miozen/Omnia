@@ -73,6 +73,8 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
 - [x] Converted LuCI profile template page (`profile.js`) into an editable JSON editor with offline sing-box official JSON Schema validation, formatting, Tab/Ctrl+S shortcuts, rollback/restore integration, and collapsible on-demand remote pull settings.
 - [x] Fixed frontend missing `omniaUi.pillClass` exception crashing resources tabs (`ui.js` now exports `pillClass`, `pillStyle`, `paintPill`, and `profile.js` uses `pill` / `paintPill`).
 - [x] Fixed single-source refresh failure when unselected sources have no previous snapshot (`subscription.uc` now gracefully marks unselected sources without prior snapshot as `not_refreshed` while strictly guarding against orphaned nodes from renamed sources).
+- [x] Optimized profile editor schema validation and styling: embedded sing-box schema auto-validation without requiring manual `$schema` declaration, automatic injection on format/save (`ensureSchema`), and aligned remote template source card styling with standard Omnia content sections.
+- [x] Added read-only running sing-box config preview in Network Diagnostics (prioritized as first tab: 运行配置 -> 数据面 -> 控制面) with synchronized line numbers gutter, copy to clipboard, and instant reload; added synchronized line numbers gutter to the editable Profile template JSON editor.
 
 ## Remaining
 

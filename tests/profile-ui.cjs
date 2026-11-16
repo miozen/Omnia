@@ -83,7 +83,18 @@ const mockOmniaUi = {
 		if (domElements[id]) domElements[id].textContent = text;
 	},
 	pageHeader: (t, d) => createElement('div', {}, [t, d]),
-	pillClass: t => 'pill-' + t
+	pill: (text, tone, options) => {
+		options = options || {};
+		return createElement('span', { id: options.id || null, class: 'pill-' + (tone || 'neutral') }, text);
+	},
+	pillClass: t => 'pill-' + t,
+	paintPill: (id, text, type) => {
+		let node = typeof id === 'string' ? domElements[id] : id;
+		if (node) {
+			if (text != null) node.textContent = text;
+			node.className = 'pill-' + (type || 'neutral');
+		}
+	}
 };
 
 const mockOmniaMotion = {
@@ -108,7 +119,18 @@ const wrapped = `
 		globalThis.statusOk = (type === 'ok');
 	};
 	omniaUi.pageHeader = (t, d) => E('div', {}, [t, d]);
+	omniaUi.pill = (text, tone, options) => {
+		options = options || {};
+		return E('span', { id: options.id || null, class: 'pill-' + (tone || 'neutral') }, text);
+	};
 	omniaUi.pillClass = t => 'pill-' + t;
+	omniaUi.paintPill = (id, text, type) => {
+		let node = typeof id === 'string' ? domElements[id] : id;
+		if (node) {
+			if (text != null) node.textContent = text;
+			node.className = 'pill-' + (type || 'neutral');
+		}
+	};
 
 	const omniaMotion = {
 		buttonClass: c => c,

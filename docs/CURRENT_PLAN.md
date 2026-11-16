@@ -71,6 +71,8 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
 - [x] Fixed single ruleset download failure for tags with exclamation marks (e.g., `geosite-category-ai-!cn`, `geosite-geolocation-!cn`) in `omnia-runner` and optimized LuCI UI tag reporting.
 - [x] Upgraded operator pipeline to Sub-Store style visual card UI with reordering/presets and fully aligned airport DNS settings with sing-box official schema.
 - [x] Converted LuCI profile template page (`profile.js`) into an editable JSON editor with offline sing-box official JSON Schema validation, formatting, Tab/Ctrl+S shortcuts, rollback/restore integration, and collapsible on-demand remote pull settings.
+- [x] Fixed frontend missing `omniaUi.pillClass` exception crashing resources tabs (`ui.js` now exports `pillClass`, `pillStyle`, `paintPill`, and `profile.js` uses `pill` / `paintPill`).
+- [x] Fixed single-source refresh failure when unselected sources have no previous snapshot (`subscription.uc` now gracefully marks unselected sources without prior snapshot as `not_refreshed` while strictly guarding against orphaned nodes from renamed sources).
 
 ## Remaining
 

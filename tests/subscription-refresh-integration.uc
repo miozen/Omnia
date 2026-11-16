@@ -24,6 +24,29 @@ assert(result.ok, 'single-source refresh succeeds despite another empty source')
 let saved = json(readfile('/etc/omnia/node-snapshot.json'));
 assert(saved.outbounds[0].tag == 'new', 'new node saved');
 assert(saved.sources[1].ok == false && saved.sources[1].error == 'prior error', 'prior failure preserved');
+
+/* Test single-source refresh when an unselected source is newly added and not in snapshot */
+base.sources = [
+	{ id: 'one', name: 'One', url: 'http://127.0.0.1:18080/one', enabled: true },
+	{ id: 'two', name: 'Two', url: 'http://127.0.0.1:18080/two', enabled: true },
+	{ id: 'kitty', name: 'Kitty', url: 'http://127.0.0.1:18080/three', enabled: true }
+];
+writefile('/etc/omnia/subscriptions.json', sprintf('%J', base));
+result = subscription_refresh_source('test', { source_id: 'one' });
+assert(result.ok, 'single-source refresh succeeds when another unselected source has no previous snapshot');
+saved = json(readfile('/etc/omnia/node-snapshot.json'));
+let kitty_saved = null;
+for (let s in saved.sources) {
+	if (s.id == 'kitty') kitty_saved = s;
+}
+assert(kitty_saved != null && kitty_saved.status == 'not_refreshed' && kitty_saved.ok == false, 'unselected new source is marked not_refreshed');
+
+base.sources = [
+	{ id: 'one', name: 'One', url: 'http://127.0.0.1:18080/one', enabled: true },
+	{ id: 'two', name: 'Two', url: 'http://127.0.0.1:18080/two', enabled: true }
+];
+writefile('/etc/omnia/subscriptions.json', sprintf('%J', base));
+
 writefile('/etc/omnia/node-snapshot.json', 'invalid');
 result = subscription_refresh_source('test', { source_id: 'one' });
 assert(!result.ok && readfile('/etc/omnia/node-snapshot.json') == 'invalid', 'invalid snapshot is not overwritten');

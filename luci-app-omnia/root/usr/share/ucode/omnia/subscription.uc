@@ -13,7 +13,7 @@ import { validate_refresh_strategy } from 'omnia.subscription_policy_schema';
 import { finish_task, fail_task } from 'omnia.core.task';
 import { validate_url, validate_subscriptions_content, refresh_strategy } from 'omnia.subscription_config';
 import { preflight_for_url } from 'omnia.subscription_preflight';
-import { validate_outbounds, sanitize_and_validate_outbounds, preserve_source_attribution, validate_node_snapshot_content, read_old_snapshot, old_outbounds_for_source, old_source_for_id } from 'omnia.subscription_snapshot';
+import { validate_outbounds, sanitize_and_validate_outbounds, preserve_source_attribution, validate_node_snapshot_content, read_old_snapshot, old_outbounds_for_source, old_outbounds_for_name, old_source_for_id } from 'omnia.subscription_snapshot';
 import { SUBSCRIPTION_REFRESH_TASK, subscription_refresh_task_enabled, progress_percent, redacted_url, write_subscription_refresh_task, subscriptions_refresh_status as task_subscriptions_refresh_status, subscriptions_refresh_start as task_subscriptions_refresh_start, subscription_refresh_source_start as task_subscription_refresh_source_start } from 'omnia.subscription_task';
 import { substore_outbounds, convert_to_outbounds, parse_subscription_safely, source_result_object, fetch_substore_output_checked, fetch_subscription_checked, node_preview } from 'omnia.subscription_fetch';
 import { convert_form_nodes } from 'omnia.convert.pipeline';
@@ -150,8 +150,20 @@ function preserve_unselected_source(source, strategy, old_snapshot, require_exis
 
 	let old_outbounds = old_outbounds_for_source(old_snapshot, source.id);
 	let old_source = old_source_for_id(old_snapshot, source.id);
-	if (require_existing == true && (!old_snapshot.available || old_source == null))
-		die("Single-source refresh requires existing snapshot for unselected source: " + source.name);
+
+	if (require_existing == true && !old_snapshot.available)
+		die("Single-source refresh requires existing snapshot");
+
+	if (old_source == null) {
+		let orphan_outbounds = old_outbounds_for_name(old_snapshot, source.name);
+		if (length(orphan_outbounds) > 0)
+			die("Single-source refresh requires existing snapshot for unselected source: " + source.name);
+
+		return {
+			source: source_result_object(source, strategy, "not_refreshed", false, 0, "Unselected source has no previous snapshot"),
+			outbounds: []
+		};
+	}
 
 	preserve_source_attribution(old_outbounds, source.id, source.name);
 	let status = type(old_source) == "object" && old_source != null && type(old_source.status) == "string" && old_source.status != "" ?

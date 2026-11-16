@@ -316,12 +316,11 @@ function doValidateProfile(content) {
 function updateEditorBadge() {
 	const badge = document.getElementById('omnia-profile-editor-badge');
 	if (!badge) return;
-	if (editorDirty) {
-		badge.className = omniaUi.pillClass('warning');
-		badge.textContent = _('未保存修改');
+	if (typeof omniaUi.paintPill === 'function') {
+		omniaUi.paintPill(badge, editorDirty ? _('未保存修改') : _('已同步落盘'), editorDirty ? 'warning' : 'ok');
 	} else {
-		badge.className = omniaUi.pillClass('ok');
-		badge.textContent = _('已同步落盘');
+		badge.className = typeof omniaUi.pillClass === 'function' ? omniaUi.pillClass(editorDirty ? 'warning' : 'ok') : '';
+		badge.textContent = editorDirty ? _('未保存修改') : _('已同步落盘');
 	}
 }
 
@@ -532,10 +531,9 @@ function profileEditor() {
 				omniaUi.sectionTitle(_('模板编辑器 (main-profile.json)')),
 				omniaUi.sectionDescription(_('直接编辑本地模板。支持快捷键：Tab 插入 2 空格，Ctrl+S 保存。保存前将自动执行 Schema 校验。'))
 			]),
-			E('span', {
-				'id': 'omnia-profile-editor-badge',
-				'class': omniaUi.pillClass(editorDirty ? 'warning' : 'ok')
-			}, editorDirty ? _('未保存修改') : _('已同步落盘'))
+			omniaUi.pill(editorDirty ? _('未保存修改') : _('已同步落盘'), editorDirty ? 'warning' : 'ok', {
+				id: 'omnia-profile-editor-badge'
+			})
 		]),
 		omniaUi.actionRow([
 			E('button', {

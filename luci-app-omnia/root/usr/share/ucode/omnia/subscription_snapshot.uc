@@ -204,6 +204,19 @@ function old_source_for_id(old_snapshot, source_id) {
 	return null;
 }
 
+function old_outbounds_for_name(old_snapshot, source_name) {
+	let outbounds = [];
+	if (type(old_snapshot) != "object" || old_snapshot == null || type(old_snapshot.outbounds) != "array")
+		return outbounds;
+
+	for (let outbound in old_snapshot.outbounds) {
+		if (type(outbound) == "object" && outbound != null && outbound.x_omnia_source_name == source_name)
+			push(outbounds, outbound);
+	}
+
+	return outbounds;
+}
+
 export {
 	validate_outbounds,
 	sanitize_and_validate_outbounds,
@@ -215,5 +228,6 @@ export {
 	empty_old_snapshot,
 	read_old_snapshot,
 	old_outbounds_for_source,
+	old_outbounds_for_name,
 	old_source_for_id
 };

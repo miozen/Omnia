@@ -125,27 +125,52 @@ function resultMessage(result, fallback) {
 	return fallback || _('Operation failed');
 }
 
-function pill(text, tone) {
-	let color = '#475569';
-	let bg = '#f1f5f9';
+function pillColors(tone) {
+	if (tone === 'ok' || tone === true)
+		return { color: '#166534', bg: '#dcfce7' };
+	if (tone === 'warning')
+		return { color: '#92400e', bg: '#fef3c7' };
+	if (tone === 'error' || tone === false)
+		return { color: '#991b1b', bg: '#fee2e2' };
+	if (tone === 'info')
+		return { color: '#1e40af', bg: '#dbeafe' };
+	return { color: '#475569', bg: '#f1f5f9' };
+}
 
-	if (tone === 'ok' || tone === true) {
-		color = '#166534';
-		bg = '#dcfce7';
-	} else if (tone === 'warning') {
-		color = '#92400e';
-		bg = '#fef3c7';
-	} else if (tone === 'error' || tone === false) {
-		color = '#991b1b';
-		bg = '#fee2e2';
-	} else if (tone === 'info') {
-		color = '#1e40af';
-		bg = '#dbeafe';
-	}
+function pillClass(tone) {
+	let t = tone === true ? 'ok' : (tone === false ? 'error' : (tone || 'neutral'));
+	return 'omnia-pill omnia-pill-' + t;
+}
+
+function pillStyle(tone, extra) {
+	let c = pillColors(tone);
+	return mergeStyle('display: inline-flex; align-items: center; min-height: 22px; padding: 0 .55rem; border-radius: 999px; font-size: 12px; font-weight: 700; color: %s; background: %s; white-space: nowrap;'.format(c.color, c.bg), extra);
+}
+
+function pill(text, tone, options) {
+	options = options || {};
+	let cls = pillClass(tone);
+	if (options.class)
+		cls += ' ' + options.class;
 
 	return E('span', {
-		'style': 'display: inline-flex; align-items: center; min-height: 22px; padding: 0 .55rem; border-radius: 999px; font-size: 12px; font-weight: 700; color: %s; background: %s; white-space: nowrap;'.format(color, bg)
+		'id': options.id || null,
+		'class': cls,
+		'style': pillStyle(tone, options.style)
 	}, text);
+}
+
+function paintPill(nodeOrId, text, tone) {
+	let node = typeof nodeOrId === 'string' ? document.getElementById(nodeOrId) : nodeOrId;
+	if (!node)
+		return;
+
+	let c = pillColors(tone);
+	if (text != null)
+		node.textContent = text;
+	node.style.color = c.color;
+	node.style.background = c.bg;
+	node.className = pillClass(tone);
 }
 
 function statCard(label, value, options) {
@@ -229,6 +254,9 @@ return baseclass.extend({
 	paintStatus: paintStatus,
 	resultMessage: resultMessage,
 	pill: pill,
+	pillClass: pillClass,
+	pillStyle: pillStyle,
+	paintPill: paintPill,
 	statCard: statCard,
 	checkboxInput: checkboxInput,
 	defer: defer

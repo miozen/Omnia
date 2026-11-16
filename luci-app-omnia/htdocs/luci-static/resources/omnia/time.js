@@ -42,6 +42,8 @@ function formatUnixTime(value, fallback) {
 function formatMaybeTime(value, fallback) {
 	if (value == null || value === '')
 		return fallback || '-';
+	if (typeof value === 'number' || /^\d+(\.\d+)?$/.test(String(value).trim()))
+		return formatUnixTime(value, fallback);
 	return formatLocalTime(String(value));
 }
 

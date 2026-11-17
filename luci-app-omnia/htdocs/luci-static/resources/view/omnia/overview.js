@@ -91,6 +91,7 @@ const MAX_SERIES_POINTS = 25;
 
 let connDetailsOpen = false;
 let connActiveTab = 'source';
+let connViewMode = 'history'; /* 'history' | 'active' */
 let connAggregatedData = {
 	sources: [],
 	outbounds: [],
@@ -98,6 +99,138 @@ let connAggregatedData = {
 	total: 0,
 	loading: false
 };
+
+const TRAFFIC_STORE_KEY = 'omnia_traffic_stats_v1';
+let trafficStatsCache = null;
+let activeSeenConnections = {}; /* Map<id, { up, down, src, outbound, group }> */
+
+function loadTrafficStats() {
+	if (trafficStatsCache) return trafficStatsCache;
+	let raw = null;
+	try {
+		if (typeof window !== 'undefined' && window.localStorage) {
+			raw = window.localStorage.getItem(TRAFFIC_STORE_KEY);
+		}
+	} catch (e) {
+		raw = null;
+	}
+	let stats = null;
+	if (raw) {
+		try {
+			stats = JSON.parse(raw);
+		} catch (e) {
+			stats = null;
+		}
+	}
+	if (!stats || typeof stats !== 'object') {
+		stats = {
+			retention: 'monthly',
+			period_start: Date.now(),
+			sources: {},
+			outbounds: {},
+			groups: {}
+		};
+	}
+	checkTrafficRetention(stats);
+	trafficStatsCache = stats;
+	return trafficStatsCache;
+}
+
+function saveTrafficStats(stats) {
+	if (!stats) return;
+	trafficStatsCache = stats;
+	try {
+		if (typeof window !== 'undefined' && window.localStorage) {
+			window.localStorage.setItem(TRAFFIC_STORE_KEY, JSON.stringify(stats));
+		}
+	} catch (e) {
+		/* ignore quota or access errors */
+	}
+}
+
+function checkTrafficRetention(stats) {
+	if (!stats || !stats.period_start) return;
+	let now = Date.now();
+	let start = stats.period_start;
+	let retention = stats.retention || 'monthly';
+	let shouldReset = false;
+
+	if (retention === 'weekly') {
+		/* 7 days */
+		if (now - start > 7 * 86400 * 1000) shouldReset = true;
+	} else if (retention === 'monthly') {
+		/* Different calendar month */
+		let dStart = new Date(start);
+		let dNow = new Date(now);
+		if (dNow.getFullYear() !== dStart.getFullYear() || dNow.getMonth() !== dStart.getMonth()) {
+			shouldReset = true;
+		}
+	} else if (retention === 'quarterly') {
+		/* ~90 days */
+		if (now - start > 90 * 86400 * 1000) shouldReset = true;
+	}
+
+	if (shouldReset) {
+		stats.period_start = now;
+		stats.sources = {};
+		stats.outbounds = {};
+		stats.groups = {};
+		saveTrafficStats(stats);
+	}
+}
+
+function resetTrafficStats() {
+	let stats = {
+		retention: (trafficStatsCache && trafficStatsCache.retention) || 'monthly',
+		period_start: Date.now(),
+		sources: {},
+		outbounds: {},
+		groups: {}
+	};
+	saveTrafficStats(stats);
+	activeSeenConnections = {};
+	fetchConnectionStats();
+}
+
+function recordConnectionDelta(item) {
+	if (!item || !item.id) return;
+	let id = item.id;
+	let up = Number(item.upload || 0);
+	let down = Number(item.download || 0);
+	let src = (item.source || '').split(':')[0] || _('未知');
+	let chains = Array.isArray(item.chains) ? item.chains : [];
+	let outbound = chains.length > 0 ? chains[0] : (item.destination || _('直连'));
+	let group = chains.length > 0 ? chains[chains.length - 1] : (item.rule || _('默认'));
+
+	let prev = activeSeenConnections[id];
+	let deltaUp = 0;
+	let deltaDown = 0;
+
+	if (prev) {
+		if (up >= prev.up) deltaUp = up - prev.up;
+		if (down >= prev.down) deltaDown = down - prev.down;
+	} else {
+		deltaUp = up;
+		deltaDown = down;
+	}
+
+	activeSeenConnections[id] = { up: up, down: down, src: src, outbound: outbound, group: group, lastSeen: Date.now() };
+
+	if (deltaUp > 0 || deltaDown > 0) {
+		let stats = loadTrafficStats();
+		if (!stats.sources[src]) stats.sources[src] = { up: 0, down: 0 };
+		stats.sources[src].up += deltaUp;
+		stats.sources[src].down += deltaDown;
+
+		if (!stats.outbounds[outbound]) stats.outbounds[outbound] = { up: 0, down: 0 };
+		stats.outbounds[outbound].up += deltaUp;
+		stats.outbounds[outbound].down += deltaDown;
+
+		if (!stats.groups[group]) stats.groups[group] = { up: 0, down: 0 };
+		stats.groups[group].up += deltaUp;
+		stats.groups[group].down += deltaDown;
+	}
+}
 
 let latencyInterval = '5m';
 let latencyTimer = null;
@@ -110,13 +243,28 @@ let latencyHistory = {
 let latencyLastTime = '';
 let latencyTesting = false;
 
-let activeNetSite = 'ip.sb';
-let netSites = ['ip.sb', 'ipip.net', 'ipwho.is', 'ipapi.is'];
+let netGlobalMasked = true;
 let netSiteData = {
-	'ip.sb': { id: 'ip.sb', name: _('代理出口 · ip.sb'), region: '新加坡 · Akamai', ip: '103.145.12.88', isp: 'AS20940 Akamai', masked: true, loading: false },
-	'ipip.net': { id: 'ipip.net', name: _('国内出口 · ipip.net'), region: '中国 · 局域网', ip: '2408:825c:2140:12::1', isp: 'China Telecom', masked: true, loading: false },
-	'ipwho.is': { id: 'ipwho.is', name: _('综合查询 · ipwho.is'), region: '日本 · 东京', ip: '104.28.19.42', isp: 'AS13335 Cloudflare', masked: true, loading: false },
-	'ipapi.is': { id: 'ipapi.is', name: _('机房检测 · ipapi.is'), region: '美国 · 洛杉矶', ip: '198.41.214.162', isp: 'Cloudflare Anycast', masked: true, loading: false }
+	proxy: {
+		id: 'proxy',
+		title: _('代理出口 (出海)'),
+		icon: '🌐',
+		region: '新加坡 · 亚太枢纽',
+		ip: '103.145.12.88',
+		isp: 'AS20940 Akamai Connected Cloud',
+		status: 'ok',
+		loading: false
+	},
+	direct: {
+		id: 'direct',
+		title: _('国内直连 (分流)'),
+		icon: '🇨🇳',
+		region: '中国 · 本地宽带',
+		ip: '2408:825c:2140:12::1',
+		isp: '中国电信 China Telecom',
+		status: 'ok',
+		loading: false
+	}
 };
 let networkUpdatedAt = '';
 let lastMetricsTimestamp = 0;
@@ -973,41 +1121,103 @@ function fetchConnectionStats() {
 		let list = data.connections || [];
 		connAggregatedData.total = list.length;
 
+		/* 1. Track incremental traffic into persistent history */
+		let activeIds = {};
+		for (let i = 0; i < list.length; i++) {
+			let item = list[i];
+			if (item.id) {
+				activeIds[item.id] = true;
+				recordConnectionDelta(item);
+			}
+		}
+
+		/* Save updated persistent stats */
+		saveTrafficStats(loadTrafficStats());
+
+		/* Clean up seen connections that no longer exist (closed) */
+		for (let id in activeSeenConnections) {
+			if (!activeIds[id]) {
+				delete activeSeenConnections[id];
+			}
+		}
+
+		/* 2. Build datasets based on connViewMode */
 		let sourcesMap = {};
 		let outboundsMap = {};
 		let groupsMap = {};
 
-		for (let i = 0; i < list.length; i++) {
-			let item = list[i];
-			let src = (item.source || '').split(':')[0] || _('未知');
-			let chains = Array.isArray(item.chains) ? item.chains : [];
-			let group = chains.length > 0 ? chains[0] : (item.rule || _('默认'));
-			let outbound = chains.length > 0 ? chains[chains.length - 1] : (item.destination || _('直连'));
-			let up = Number(item.upload || 0);
-			let down = Number(item.download || 0);
+		if (connViewMode === 'history') {
+			/* Historical persistent cumulative traffic */
+			let stats = loadTrafficStats();
+			let srcHistory = stats.sources || {};
+			let outHistory = stats.outbounds || {};
+			let grpHistory = stats.groups || {};
 
-			if (!sourcesMap[src]) sourcesMap[src] = { count: 0, up: 0, down: 0 };
-			sourcesMap[src].count++;
-			sourcesMap[src].up += up;
-			sourcesMap[src].down += down;
+			for (let k in srcHistory) {
+				sourcesMap[k] = { count: 0, up: srcHistory[k].up || 0, down: srcHistory[k].down || 0 };
+			}
+			for (let k in outHistory) {
+				outboundsMap[k] = { count: 0, up: outHistory[k].up || 0, down: outHistory[k].down || 0 };
+			}
+			for (let k in grpHistory) {
+				groupsMap[k] = { count: 0, up: grpHistory[k].up || 0, down: grpHistory[k].down || 0 };
+			}
 
-			if (!outboundsMap[outbound]) outboundsMap[outbound] = { count: 0, up: 0, down: 0 };
-			outboundsMap[outbound].count++;
-			outboundsMap[outbound].up += up;
-			outboundsMap[outbound].down += down;
+			/* Overlay current active connection counts */
+			for (let i = 0; i < list.length; i++) {
+				let item = list[i];
+				let src = (item.source || '').split(':')[0] || _('未知');
+				let chains = Array.isArray(item.chains) ? item.chains : [];
+				let outbound = chains.length > 0 ? chains[0] : (item.destination || _('直连'));
+				let group = chains.length > 0 ? chains[chains.length - 1] : (item.rule || _('默认'));
 
-			if (!groupsMap[group]) groupsMap[group] = { count: 0, up: 0, down: 0 };
-			groupsMap[group].count++;
-			groupsMap[group].up += up;
-			groupsMap[group].down += down;
+				if (!sourcesMap[src]) sourcesMap[src] = { count: 0, up: 0, down: 0 };
+				sourcesMap[src].count++;
+
+				if (!outboundsMap[outbound]) outboundsMap[outbound] = { count: 0, up: 0, down: 0 };
+				outboundsMap[outbound].count++;
+
+				if (!groupsMap[group]) groupsMap[group] = { count: 0, up: 0, down: 0 };
+				groupsMap[group].count++;
+			}
+		} else {
+			/* Realtime Active Snapshot */
+			for (let i = 0; i < list.length; i++) {
+				let item = list[i];
+				let src = (item.source || '').split(':')[0] || _('未知');
+				let chains = Array.isArray(item.chains) ? item.chains : [];
+				let outbound = chains.length > 0 ? chains[0] : (item.destination || _('直连'));
+				let group = chains.length > 0 ? chains[chains.length - 1] : (item.rule || _('默认'));
+				let up = Number(item.upload || 0);
+				let down = Number(item.download || 0);
+
+				if (!sourcesMap[src]) sourcesMap[src] = { count: 0, up: 0, down: 0 };
+				sourcesMap[src].count++;
+				sourcesMap[src].up += up;
+				sourcesMap[src].down += down;
+
+				if (!outboundsMap[outbound]) outboundsMap[outbound] = { count: 0, up: 0, down: 0 };
+				outboundsMap[outbound].count++;
+				outboundsMap[outbound].up += up;
+				outboundsMap[outbound].down += down;
+
+				if (!groupsMap[group]) groupsMap[group] = { count: 0, up: 0, down: 0 };
+				groupsMap[group].count++;
+				groupsMap[group].up += up;
+				groupsMap[group].down += down;
+			}
 		}
 
 		function toSortedArray(map) {
 			let arr = [];
 			for (let k in map) {
-				arr.push({ name: k, count: map[k].count, up: map[k].up, down: map[k].down });
+				let total = (map[k].up || 0) + (map[k].down || 0);
+				arr.push({ name: k, count: map[k].count, up: map[k].up, down: map[k].down, total: total });
 			}
-			arr.sort(function(a, b) { return b.count - a.count; });
+			arr.sort(function(a, b) {
+				if (b.total !== a.total) return b.total - a.total;
+				return b.count - a.count;
+			});
 			return arr;
 		}
 
@@ -1026,6 +1236,9 @@ function updateConnectionDetailsDom() {
 	if (!container) return;
 	container.innerHTML = '';
 	if (!connDetailsOpen) return;
+
+	let stats = loadTrafficStats();
+	let currentRetention = stats.retention || 'monthly';
 
 	let tabSourceBtn = E('button', {
 		'type': 'button',
@@ -1057,6 +1270,45 @@ function updateConnectionDetailsDom() {
 		}
 	}, _('策略组 (%d)').format(connAggregatedData.groups.length));
 
+	let viewModeSelect = E('select', {
+		'style': 'padding: 2px 6px; font-size: 11px; font-weight: 600; border-radius: 4px; border: 1px solid #cbd5e1; background: #eff6ff; color: #1e40af; cursor: pointer;',
+		'change': function(ev) {
+			connViewMode = ev.target.value;
+			fetchConnectionStats();
+		}
+	}, [
+		E('option', { 'value': 'history', 'selected': connViewMode === 'history' ? '' : null }, _('📊 累计统计流量')),
+		E('option', { 'value': 'active', 'selected': connViewMode === 'active' ? '' : null }, _('⚡ 实时活跃连接流'))
+	]);
+
+	let retentionSelect = E('select', {
+		'style': 'padding: 2px 6px; font-size: 11px; border-radius: 4px; border: 1px solid #cbd5e1; background: #fff; color: #475569; cursor: pointer;',
+		'title': _('统计数据自动清理间隔'),
+		'change': function(ev) {
+			let s = loadTrafficStats();
+			s.retention = ev.target.value;
+			saveTrafficStats(s);
+			updateConnectionDetailsDom();
+		}
+	}, [
+		E('option', { 'value': 'weekly', 'selected': currentRetention === 'weekly' ? '' : null }, _('清理: 每周')),
+		E('option', { 'value': 'monthly', 'selected': currentRetention === 'monthly' ? '' : null }, _('清理: 每月')),
+		E('option', { 'value': 'quarterly', 'selected': currentRetention === 'quarterly' ? '' : null }, _('清理: 每季度')),
+		E('option', { 'value': 'never', 'selected': currentRetention === 'never' ? '' : null }, _('清理: 永不'))
+	]);
+
+	let resetBtn = E('button', {
+		'type': 'button',
+		'style': 'padding: 2px 6px; font-size: 11px; border-radius: 4px; border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; cursor: pointer;',
+		'title': _('清空所有历史累计流量统计'),
+		'click': function(ev) {
+			ev.preventDefault();
+			if (confirm(_('确定清空当前累计的历史流量数据吗？'))) {
+				resetTrafficStats();
+			}
+		}
+	}, _('🗑️ 清空统计'));
+
 	let refreshBtn = E('button', {
 		'type': 'button',
 		'style': 'padding: 3px 10px; font-size: 12px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;',
@@ -1074,8 +1326,11 @@ function updateConnectionDetailsDom() {
 			tabOutboundBtn,
 			tabGroupBtn
 		]),
-		E('div', { 'style': 'display: flex; gap: .5rem; align-items: center;' }, [
-			E('span', { 'style': 'font-size: 12px; color: #64748b;' }, _('总连接数: %d').format(connAggregatedData.total)),
+		E('div', { 'style': 'display: flex; gap: .45rem; align-items: center; flex-wrap: wrap;' }, [
+			viewModeSelect,
+			connViewMode === 'history' ? retentionSelect : E('span'),
+			connViewMode === 'history' ? resetBtn : E('span'),
+			E('span', { 'style': 'font-size: 12px; color: #64748b; margin-left: .2rem;' }, _('活跃: %d').format(connAggregatedData.total)),
 			refreshBtn
 		])
 	]);
@@ -1089,14 +1344,15 @@ function updateConnectionDetailsDom() {
 	if (connAggregatedData.loading && currentList.length === 0) {
 		bodyNode = E('div', { 'style': 'padding: 1.5rem; text-align: center; color: #94a3b8; font-size: 13px;' }, _('正在加载连接数据...'));
 	} else if (currentList.length === 0) {
-		bodyNode = E('div', { 'style': 'padding: 1.5rem; text-align: center; color: #94a3b8; font-size: 13px;' }, _('暂无活跃连接'));
+		bodyNode = E('div', { 'style': 'padding: 1.5rem; text-align: center; color: #94a3b8; font-size: 13px;' }, _('暂无连接或累计统计数据'));
 	} else {
 		let rows = [
 			E('tr', { 'style': 'border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b; background: #f8fafc;' }, [
 				E('th', { 'style': 'padding: .45rem .6rem; text-align: left;' }, _('名称 / 标识')),
-				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('连接数')),
+				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('活跃连接')),
 				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('上传流量')),
-				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('下载流量'))
+				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('下载流量')),
+				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('总流量'))
 			])
 		];
 		for (let i = 0; i < currentList.length; i++) {
@@ -1105,7 +1361,8 @@ function updateConnectionDetailsDom() {
 				E('td', { 'style': 'padding: .45rem .6rem; font-weight: 500;' }, row.name),
 				E('td', { 'style': 'padding: .45rem .6rem; text-align: right;' }, String(row.count)),
 				E('td', { 'style': 'padding: .45rem .6rem; text-align: right; color: #64748b;' }, formatTotalBytes(row.up)),
-				E('td', { 'style': 'padding: .45rem .6rem; text-align: right; color: #64748b;' }, formatTotalBytes(row.down))
+				E('td', { 'style': 'padding: .45rem .6rem; text-align: right; color: #64748b;' }, formatTotalBytes(row.down)),
+				E('td', { 'style': 'padding: .45rem .6rem; text-align: right; font-weight: 600; color: #2563eb;' }, formatTotalBytes(row.total))
 			]));
 		}
 		bodyNode = E('table', { 'style': 'width: 100%; border-collapse: collapse;' }, rows);
@@ -1220,17 +1477,18 @@ function updateLatencyDom() {
 	}
 }
 
-function fetchSiteInfo(siteKey) {
-	let target = netSiteData[siteKey];
+function fetchNetworkInfoSingle(key) {
+	let target = netSiteData[key];
 	if (!target) return Promise.resolve();
 	target.loading = true;
 	updateNetworkInfoDom();
 
 	let url = '';
-	if (siteKey === 'ip.sb') url = 'https://api.ip.sb/geoip';
-	else if (siteKey === 'ipwho.is') url = 'https://ipwho.is/';
-	else if (siteKey === 'ipapi.is') url = 'https://api.ipapi.is';
-	else if (siteKey === 'ipip.net') url = 'https://myip.ipip.net/json';
+	if (key === 'proxy') {
+		url = 'https://api.ip.sb/geoip';
+	} else if (key === 'direct') {
+		url = 'https://myip.ipip.net/json';
+	}
 
 	let ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
 	let timer = ctrl ? setTimeout(function() { ctrl.abort(); }, 3500) : null;
@@ -1242,29 +1500,18 @@ function fetchSiteInfo(siteKey) {
 		})
 		.then(function(data) {
 			target.loading = false;
-			if (siteKey === 'ip.sb' && data && data.ip) {
+			if (key === 'proxy' && data && data.ip) {
 				target.ip = data.ip;
 				let loc = [data.country || '', data.city || ''].filter(Boolean).join(' · ');
 				if (loc) target.region = loc;
 				target.isp = [data.asn ? 'AS' + data.asn : '', data.isp || data.organization || ''].filter(Boolean).join(' ');
-			} else if (siteKey === 'ipwho.is' && data && data.ip) {
-				target.ip = data.ip;
-				let loc = [data.country || '', data.region || '', data.city || ''].filter(Boolean).join(' · ');
-				if (loc) target.region = loc;
-				let conn = data.connection || {};
-				target.isp = [conn.asn ? 'AS' + conn.asn : '', conn.isp || conn.org || ''].filter(Boolean).join(' ');
-			} else if (siteKey === 'ipapi.is' && data && data.ip) {
-				target.ip = data.ip;
-				let loc = data.location ? [data.location.country || '', data.location.city || ''].filter(Boolean).join(' · ') : '';
-				if (loc) target.region = loc;
-				let company = data.company ? data.company.name : '';
-				let asn = data.asn ? 'AS' + data.asn.asn + ' ' + (data.asn.org || '') : '';
-				target.isp = company || asn || '';
-			} else if (siteKey === 'ipip.net' && data && data.data && data.data.ip) {
+				target.status = 'ok';
+			} else if (key === 'direct' && data && data.data && data.data.ip) {
 				target.ip = data.data.ip;
 				let loc = [data.data.country_name || '', data.data.region_name || '', data.data.city_name || ''].filter(Boolean).join(' · ');
 				if (loc) target.region = loc;
 				target.isp = data.data.isp || '';
+				target.status = 'ok';
 			}
 			const d = new Date();
 			const pad = function(n) { return n < 10 ? '0' + n : String(n); };
@@ -1274,94 +1521,69 @@ function fetchSiteInfo(siteKey) {
 		.catch(function() {
 			if (timer) clearTimeout(timer);
 			target.loading = false;
+			target.status = 'error';
 			updateNetworkInfoDom();
 		});
 }
 
 function refreshNetworkInfo() {
-	return fetchSiteInfo(activeNetSite);
+	return Promise.all([
+		fetchNetworkInfoSingle('proxy'),
+		fetchNetworkInfoSingle('direct')
+	]);
 }
 
 function updateNetworkInfoDom() {
 	const rows = document.getElementById('omnia-network-rows');
 	const footer = document.getElementById('omnia-network-footer');
 	const btn = document.getElementById('omnia-network-refresh-btn');
-	const currentTarget = netSiteData[activeNetSite] || netSiteData['ip.sb'];
 
-	if (btn) btn.innerText = currentTarget.loading ? _('刷新中...') : _('🔄 刷新');
+	let anyLoading = netSiteData.proxy.loading || netSiteData.direct.loading;
+	if (btn) btn.innerText = anyLoading ? _('刷新中...') : _('🔄 刷新');
 	if (footer) footer.innerText = networkUpdatedAt ? _('更新于: %s').format(networkUpdatedAt) : _('更新于: 刚刚');
 	if (!rows) return;
 	rows.innerHTML = '';
 
-	// 4 Site Pill Selector Bar
-	let pills = netSites.map(function(sKey) {
-		let s = netSiteData[sKey];
-		let isActive = activeNetSite === sKey;
-		return E('button', {
-			'type': 'button',
-			'style': 'padding: 2px 7px; font-size: 11px; font-weight: ' + (isActive ? '700' : '500') + '; border-radius: 4px; border: 1px solid ' + (isActive ? '#2563eb' : '#cbd5e1') + '; background: ' + (isActive ? '#eff6ff' : '#fff') + '; color: ' + (isActive ? '#2563eb' : '#64748b') + '; cursor: pointer; transition: all .14s ease;',
-			'click': function(ev) {
-				ev.preventDefault();
-				activeNetSite = sKey;
-				updateNetworkInfoDom();
-			}
-		}, s.id);
-	});
+	function renderOutboundCard(data) {
+		let displayIp = netGlobalMasked ? maskIpAddress(data.ip) : data.ip;
+		let statusColor = data.status === 'ok' ? '#10b981' : '#ef4444';
 
-	let selectorRow = E('div', {
-		'style': 'display: flex; gap: .35rem; align-items: center; margin-bottom: .6rem; flex-wrap: wrap;'
-	}, pills);
-
-	// Primary Details of Selected Site
-	let displayIp = currentTarget.masked ? maskIpAddress(currentTarget.ip) : currentTarget.ip;
-	let mainDetail = E('div', {
-		'style': 'padding: .65rem .75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;'
-	}, [
-		E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;' }, [
-			E('span', { 'style': 'font-size: 13px; font-weight: 700; color: #0f172a;' }, currentTarget.name),
-			E('div', {
-				'style': 'display: flex; align-items: center; gap: .35rem; cursor: pointer;',
-				'title': _('点击切换 IP 遮挡/完整显示'),
-				'click': function() {
-					currentTarget.masked = !currentTarget.masked;
-					updateNetworkInfoDom();
-				}
-			}, [
-				E('span', { 'style': 'font-family: monospace; font-size: 13px; color: #2563eb; font-weight: 700;' }, displayIp),
-				E('span', { 'style': 'font-size: 12px; color: #64748b;' }, currentTarget.masked ? '🔒' : '🔓')
+		return E('div', {
+			'style': 'padding: .65rem .75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; flex: 1; min-width: 200px;'
+		}, [
+			E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;' }, [
+				E('div', { 'style': 'display: flex; align-items: center; gap: .4rem;' }, [
+					E('span', { 'style': 'font-size: 14px;' }, data.icon),
+					E('span', { 'style': 'font-size: 12px; font-weight: 700; color: #334155;' }, data.title),
+					E('span', { 'style': 'width: 6px; height: 6px; border-radius: 50%; background: ' + statusColor + ';' })
+				]),
+				E('div', {
+					'style': 'display: flex; align-items: center; gap: .3rem; cursor: pointer; user-select: none;',
+					'title': _('点击切换 IP 遮挡/完整显示'),
+					'click': function() {
+						netGlobalMasked = !netGlobalMasked;
+						updateNetworkInfoDom();
+					}
+				}, [
+					E('span', { 'style': 'font-family: monospace; font-size: 12px; color: #2563eb; font-weight: 700;' }, displayIp),
+					E('span', { 'style': 'font-size: 11px; color: #64748b;' }, netGlobalMasked ? '🔒' : '🔓')
+				])
+			]),
+			E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #475569; margin-top: .25rem;' }, [
+				E('span', { 'style': 'font-weight: 500;' }, data.region || _('未知地区')),
+				E('span', { 'style': 'color: #64748b; font-size: 10px; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;' }, data.isp || '-')
 			])
-		]),
-		E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #475569;' }, [
-			E('span', {}, currentTarget.region || _('未知地区')),
-			E('span', { 'style': 'color: #64748b; font-size: 11px;' }, currentTarget.isp || '-')
-		])
+		]);
+	}
+
+	let grid = E('div', {
+		'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .6rem;'
+	}, [
+		renderOutboundCard(netSiteData.proxy),
+		renderOutboundCard(netSiteData.direct)
 	]);
 
-	// Secondary Summary of other 3 sites
-	let otherSites = netSites.filter(function(k) { return k !== activeNetSite; });
-	let otherRows = otherSites.map(function(oKey) {
-		let oTarget = netSiteData[oKey];
-		let oDisplayIp = oTarget.masked ? maskIpAddress(oTarget.ip) : oTarget.ip;
-		return E('div', {
-			'style': 'display: flex; justify-content: space-between; align-items: center; padding: .35rem .5rem; background: #fff; border: 1px solid #f1f5f9; border-radius: 6px; font-size: 11px; cursor: pointer;',
-			'title': _('点击切换到此测速点'),
-			'click': function() {
-				activeNetSite = oKey;
-				updateNetworkInfoDom();
-			}
-		}, [
-			E('div', { 'style': 'display: flex; gap: .5rem; align-items: center;' }, [
-				E('span', { 'style': 'font-weight: 600; color: #334155;' }, oTarget.id),
-				E('span', { 'style': 'color: #94a3b8;' }, oTarget.region)
-			]),
-			E('span', { 'style': 'font-family: monospace; color: #64748b;' }, oDisplayIp)
-		]);
-	});
-
-	rows.appendChild(selectorRow);
-	rows.appendChild(mainDetail);
-	let subContainer = E('div', { 'style': 'display: flex; flex-direction: column; gap: .35rem; margin-top: .5rem;' }, otherRows);
-	rows.appendChild(subContainer);
+	rows.appendChild(grid);
 }
 
 function setupLatencyInterval(intervalStr) {
@@ -1525,7 +1747,7 @@ function latencyAndNetworkSection() {
 						ev.preventDefault();
 						refreshNetworkInfo();
 					}
-				}, (netSiteData[activeNetSite] && netSiteData[activeNetSite].loading) ? _('刷新中...') : _('🔄 刷新'))
+				}, (netSiteData.proxy.loading || netSiteData.direct.loading) ? _('刷新中...') : _('🔄 刷新'))
 			]),
 			E('div', {
 				'id': 'omnia-network-rows',

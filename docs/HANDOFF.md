@@ -2,40 +2,42 @@
 
 ## Last Updated
 
-2026-11-17T20:08+08:00
+2026-11-17T21:38+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `4db6bac` (committed and pushed)
+- **HEAD:** `cbaca45` (committed and pushed)
 - **Working Tree:** CLEAN
-- **Remote Sync:** Branch `dev` synchronized to `origin/dev`
+- **Remote Sync:** Branch `dev` synchronized to `cbaca45`
 
 ## Development State
 
 - **Current Phase:** Overview Page Redesign (Zashboard Pattern)
-- **Current Task:** Performance fix & UX enhancement
+- **Current Task:** Persistent traffic stats engine & Zashboard UX enhancements
 - **Last Completed:**
-  1. `dashboard.uc` & `overview_status.uc`:
-     - Removed blocking call to `/traffic` SSE endpoint, avoiding rpcd worker starvation.
-     - Bypassed heavy `observe_runtime` in high-frequency `dashboard_metrics()`.
-     - Cached singbox version string to `/var/run/omnia/singbox_version`.
+  1. `clash.uc`:
+     - Updated `http_get_json` to parse full stdout text instead of truncating on `first_json_line`, preventing parser failures on large `/connections` responses.
   2. `overview.js`:
-     - In-flight RPC guard (`metricsInFlight`) and chained `setTimeout(pollMetricsCycle, 3000)`.
-     - Bandwidth Telemetry: Calculates smooth upload and download rates based on total cumulative byte deltas ($\Delta \text{bytes} / \Delta t$).
-     - Unmount Cleanup: Added `!document.getElementById('omnia-overview-root')` checks in polling and latency timers.
-     - Motion Animations: Restored `omniaMotion.cardClass()` across cards.
-     - Direct Tab Jump: Restored reliable `window.location.href = resourceHref(...)` click handlers on Template, Subscriptions, and Rulesets columns.
-     - 4-Site Network Switcher: Added pill tabs supporting `ip.sb`, `ipip.net`, `ipwho.is`, and `ipapi.is` with per-site querying, privacy mask toggle, and comparison list.
+     - Inverted chains leaf/root mapping: `chains[0]` mapped to Outbound Node (exit), `chains[chains.length - 1]` mapped to Policy Group.
+     - Persistent Traffic Stats Engine (Zashboard style):
+       - Uses `localStorage` store `omnia_traffic_stats_v1` with delta tracking over active and closed connections across Sources, Outbounds, and Groups.
+       - Configurable retention policy (Weekly, Monthly, Quarterly, Never) with automated rollover.
+       - Dual view selector: 📊 累计统计流量 vs ⚡ 实时活跃连接流.
+       - Reset/Clear button with user confirmation.
+     - Refactored Network Info into Zashboard-style dual-card display: `proxy` (出海代理) and `direct` (国内分流) with status lights, IP privacy toggle, location, and ISP details.
   3. Tests:
      - `node tests/overview-ui.cjs`: PASS (6/6).
      - `ci-static.sh`: PASS.
-     - `run-all-convert-tests.sh`: PASS.
+     - `run-all-convert-tests.sh`: PASS (13 suites + ucode compilation).
      - `git diff --check`: PASS (0 errors).
 
 ## Uncommitted Work
 
-None.
+Modified files:
+- `docs/HANDOFF.md`
+- `luci-app-omnia/root/usr/share/ucode/omnia/clash.uc`
+- `luci-app-omnia/htdocs/luci-static/resources/view/omnia/overview.js`
 
 ## Validation Performed
 
@@ -46,7 +48,7 @@ None.
 
 ## Exact Next Action
 
-Ready for next task.
+Awaiting user review and instruction to commit and push changes to `dev`.
 
 ## Cross-machine Ready
 

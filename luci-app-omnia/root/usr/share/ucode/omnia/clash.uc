@@ -106,16 +106,55 @@ function wget_args(method, url, body, timeout_sec) {
 	return args;
 }
 
+function trim_string(str) {
+	if (type(str) != 'string')
+		return '';
+	let start = 0;
+	let end = length(str) - 1;
+	while (start <= end) {
+		let c = substr(str, start, 1);
+		if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
+			break;
+		start++;
+	}
+	while (end >= start) {
+		let c = substr(str, end, 1);
+		if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
+			break;
+		end--;
+	}
+	if (start > end)
+		return '';
+	return substr(str, start, end - start + 1);
+}
+
 function http_get_json(trace_id, url, timeout_sec) {
 	let result = ExecResult(trace_id, wget_args("GET", url, "", timeout_sec));
-	let body = first_json_line(result.stdout);
+	let text = trim_string(result.stdout);
 
 	if (result.code != 0)
 		die(result.stderr || result.stdout || "HTTP GET failed");
-	if (body == "")
+	if (text == "")
 		die(result.stderr || "empty response from " + url);
 
-	return json(body);
+	/* If multi-line response or stream, try parsing full text first, fallback to first line */
+	let parsed = null;
+	try {
+		parsed = json(text);
+	} catch (e) {
+		let first_line = first_json_line(text);
+		if (first_line != "" && first_line != text) {
+			try {
+				parsed = json(first_line);
+			} catch (e2) {
+				die("Failed to parse JSON response: " + e2);
+			}
+		} else {
+			die("Failed to parse JSON response: " + e);
+		}
+	}
+
+	return parsed;
 }
 
 function http_put_json(trace_id, url, body) {

@@ -16,6 +16,8 @@ let lastStatusTone = null;
 const mockBtn = { disabled: false, innerText: '' };
 const mockElements = {
 	'omnia-one-click-apply-btn': mockBtn,
+	'omnia-step-tools-btn': { innerText: '', style: {} },
+	'omnia-step-tools-menu': { style: { display: 'none' } },
 	'omnia-overview-action-status': {
 		innerHTML: '',
 		textContent: '',
@@ -62,6 +64,9 @@ const context = vm.createContext({
 		getElementById: id => mockElements[id] || null,
 		createTextNode: t => ({ textContent: t })
 	},
+	L: {
+		url: path => '/' + path
+	},
 	_: value => value,
 	rpc: {
 		declare: (cfg) => {
@@ -103,11 +108,28 @@ const overviewSource = fs.readFileSync('luci-app-omnia/htdocs/luci-static/resour
 // Inject test hook
 const hookedSource = overviewSource.replace(
 	'return view.extend({',
-	'globalThis.overviewTest = { runOneClickApply, operationButtons }; return view.extend({'
+	'globalThis.overviewTest = { runOneClickApply, operationButtons, toggleStepTools, resourceStatusSection, renderSparklineSvg, renderSparkbarsSvg, maskIpAddress, formatBytesPerSec, formatUptimeDuration }; return view.extend({'
 );
 vm.runInContext('(function(){' + hookedSource + '\n})()', context);
 
 async function runTests() {
+	// Test 0: SVG Sparkline, Sparkbars, Masking & formatting utilities
+	const svg = context.overviewTest.renderSparklineSvg([0, 10, 50, 30, 80], '#2563eb', '#3b82f6');
+	assert.ok(svg.includes('<svg') && svg.includes('path'), 'Sparkline SVG renders valid SVG paths');
+	assert.equal(context.overviewTest.formatBytesPerSec(1024), '1.0 KB/s');
+	assert.equal(context.overviewTest.formatBytesPerSec(1048576), '1.00 MB/s');
+	assert.equal(context.overviewTest.formatUptimeDuration(125), '2 分 5 秒');
+
+	// Slice 3 assertions: maskIpAddress & renderSparkbarsSvg
+	assert.equal(context.overviewTest.maskIpAddress('192.168.1.100'), '192.168.***.***');
+	assert.equal(context.overviewTest.maskIpAddress('2408:825c:2140:12::1'), '2408:825c:****');
+	assert.equal(context.overviewTest.maskIpAddress(''), '-');
+
+	const barsSvg = context.overviewTest.renderSparkbarsSvg([28, 120, 260]);
+	assert.ok(barsSvg.includes('<svg') && barsSvg.includes('<rect'), 'Sparkbars SVG renders valid rect bars');
+	assert.ok(barsSvg.includes('#10b981') && barsSvg.includes('#f59e0b') && barsSvg.includes('#ef4444'), 'Sparkbars SVG renders threshold colors');
+	console.log('Test 0: Formatting, Sparklines, Sparkbars & IP masking OK');
+
 	// Test 1: Happy path
 	rpcCalls = [];
 	await context.overviewTest.runOneClickApply();
@@ -148,6 +170,18 @@ async function runTests() {
 	assert.match(lastStatusText.textContent, /第 3 阶段失败/);
 	assert.match(lastStatusText.textContent, /自动回滚/);
 	console.log('Test 4: Stage 3 failure handling OK');
+
+	// Test 5: Slice 4 - Dropdown toggle & Resource Status Bar DOM
+	context.overviewTest.toggleStepTools();
+	assert.equal(mockElements['omnia-step-tools-btn'].innerText, '单步工具 ▴');
+	assert.equal(mockElements['omnia-step-tools-menu'].style.display, 'flex');
+	context.overviewTest.toggleStepTools();
+	assert.equal(mockElements['omnia-step-tools-btn'].innerText, '单步工具 ▾');
+	assert.equal(mockElements['omnia-step-tools-menu'].style.display, 'none');
+
+	const resSec = context.overviewTest.resourceStatusSection();
+	assert.ok(resSec && resSec.children && resSec.children.length >= 2, 'Resource section renders title bar and 3-column container');
+	console.log('Test 5: Dropdown toggle & Resource status bar OK');
 
 	console.log('All overview-ui tests passed successfully!');
 }

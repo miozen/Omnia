@@ -88,6 +88,10 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
 - [x] System Audit Slice 3: Overview page "⚡ 一键生成并应用" (One-Click Apply) 4-stage streaming pipeline with precise failure diagnostics and preserved granular debugging tools.
 - [x] System Audit Slice 4: Contextual CTA actions ("⚡ 立即生成并应用到运行时") in Subscriptions, Rulesets, and Profile editors.
 - [x] System Audit Slice 5: Panel test concurrency boost (1 -> 5) and search filter, ruleset list status tabs/search.
+- [x] Overview Page Redesign (Slice 1): Backend telemetry enhancement (singbox_version probe, process uptime probe in overview_status).
+- [x] Overview Page Redesign (Slice 2): Header & Realtime traffic metrics with native SVG area sparklines, Page Visibility auto-throttling.
+- [ ] Overview Page Redesign (Slice 3): Active connection distribution breakdown (Source IP / Outbound Node / Group) & Latency/Network info cards.
+- [ ] Overview Page Redesign (Slice 4): Compressed 3-column configuration resource bar & action row dropdown fold.
   - [x] Step 1: Subscriptions UI model enhancement (`subscriptions.js` -> `normalizePolicy` & `collectPolicyFromPage`) preserving native conversion fields (type, subtype, payload, nodes, user_agent, operators, dns, userinfo).
   - [x] Step 2: Source editor modal upgrade (`subscriptions.js` -> `sourceEditor`), supporting source type toggle (Remote vs Local), UA configuration, payload/form entry, dedicated DNS options, and operator pipeline with quick templates.
   - [x] Step 3: Instant test and node preview (`subscriptions.js` -> `testEditorSource`, `subscription.uc` -> `subscription_test_source`, `omnia.uc` -> rpcd args schema) allowing real-time node preview before saving.
@@ -105,6 +109,12 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
 - [x] Fixed single-source refresh failure when unselected sources have no previous snapshot (`subscription.uc` now gracefully marks unselected sources without prior snapshot as `not_refreshed` while strictly guarding against orphaned nodes from renamed sources).
 - [x] Optimized profile editor schema validation and styling: embedded sing-box schema auto-validation without requiring manual `$schema` declaration, automatic injection on format/save (`ensureSchema`), and aligned remote template source card styling with standard Omnia content sections.
 - [x] Added read-only running sing-box config preview in Network Diagnostics (prioritized as first tab: 运行配置 -> 数据面 -> 控制面) with synchronized line numbers gutter, copy to clipboard, and instant reload; added synchronized line numbers gutter to the editable Profile template JSON editor.
+- [x] Overview Page Redesign (Zashboard Pattern):
+  - [x] Slice 1: Backend telemetry enhancement (`constants.uc`, `overview_status.uc` reporting `singbox_version` and `uptime_seconds`).
+  - [x] Slice 2: Header banner (`overviewHeaderBanner`) & Realtime metrics cards with native SVG sparklines and page visibility throttling.
+  - [x] Slice 3: Interactive connection statistics drill-down drawer (Source IP / Outbound Node / Group) + Side-by-side Latency test (with SVG spark-bars & auto intervals) and Network Info (dual-egress & IP masking toggle).
+  - [x] Slice 4: Compressed 3-column configuration resource status bar + Restructured action bar (promoted One-click Apply & folded single-step debugging dropdown).
+  - [x] Slice 5: End-to-end integration testing and visual review.
 
 ## Remaining
 

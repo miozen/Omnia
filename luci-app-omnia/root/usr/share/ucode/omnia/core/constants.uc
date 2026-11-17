@@ -28,6 +28,7 @@ const PATH = {
 	AUTO_APPLY_STATE: "/var/run/omnia/auto-apply.state.json",
 	SCHEDULER_DIR: "/var/run/omnia/scheduler",
 	SCHEDULER_STATE: "/var/run/omnia/scheduler/state.json",
+	PACKAGE_VERSION: "/usr/share/omnia/package-version",
 	LAST_APPLY_RESULT: "/var/run/omnia/last-apply-result",
 	LAST_ERROR: "/var/run/omnia/last-error.log",
 	RULE_DIR: "/etc/omnia/rules",

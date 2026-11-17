@@ -18,7 +18,9 @@ function empty_clash_api(reason) {
 			down: 0
 		},
 		connections: {
-			count: 0
+			count: 0,
+			upload_total: 0,
+			download_total: 0
 		},
 		proxies: {
 			selectors: []
@@ -48,7 +50,9 @@ function observe_connections(trace_id) {
 		count = length(data.connections);
 
 	return {
-		count: count
+		count: count,
+		upload_total: number_or_zero(data.uploadTotal),
+		download_total: number_or_zero(data.downloadTotal)
 	};
 }
 

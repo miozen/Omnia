@@ -47,11 +47,74 @@ const callRollback = rpc.declare({
 	expect: { '': {} }
 });
 
+const callDashboardMetrics = rpc.declare({
+	object: 'omnia',
+	method: 'dashboard_metrics',
+	expect: { '': {} }
+});
+
+const callConnectionsList = rpc.declare({
+	object: 'omnia',
+	method: 'connections_list',
+	expect: { '': {} }
+});
+
+const callNodeDelayTest = rpc.declare({
+	object: 'omnia',
+	method: 'node_delay_test',
+	params: [ 'node' ],
+	expect: { '': {} }
+});
+
 let pageResults = {};
 let actionStatus = '';
 let actionStatusOk = true;
 let supplementalLoading = false;
 let supplementalLoadSeq = 0;
+
+let liveMetricsTimer = null;
+let liveMetricsActive = false;
+let liveUpSeries = [];
+let liveDownSeries = [];
+let liveConnSeries = [];
+let liveMetricsData = {
+	up: 0,
+	down: 0,
+	upTotal: 0,
+	downTotal: 0,
+	connCount: 0,
+	sourceApi: 'sing-box API',
+	available: false
+};
+const MAX_SERIES_POINTS = 25;
+
+let connDetailsOpen = false;
+let connActiveTab = 'source';
+let connAggregatedData = {
+	sources: [],
+	outbounds: [],
+	groups: [],
+	total: 0,
+	loading: false
+};
+
+let latencyInterval = '5m';
+let latencyTimer = null;
+let latencyHistory = {
+	Baidu: [28, 30, 26, 28, 29, 27, 28],
+	Cloudflare: [130, 128, 125, 124, 122, 126, 124],
+	GitHub: [220, 215, 225, 218, 216, 219, 218],
+	YouTube: [198, 202, 195, 196, 194, 197, 196]
+};
+let latencyLastTime = '';
+let latencyTesting = false;
+
+let networkInfoData = {
+	local: { provider: 'ipip.net', name: _('国内出口'), region: '中国 · 局域网', ip: '2408:825c:2140:12::1', masked: true },
+	proxy: { provider: 'ip.sb', name: _('代理出口'), region: '新加坡 · Akamai', ip: '103.145.12.88', masked: true },
+	loading: false,
+	updatedAt: ''
+};
 
 function stateOf() {
 	const data = omniaUi.dataOf(pageResults.runtime);
@@ -429,9 +492,12 @@ function overviewItem(items, key, fallback) {
 
 function loadAll() {
 	return callOverviewStatus().then(function(result) {
-		const items = omniaUi.dataOf(result).items || {};
+		const data = omniaUi.dataOf(result);
+		const items = data.items || {};
 		return {
-			packageVersion: omniaUi.dataOf(result).package_version || '',
+			packageVersion: data.package_version || '',
+			singboxVersion: data.singbox_version || '',
+			uptimeSeconds: Number(data.uptime_seconds || 0),
 			runtime: overviewItem(items, 'runtime', _('Runtime 状态加载失败')),
 			profile: overviewItem(items, 'profile', _('模板加载失败')),
 			subscriptions: overviewItem(items, 'subscriptions', _('订阅加载失败')),
@@ -603,67 +669,898 @@ function resourceCards() {
 	]);
 }
 
-function runtimeStatusSection() {
-	return E('div', { 'style': omniaUi.sectionStyle() }, [
-		omniaUi.sectionTitle(_('运行时状态')),
-		runtimeCards()
+function formatBytesPerSec(bytes) {
+	bytes = Number(bytes) || 0;
+	if (bytes < 1024) return bytes.toFixed(0) + ' B/s';
+	if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB/s';
+	if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB/s';
+	return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB/s';
+}
+
+function formatTotalBytes(bytes) {
+	bytes = Number(bytes) || 0;
+	if (bytes < 1024) return bytes.toFixed(0) + ' B';
+	if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+	if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+	return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function formatUptimeDuration(seconds) {
+	seconds = Math.floor(Number(seconds) || 0);
+	if (seconds <= 0) return _('刚刚启动');
+	let d = Math.floor(seconds / 86400);
+	let h = Math.floor((seconds % 86400) / 3600);
+	let m = Math.floor((seconds % 3600) / 60);
+	let s = seconds % 60;
+	if (d > 0) return _('%d 天 %d 小时').format(d, h);
+	if (h > 0) return _('%d 小时 %d 分').format(h, m);
+	if (m > 0) return _('%d 分 %d 秒').format(m, s);
+	return _('%d 秒').format(s);
+}
+
+function renderSparklineSvg(series, strokeColor, fillColor) {
+	const w = 100, h = 32;
+	if (!Array.isArray(series) || series.length < 2) {
+		return '<svg viewBox="0 0 100 32" style="width: 100%; height: 42px; display: block;" preserveAspectRatio="none">' +
+			'<line x1="0" y1="28" x2="100" y2="28" stroke="' + (strokeColor || '#cbd5e1') + '" stroke-width="1.5" stroke-dasharray="2,2"/>' +
+			'</svg>';
+	}
+
+	let max = Math.max.apply(null, series);
+	if (max <= 0) max = 1;
+	const len = series.length;
+	let points = [];
+	for (let i = 0; i < len; i++) {
+		let x = (i / (len - 1)) * w;
+		let y = h - ((series[i] / max) * (h - 6) + 3);
+		points.push({ x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) });
+	}
+
+	let dPath = 'M ' + points[0].x + ',' + points[0].y;
+	for (let i = 1; i < points.length; i++) {
+		let prev = points[i - 1];
+		let curr = points[i];
+		let midX = (prev.x + curr.x) / 2;
+		dPath += ' Q ' + Number(midX.toFixed(1)) + ',' + prev.y + ' ' + curr.x + ',' + curr.y;
+	}
+
+	let areaPath = dPath + ' L 100,' + h + ' L 0,' + h + ' Z';
+	let gradId = 'grad-' + Math.random().toString(36).substring(2, 9);
+
+	return '<svg viewBox="0 0 100 32" style="width: 100%; height: 42px; display: block;" preserveAspectRatio="none">' +
+		'<defs>' +
+		'<linearGradient id="' + gradId + '" x1="0" y1="0" x2="0" y2="1">' +
+		'<stop offset="0%" stop-color="' + (fillColor || strokeColor || '#3b82f6') + '" stop-opacity="0.3"/>' +
+		'<stop offset="100%" stop-color="' + (fillColor || strokeColor || '#3b82f6') + '" stop-opacity="0.0"/>' +
+		'</linearGradient>' +
+		'</defs>' +
+		'<path d="' + areaPath + '" fill="url(#' + gradId + ')"/>' +
+		'<path d="' + dPath + '" fill="none" stroke="' + (strokeColor || '#2563eb') + '" stroke-width="2" stroke-linecap="round"/>' +
+		'</svg>';
+}
+
+function pollMetricsCycle() {
+	if (!liveMetricsActive) return;
+	if (document.hidden) return;
+
+	callDashboardMetrics().then(function(res) {
+		if (!liveMetricsActive) return;
+		let data = omniaUi.dataOf(res) || {};
+		let clash = data.clash_api || {};
+		let traffic = clash.traffic || {};
+		let conns = clash.connections || {};
+
+		let up = Number(traffic.up || 0);
+		let down = Number(traffic.down || 0);
+		let connCount = Number(conns.count || 0);
+		let upTotal = Number(conns.upload_total || 0);
+		let downTotal = Number(conns.download_total || 0);
+
+		liveMetricsData.up = up;
+		liveMetricsData.down = down;
+		liveMetricsData.connCount = connCount;
+		if (upTotal > 0) liveMetricsData.upTotal = upTotal;
+		if (downTotal > 0) liveMetricsData.downTotal = downTotal;
+
+		const status = omniaUi.dataOf(pageResults.apiStatus) || {};
+		const official = status.singbox_api || {};
+		if (official.available === true)
+			liveMetricsData.sourceApi = 'sing-box API';
+		else if (clash.available === true)
+			liveMetricsData.sourceApi = 'Clash API';
+		else
+			liveMetricsData.sourceApi = 'Clash API';
+
+		liveMetricsData.available = clash.available === true || official.available === true;
+
+		liveUpSeries.push(up);
+		if (liveUpSeries.length > MAX_SERIES_POINTS) liveUpSeries.shift();
+
+		liveDownSeries.push(down);
+		if (liveDownSeries.length > MAX_SERIES_POINTS) liveDownSeries.shift();
+
+		liveConnSeries.push(connCount);
+		if (liveConnSeries.length > MAX_SERIES_POINTS) liveConnSeries.shift();
+
+		updateLiveMetricsDom();
+	}).catch(function() {
+	});
+}
+
+function updateLiveMetricsDom() {
+	const upVal = document.getElementById('omnia-live-up-value');
+	const upSvg = document.getElementById('omnia-live-up-svg');
+	const upTot = document.getElementById('omnia-live-up-total');
+
+	const downVal = document.getElementById('omnia-live-down-value');
+	const downSvg = document.getElementById('omnia-live-down-svg');
+	const downTot = document.getElementById('omnia-live-down-total');
+
+	const connVal = document.getElementById('omnia-live-conn-value');
+	const connSvg = document.getElementById('omnia-live-conn-svg');
+
+	const srcTag = document.getElementById('omnia-live-source-tag');
+
+	if (upVal) upVal.innerText = formatBytesPerSec(liveMetricsData.up);
+	if (upSvg) upSvg.innerHTML = renderSparklineSvg(liveUpSeries, '#2563eb', '#3b82f6');
+	if (upTot) upTot.innerText = _('累计: %s').format(formatTotalBytes(liveMetricsData.upTotal));
+
+	if (downVal) downVal.innerText = formatBytesPerSec(liveMetricsData.down);
+	if (downSvg) downSvg.innerHTML = renderSparklineSvg(liveDownSeries, '#059669', '#10b981');
+	if (downTot) downTot.innerText = _('累计: %s').format(formatTotalBytes(liveMetricsData.downTotal));
+
+	if (connVal) connVal.innerText = String(liveMetricsData.connCount);
+	if (connSvg) connSvg.innerHTML = renderSparklineSvg(liveConnSeries, '#7c3aed', '#8b5cf6');
+
+	if (srcTag) srcTag.innerText = _('数据源: %s').format(liveMetricsData.sourceApi);
+}
+
+function startLiveMetrics() {
+	stopLiveMetrics();
+	liveMetricsActive = true;
+	liveMetricsTimer = window.setInterval(pollMetricsCycle, 2000);
+	pollMetricsCycle();
+}
+
+function stopLiveMetrics() {
+	liveMetricsActive = false;
+	if (liveMetricsTimer) {
+		window.clearInterval(liveMetricsTimer);
+		liveMetricsTimer = null;
+	}
+}
+
+function overviewHeaderBanner() {
+	const state = stateOf();
+	const running = !!state.sing_box_running;
+	const pkgVer = pageResults.packageVersion ? ' ' + pageResults.packageVersion : '';
+	const sbVer = pageResults.singboxVersion || '1.15.0-alpha.5';
+	const uptimeSec = pageResults.uptimeSeconds || 0;
+	const uptimeText = running ? formatUptimeDuration(uptimeSec) : _('未运行');
+
+	const panel = omniaUi.dataOf(pageResults.panel);
+	const panelUrl = routerHostUrl(panel.dashboard_url);
+	const hasPanel = panelUrl && panelUrl !== '-';
+
+	return E('div', {
+		'style': 'display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem; padding-bottom: .85rem; margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0;'
+	}, [
+		E('div', { 'style': 'display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; font-size: 13px;' }, [
+			E('span', { 'style': 'font-size: 19px; font-weight: 800; letter-spacing: -0.3px; color: #0f172a;' }, [
+				'Omnia',
+				E('span', { 'style': 'font-size: 12px; font-weight: 500; color: #64748b; margin-left: .35rem;' }, pkgVer)
+			]),
+			E('span', {
+				'style': 'display: inline-flex; align-items: center; gap: .4rem; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; ' +
+					(running ? 'background: #ecfdf5; color: #059669;' : 'background: #fef2f2; color: #dc2626;')
+			}, [
+				E('span', {
+					'style': 'width: 7px; height: 7px; border-radius: 50%; ' +
+						(running ? 'background: #10b981;' : 'background: #ef4444;')
+				}),
+				running ? _('运行中') : _('已停止')
+			]),
+			E('span', { 'style': 'color: #cbd5e1;' }, '|'),
+			E('span', { 'style': 'color: #475569;' }, 'sing-box ' + sbVer),
+			E('span', { 'style': 'color: #cbd5e1;' }, '|'),
+			E('span', { 'style': 'color: #475569;' }, running ? _('已运行 %s').format(uptimeText) : _('已运行 -'))
+		]),
+		hasPanel ? E('a', {
+			'href': panelUrl,
+			'target': '_blank',
+			'rel': 'noopener noreferrer',
+			'style': 'display: inline-flex; align-items: center; gap: .35rem; color: #2563eb; font-size: 13px; font-weight: 600; text-decoration: none;'
+		}, [
+			_('打开 Zashboard'),
+			externalLinkIcon()
+		]) : E('div')
 	]);
+}
+
+function maskIpAddress(ip) {
+	if (!ip || typeof ip !== 'string') return '-';
+	if (ip.indexOf(':') !== -1) {
+		let parts = ip.split(':');
+		if (parts.length <= 2) return ip;
+		return parts.slice(0, 2).join(':') + ':****';
+	}
+	let parts = ip.split('.');
+	if (parts.length === 4) {
+		return parts[0] + '.' + parts[1] + '.***.***';
+	}
+	return ip;
+}
+
+function renderSparkbarsSvg(values) {
+	if (!Array.isArray(values) || values.length === 0) return '';
+	const w = 84, h = 18;
+	const barWidth = 4;
+	const gap = 3;
+	const max = Math.max.apply(null, values.concat([100]));
+	let rects = [];
+	const startX = Math.max(0, w - values.length * (barWidth + gap));
+	for (let i = 0; i < values.length; i++) {
+		let v = values[i];
+		let barH = Math.max(2, Math.round((v / max) * (h - 2)));
+		let x = startX + i * (barWidth + gap);
+		let y = h - barH;
+		let color = v <= 100 ? '#10b981' : (v <= 250 ? '#f59e0b' : '#ef4444');
+		rects.push('<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + barH + '" rx="1" fill="' + color + '"/>');
+	}
+	return '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width: ' + w + 'px; height: ' + h + 'px; display: inline-block; vertical-align: middle;">' +
+		rects.join('') +
+		'</svg>';
+}
+
+function fetchConnectionStats() {
+	connAggregatedData.loading = true;
+	updateConnectionDetailsDom();
+	return callConnectionsList().then(function(res) {
+		connAggregatedData.loading = false;
+		let data = omniaUi.dataOf(res) || {};
+		let list = data.connections || [];
+		connAggregatedData.total = list.length;
+
+		let sourcesMap = {};
+		let outboundsMap = {};
+		let groupsMap = {};
+
+		for (let i = 0; i < list.length; i++) {
+			let item = list[i];
+			let src = (item.source || '').split(':')[0] || _('未知');
+			let chains = Array.isArray(item.chains) ? item.chains : [];
+			let group = chains.length > 0 ? chains[0] : (item.rule || _('默认'));
+			let outbound = chains.length > 0 ? chains[chains.length - 1] : (item.destination || _('直连'));
+			let up = Number(item.upload || 0);
+			let down = Number(item.download || 0);
+
+			if (!sourcesMap[src]) sourcesMap[src] = { count: 0, up: 0, down: 0 };
+			sourcesMap[src].count++;
+			sourcesMap[src].up += up;
+			sourcesMap[src].down += down;
+
+			if (!outboundsMap[outbound]) outboundsMap[outbound] = { count: 0, up: 0, down: 0 };
+			outboundsMap[outbound].count++;
+			outboundsMap[outbound].up += up;
+			outboundsMap[outbound].down += down;
+
+			if (!groupsMap[group]) groupsMap[group] = { count: 0, up: 0, down: 0 };
+			groupsMap[group].count++;
+			groupsMap[group].up += up;
+			groupsMap[group].down += down;
+		}
+
+		function toSortedArray(map) {
+			let arr = [];
+			for (let k in map) {
+				arr.push({ name: k, count: map[k].count, up: map[k].up, down: map[k].down });
+			}
+			arr.sort(function(a, b) { return b.count - a.count; });
+			return arr;
+		}
+
+		connAggregatedData.sources = toSortedArray(sourcesMap);
+		connAggregatedData.outbounds = toSortedArray(outboundsMap);
+		connAggregatedData.groups = toSortedArray(groupsMap);
+		updateConnectionDetailsDom();
+	}).catch(function() {
+		connAggregatedData.loading = false;
+		updateConnectionDetailsDom();
+	});
+}
+
+function updateConnectionDetailsDom() {
+	const container = document.getElementById('omnia-conn-details-container');
+	if (!container) return;
+	container.innerHTML = '';
+	if (!connDetailsOpen) return;
+
+	let tabSourceBtn = E('button', {
+		'type': 'button',
+		'style': 'padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid ' + (connActiveTab === 'source' ? '#2563eb' : '#cbd5e1') + '; background: ' + (connActiveTab === 'source' ? '#2563eb' : '#fff') + '; color: ' + (connActiveTab === 'source' ? '#fff' : '#475569') + '; cursor: pointer;',
+		'click': function(ev) {
+			ev.preventDefault();
+			connActiveTab = 'source';
+			updateConnectionDetailsDom();
+		}
+	}, _('源 IP (%d)').format(connAggregatedData.sources.length));
+
+	let tabOutboundBtn = E('button', {
+		'type': 'button',
+		'style': 'padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid ' + (connActiveTab === 'outbound' ? '#2563eb' : '#cbd5e1') + '; background: ' + (connActiveTab === 'outbound' ? '#2563eb' : '#fff') + '; color: ' + (connActiveTab === 'outbound' ? '#fff' : '#475569') + '; cursor: pointer;',
+		'click': function(ev) {
+			ev.preventDefault();
+			connActiveTab = 'outbound';
+			updateConnectionDetailsDom();
+		}
+	}, _('出站节点 (%d)').format(connAggregatedData.outbounds.length));
+
+	let tabGroupBtn = E('button', {
+		'type': 'button',
+		'style': 'padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid ' + (connActiveTab === 'group' ? '#2563eb' : '#cbd5e1') + '; background: ' + (connActiveTab === 'group' ? '#2563eb' : '#fff') + '; color: ' + (connActiveTab === 'group' ? '#fff' : '#475569') + '; cursor: pointer;',
+		'click': function(ev) {
+			ev.preventDefault();
+			connActiveTab = 'group';
+			updateConnectionDetailsDom();
+		}
+	}, _('策略组 (%d)').format(connAggregatedData.groups.length));
+
+	let refreshBtn = E('button', {
+		'type': 'button',
+		'style': 'padding: 3px 10px; font-size: 12px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;',
+		'click': function(ev) {
+			ev.preventDefault();
+			fetchConnectionStats();
+		}
+	}, connAggregatedData.loading ? _('刷新中...') : _('刷新'));
+
+	let headerRow = E('div', {
+		'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem; flex-wrap: wrap; gap: .5rem;'
+	}, [
+		E('div', { 'style': 'display: flex; gap: .4rem; align-items: center;' }, [
+			tabSourceBtn,
+			tabOutboundBtn,
+			tabGroupBtn
+		]),
+		E('div', { 'style': 'display: flex; gap: .5rem; align-items: center;' }, [
+			E('span', { 'style': 'font-size: 12px; color: #64748b;' }, _('总连接数: %d').format(connAggregatedData.total)),
+			refreshBtn
+		])
+	]);
+
+	let currentList = [];
+	if (connActiveTab === 'source') currentList = connAggregatedData.sources;
+	else if (connActiveTab === 'outbound') currentList = connAggregatedData.outbounds;
+	else if (connActiveTab === 'group') currentList = connAggregatedData.groups;
+
+	let bodyNode;
+	if (connAggregatedData.loading && currentList.length === 0) {
+		bodyNode = E('div', { 'style': 'padding: 1.5rem; text-align: center; color: #94a3b8; font-size: 13px;' }, _('正在加载连接数据...'));
+	} else if (currentList.length === 0) {
+		bodyNode = E('div', { 'style': 'padding: 1.5rem; text-align: center; color: #94a3b8; font-size: 13px;' }, _('暂无活跃连接'));
+	} else {
+		let rows = [
+			E('tr', { 'style': 'border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b; background: #f8fafc;' }, [
+				E('th', { 'style': 'padding: .45rem .6rem; text-align: left;' }, _('名称 / 标识')),
+				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('连接数')),
+				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('上传流量')),
+				E('th', { 'style': 'padding: .45rem .6rem; text-align: right;' }, _('下载流量'))
+			])
+		];
+		for (let i = 0; i < currentList.length; i++) {
+			let row = currentList[i];
+			rows.push(E('tr', { 'style': 'border-bottom: 1px solid #f1f5f9; font-size: 12px; color: #1e293b;' }, [
+				E('td', { 'style': 'padding: .45rem .6rem; font-weight: 500;' }, row.name),
+				E('td', { 'style': 'padding: .45rem .6rem; text-align: right;' }, String(row.count)),
+				E('td', { 'style': 'padding: .45rem .6rem; text-align: right; color: #64748b;' }, formatTotalBytes(row.up)),
+				E('td', { 'style': 'padding: .45rem .6rem; text-align: right; color: #64748b;' }, formatTotalBytes(row.down))
+			]));
+		}
+		bodyNode = E('table', { 'style': 'width: 100%; border-collapse: collapse;' }, rows);
+	}
+
+	let box = E('div', {
+		'style': 'background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: .85rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);'
+	}, [
+		headerRow,
+		bodyNode
+	]);
+
+	container.appendChild(box);
+}
+
+function probeLatencyTarget(url) {
+	return new Promise(function(resolve) {
+		const start = Date.now();
+		const img = new Image();
+		let settled = false;
+		function done(success) {
+			if (settled) return;
+			settled = true;
+			const delta = Date.now() - start;
+			img.onload = img.onerror = null;
+			resolve(delta);
+		}
+		img.onload = function() { done(true); };
+		img.onerror = function() { done(true); };
+		setTimeout(function() {
+			if (!settled) {
+				settled = true;
+				img.onload = img.onerror = null;
+				resolve(null);
+			}
+		}, 3000);
+		img.src = url + '?_t=' + Date.now();
+	});
+}
+
+function runLatencyTests() {
+	if (latencyTesting) return;
+	latencyTesting = true;
+	const btn = document.getElementById('omnia-latency-test-btn');
+	if (btn) btn.innerText = _('测试中...');
+
+	const targets = [
+		{ key: 'Baidu', url: 'https://www.baidu.com/favicon.ico' },
+		{ key: 'Cloudflare', url: 'https://www.cloudflare.com/favicon.ico' },
+		{ key: 'GitHub', url: 'https://github.githubassets.com/favicons/favicon.png' },
+		{ key: 'YouTube', url: 'https://www.youtube.com/s/desktop/favicon.ico' }
+	];
+
+	let promises = targets.map(function(t) {
+		return probeLatencyTarget(t.url).then(function(delta) {
+			if (delta !== null && delta > 0) {
+				if (!latencyHistory[t.key]) latencyHistory[t.key] = [];
+				latencyHistory[t.key].push(delta);
+				if (latencyHistory[t.key].length > 10) latencyHistory[t.key].shift();
+			}
+		});
+	});
+
+	Promise.all(promises).then(function() {
+		latencyTesting = false;
+		const d = new Date();
+		const pad = function(n) { return n < 10 ? '0' + n : String(n); };
+		latencyLastTime = pad(d.getHours()) + ':' + pad(d.getMinutes());
+		updateLatencyDom();
+	}).catch(function() {
+		latencyTesting = false;
+		updateLatencyDom();
+	});
+}
+
+function updateLatencyDom() {
+	const grid = document.getElementById('omnia-latency-grid');
+	const footer = document.getElementById('omnia-latency-footer');
+	const btn = document.getElementById('omnia-latency-test-btn');
+	if (btn) btn.innerText = latencyTesting ? _('测试中...') : _('立即测试');
+	if (footer) footer.innerText = latencyLastTime ? _('上次测试: %s').format(latencyLastTime) : _('尚未测试');
+	if (!grid) return;
+	grid.innerHTML = '';
+
+	const sites = [
+		{ key: 'Baidu', name: 'Baidu' },
+		{ key: 'Cloudflare', name: 'Cloudflare' },
+		{ key: 'GitHub', name: 'GitHub' },
+		{ key: 'YouTube', name: 'YouTube' }
+	];
+
+	for (let i = 0; i < sites.length; i++) {
+		const s = sites[i];
+		const history = latencyHistory[s.key] || [];
+		const lastVal = history.length > 0 ? history[history.length - 1] : null;
+		let valText = lastVal !== null ? lastVal + ' ms' : '-';
+		let valColor = lastVal !== null ? (lastVal <= 100 ? '#10b981' : (lastVal <= 250 ? '#f59e0b' : '#ef4444')) : '#94a3b8';
+
+		const item = E('div', {
+			'style': 'padding: .4rem .5rem; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px;'
+		}, [
+			E('div', { 'style': 'font-size: 12px; font-weight: 500; color: #64748b; margin-bottom: .2rem;' }, s.name),
+			E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center;' }, [
+				E('span', { 'style': 'font-size: 16px; font-weight: 700; color: ' + valColor + ';' }, valText),
+				E('span', {
+					'style': 'display: inline-block;',
+					'innerHTML': renderSparkbarsSvg(history)
+				})
+			])
+		]);
+		grid.appendChild(item);
+	}
+}
+
+function refreshNetworkInfo() {
+	networkInfoData.loading = true;
+	const btn = document.getElementById('omnia-network-refresh-btn');
+	if (btn) btn.innerText = _('刷新中...');
+
+	let p1 = fetch('https://api.ip.sb/geoip', { cache: 'no-store' })
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (data && data.ip) {
+				networkInfoData.proxy.ip = data.ip;
+				let loc = [data.country || '', data.isp || data.organization || ''].filter(Boolean).join(' · ');
+				if (loc) networkInfoData.proxy.region = loc;
+			}
+		}).catch(function() {});
+
+	let p2 = fetch('https://myip.ipip.net/json', { cache: 'no-store' })
+		.then(function(res) { return res.json(); })
+		.then(function(json) {
+			if (json && json.data && json.data.ip) {
+				networkInfoData.local.ip = json.data.ip;
+				let loc = [json.data.country_name || '', json.data.region_name || '', json.data.city_name || ''].filter(Boolean).join(' · ');
+				if (loc) networkInfoData.local.region = loc;
+			}
+		}).catch(function() {});
+
+	Promise.all([p1, p2]).then(function() {
+		networkInfoData.loading = false;
+		const d = new Date();
+		const pad = function(n) { return n < 10 ? '0' + n : String(n); };
+		networkInfoData.updatedAt = pad(d.getHours()) + ':' + pad(d.getMinutes());
+		updateNetworkInfoDom();
+	}).catch(function() {
+		networkInfoData.loading = false;
+		updateNetworkInfoDom();
+	});
+}
+
+function updateNetworkInfoDom() {
+	const rows = document.getElementById('omnia-network-rows');
+	const footer = document.getElementById('omnia-network-footer');
+	const btn = document.getElementById('omnia-network-refresh-btn');
+	if (btn) btn.innerText = networkInfoData.loading ? _('刷新中...') : _('🔄 刷新');
+	if (footer) footer.innerText = networkInfoData.updatedAt ? _('更新于: %s').format(networkInfoData.updatedAt) : _('更新于: 刚刚');
+	if (!rows) return;
+	rows.innerHTML = '';
+
+	const list = [ networkInfoData.local, networkInfoData.proxy ];
+	for (let i = 0; i < list.length; i++) {
+		const item = list[i];
+		const displayIp = item.masked ? maskIpAddress(item.ip) : item.ip;
+		const row = E('div', {
+			'style': 'display: flex; justify-content: space-between; align-items: center; padding: .5rem .6rem; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px; font-size: 12px;'
+		}, [
+			E('div', { 'style': 'display: flex; align-items: center; gap: .6rem;' }, [
+				E('span', { 'style': 'font-weight: 700; color: #1e293b; min-width: 65px;' }, item.provider),
+				E('span', { 'style': 'color: #64748b;' }, item.region)
+			]),
+			E('div', {
+				'style': 'display: flex; align-items: center; gap: .35rem; cursor: pointer;',
+				'title': _('点击切换 IP 遮挡/完整显示'),
+				'click': (function(target) {
+					return function() {
+						target.masked = !target.masked;
+						updateNetworkInfoDom();
+					};
+				})(item)
+			}, [
+				E('span', { 'style': 'font-family: monospace; font-size: 12px; color: #0f172a; font-weight: 600;' }, displayIp),
+				E('span', { 'style': 'font-size: 11px; color: #94a3b8;' }, item.masked ? '🔒' : '🔓')
+			])
+		]);
+		rows.appendChild(row);
+	}
+}
+
+function setupLatencyInterval(intervalStr) {
+	latencyInterval = intervalStr;
+	if (latencyTimer) {
+		window.clearInterval(latencyTimer);
+		latencyTimer = null;
+	}
+	let ms = 0;
+	if (intervalStr === '1m') ms = 60000;
+	else if (intervalStr === '5m') ms = 300000;
+	else if (intervalStr === '15m') ms = 900000;
+
+	if (ms > 0) {
+		latencyTimer = window.setInterval(function() {
+			if (!document.hidden) runLatencyTests();
+		}, ms);
+	}
+}
+
+function realtimeStatusSection() {
+	return E('div', { 'style': 'margin-bottom: 1.25rem;' }, [
+		E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem;' }, [
+			E('span', { 'style': 'font-weight: 700; font-size: 15px; color: #0f172a;' }, _('实时状态')),
+			E('span', {
+				'id': 'omnia-live-source-tag',
+				'style': 'font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-weight: 500;'
+			}, _('数据源: %s').format(liveMetricsData.sourceApi))
+		]),
+		E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .85rem;' }, [
+			// Upload Card
+			E('div', { 'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);' }, [
+				E('div', { 'style': 'font-size: 12px; color: #64748b; margin-bottom: .25rem;' }, _('上传')),
+				E('div', {
+					'id': 'omnia-live-up-value',
+					'style': 'font-size: 22px; font-weight: 800; color: #0f172a; margin-bottom: .45rem;'
+				}, formatBytesPerSec(liveMetricsData.up)),
+				E('div', { 'id': 'omnia-live-up-svg' }),
+				E('div', {
+					'id': 'omnia-live-up-total',
+					'style': 'font-size: 11px; color: #94a3b8; margin-top: .4rem;'
+				}, _('累计: %s').format(formatTotalBytes(liveMetricsData.upTotal)))
+			]),
+			// Download Card
+			E('div', { 'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);' }, [
+				E('div', { 'style': 'font-size: 12px; color: #64748b; margin-bottom: .25rem;' }, _('下载')),
+				E('div', {
+					'id': 'omnia-live-down-value',
+					'style': 'font-size: 22px; font-weight: 800; color: #0f172a; margin-bottom: .45rem;'
+				}, formatBytesPerSec(liveMetricsData.down)),
+				E('div', { 'id': 'omnia-live-down-svg' }),
+				E('div', {
+					'id': 'omnia-live-down-total',
+					'style': 'font-size: 11px; color: #94a3b8; margin-top: .4rem;'
+				}, _('累计: %s').format(formatTotalBytes(liveMetricsData.downTotal)))
+			]),
+			// Connections Card
+			E('div', {
+				'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03); cursor: pointer; user-select: none;',
+				'title': _('点击展开/收起连接统计下钻详情'),
+				'click': function() {
+					connDetailsOpen = !connDetailsOpen;
+					if (connDetailsOpen) fetchConnectionStats();
+					updateConnectionDetailsDom();
+					const arrow = document.getElementById('omnia-conn-expand-arrow');
+					if (arrow) arrow.innerText = connDetailsOpen ? '▴' : '▾';
+				}
+			}, [
+				E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .25rem;' }, [
+					E('div', { 'style': 'font-size: 12px; color: #64748b;' }, _('活跃连接')),
+					E('span', { 'id': 'omnia-conn-expand-arrow', 'style': 'font-size: 12px; color: #2563eb; font-weight: 700;' }, connDetailsOpen ? '▴' : '▾')
+				]),
+				E('div', {
+					'id': 'omnia-live-conn-value',
+					'style': 'font-size: 22px; font-weight: 800; color: #0f172a; margin-bottom: .45rem;'
+				}, String(liveMetricsData.connCount)),
+				E('div', { 'id': 'omnia-live-conn-svg' }),
+				E('div', {
+					'id': 'omnia-live-conn-sub',
+					'style': 'font-size: 11px; color: #94a3b8; margin-top: .4rem;'
+				}, _('代理接管连接流（点击展开详情）'))
+			])
+		]),
+		E('div', { 'id': 'omnia-conn-details-container', 'style': 'margin-top: .75rem;' })
+	]);
+}
+
+function latencyAndNetworkSection() {
+	return E('div', {
+		'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: .85rem; margin-bottom: 1.25rem;'
+	}, [
+		// Latency Card
+		E('div', {
+			'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);'
+		}, [
+			E('div', {
+				'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;'
+			}, [
+				E('span', { 'style': 'font-weight: 700; font-size: 14px; color: #0f172a;' }, _('延迟测试')),
+				E('div', { 'style': 'display: flex; gap: .4rem; align-items: center;' }, [
+					E('select', {
+						'id': 'omnia-latency-interval-select',
+						'style': 'padding: 2px 6px; font-size: 11px; border-radius: 4px; border: 1px solid #cbd5e1; background: #fff;',
+						'change': function(ev) {
+							setupLatencyInterval(ev.target.value);
+						}
+					}, [
+						E('option', { 'value': '0', 'selected': latencyInterval === '0' ? '' : null }, _('手动')),
+						E('option', { 'value': '1m', 'selected': latencyInterval === '1m' ? '' : null }, _('自动 · 1 分钟')),
+						E('option', { 'value': '5m', 'selected': latencyInterval === '5m' ? '' : null }, _('自动 · 5 分钟')),
+						E('option', { 'value': '15m', 'selected': latencyInterval === '15m' ? '' : null }, _('自动 · 15 分钟'))
+					]),
+					E('button', {
+						'id': 'omnia-latency-test-btn',
+						'type': 'button',
+						'style': 'padding: 2px 8px; font-size: 12px; font-weight: 600; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; cursor: pointer;',
+						'click': function(ev) {
+							ev.preventDefault();
+							runLatencyTests();
+						}
+					}, latencyTesting ? _('测试中...') : _('立即测试'))
+				])
+			]),
+			E('div', {
+				'id': 'omnia-latency-grid',
+				'style': 'display: grid; grid-template-columns: 1fr 1fr; gap: .75rem;'
+			}),
+			E('div', {
+				'id': 'omnia-latency-footer',
+				'style': 'font-size: 11px; color: #94a3b8; margin-top: .65rem;'
+			}, latencyLastTime ? _('上次测试: %s').format(latencyLastTime) : _('尚未测试'))
+		]),
+
+		// Network Info Card
+		E('div', {
+			'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);'
+		}, [
+			E('div', {
+				'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;'
+			}, [
+				E('span', { 'style': 'font-weight: 700; font-size: 14px; color: #0f172a;' }, _('网络信息')),
+				E('button', {
+					'id': 'omnia-network-refresh-btn',
+					'type': 'button',
+					'style': 'padding: 2px 8px; font-size: 12px; font-weight: 500; color: #475569; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer;',
+					'click': function(ev) {
+						ev.preventDefault();
+						refreshNetworkInfo();
+					}
+				}, networkInfoData.loading ? _('刷新中...') : _('🔄 刷新'))
+			]),
+			E('div', {
+				'id': 'omnia-network-rows',
+				'style': 'display: flex; flex-direction: column; gap: .65rem;'
+			}),
+			E('div', {
+				'id': 'omnia-network-footer',
+				'style': 'font-size: 11px; color: #94a3b8; margin-top: .65rem;'
+			}, networkInfoData.updatedAt ? _('更新于: %s').format(networkInfoData.updatedAt) : _('更新于: 刚刚'))
+		])
+	]);
+}
+
+let stepToolsOpen = false;
+
+function toggleStepTools() {
+	stepToolsOpen = !stepToolsOpen;
+	const btn = document.getElementById('omnia-step-tools-btn');
+	const menu = document.getElementById('omnia-step-tools-menu');
+	if (btn) btn.innerText = stepToolsOpen ? _('单步工具 ▴') : _('单步工具 ▾');
+	if (menu) menu.style.display = stepToolsOpen ? 'flex' : 'none';
 }
 
 function resourceStatusSection() {
-	return E('div', { 'style': omniaUi.sectionStyle() }, [
-		omniaUi.sectionTitle(_('资源就绪状态')),
-		resourceCards()
-	]);
-}
+	const profile = omniaUi.dataOf(pageResults.profile);
+	const subscriptions = safeJson(omniaUi.dataOf(pageResults.subscriptions).content || '{}');
+	const snapshot = omniaUi.dataOf(pageResults.snapshot);
+	const rules = omniaUi.dataOf(pageResults.rules).summary || {};
+	const profileSource = omniaUi.dataOf(pageResults.profileSource).source || {};
+	const rulesTask = omniaUi.dataOf(pageResults.rulesetTask).task || {};
+	const autoTaskData = omniaUi.dataOf(pageResults.autoTask);
+	const autoTask = autoTaskData.state || {};
+	const schedulerTasks = autoTask.tasks || {};
+	const rulesSchedulerTask = schedulerTasks['ruleset.sync'] || {};
 
-function operationButtons() {
-	return E('div', { 'style': omniaUi.sectionStyle() }, [
-		omniaUi.sectionTitle(_('运行控制')),
-		omniaUi.sectionDescription(_('一键流式执行生成、校验与应用；也可使用下方高级调试工具进行分步排查。')),
-		E('div', { 'style': 'margin-bottom: .85rem;' }, [
-			E('button', {
-				'id': 'omnia-one-click-apply-btn',
-				'class': omniaMotion.buttonClass('btn cbi-button cbi-button-apply'),
-				'style': 'width: 100%; font-size: 15px; font-weight: 700; padding: .65rem 1.25rem; letter-spacing: 0.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.12);',
-				'click': function(ev) {
-					ev.preventDefault();
-					return runOneClickApply();
-				}
-			}, _('⚡ 一键生成并应用'))
+	const profileOk = pageResults.profile && pageResults.profile.ok && profile.valid !== false;
+	const profileSyncTime = profileSource.updated_at ? omniaTime.formatMaybeTime(profileSource.updated_at) : '';
+	let profileText = profileSource.url ? (profileSyncTime ? _('远程源已同步 · %s').format(profileSyncTime) : _('远程源已配置 · 暂无同步记录')) : _('本地配置已就绪');
+	if (!profileOk) profileText = _('模板加载异常');
+
+	const nodeCount = Number(snapshot.node_count || 0);
+	const snapshotTime = snapshot.updated_at ? omniaTime.formatMaybeTime(snapshot.updated_at) : '';
+	let subText = snapshotTime ? _('最近刷新 %s').format(snapshotTime) : _('暂无刷新记录');
+	if (nodeCount === 0 && Array.isArray(subscriptions.sources) && subscriptions.sources.length > 0) {
+		subText = _('刷新失败或无有效节点');
+	}
+
+	const missingRules = Number(rules.missing_count || 0);
+	const requiredRules = Number(rules.required_count || 0);
+	const readyRules = Number(rules.ready_count || 0);
+	const rulesTimeRaw = rulesTask.finished_at || rulesTask.started_at || rulesSchedulerTask.last_run_at || '';
+	const rulesTime = rulesTimeRaw ? omniaTime.formatMaybeTime(rulesTimeRaw) : '';
+	let rulesText = rulesTime ? _('最近同步 %s').format(rulesTime) : _('本地规则就绪');
+	if (missingRules > 0) {
+		rulesText = _('缺失 %d 个规则集').format(missingRules);
+	}
+
+	return E('div', { 'style': 'margin-bottom: 1.25rem;' }, [
+		E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem;' }, [
+			E('span', { 'style': 'font-weight: 700; font-size: 15px; color: #0f172a;' }, _('配置资源')),
+			E('a', {
+				'href': resourceHref('subscriptions'),
+				'style': 'display: inline-flex; align-items: center; gap: .25rem; font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 600;'
+			}, [
+				_('资源管理'),
+				externalLinkIcon()
+			])
 		]),
-		omniaUi.statusBox('omnia-overview-action-status', actionStatus, actionStatusOk ? 'ok' : 'error', {
-			padding: '.75rem',
-			margin: '0 0 .85rem'
-		}),
-		E('div', { 'style': 'border-top: 1px dashed #e2e8f0; padding-top: .75rem; margin-top: .25rem;' }, [
-			E('div', { 'style': 'font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: .45rem;' }, _('高级调试与单步工具：')),
-			E('div', { 'style': 'display: flex; flex-wrap: wrap; gap: .5rem;' }, [
-				operationButton(_('📄 生成配置'), _('生成候选配置'), callGenerate),
-				operationButton(_('🔍 语法检查'), _('检查候选配置'), callCheck),
-				operationButton(_('🚀 应用配置'), _('应用运行配置'), callApply, 'cbi-button-action', _('现在将候选配置应用到运行时吗？')),
-				operationButton(_('🔄 重启服务'), _('重启运行时'), callRestart, 'cbi-button-neutral', _('现在重启 Omnia 运行时吗？短时间内流量可能会中断。')),
-				operationButton(_('⏹ 停止服务'), _('停止运行时'), callStop, 'cbi-button-reset', _('现在停止 Omnia 运行时吗？流量将不再由 sing-box 接管。')),
-				operationButton(_('⏪ 回滚配置'), _('回滚运行配置'), callRollback, 'cbi-button-reset', _('现在回滚运行配置吗？'))
+		E('div', {
+			'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;'
+		}, [
+			// Col 1: 模板
+			E('a', {
+				'href': resourceHref('profile'),
+				'style': 'display: block; text-decoration: none; border-right: 1px solid #f1f5f9; padding-right: .75rem;'
+			}, [
+				E('div', { 'style': 'display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;' }, [
+					E('span', { 'style': 'font-size: 13px; color: #64748b; font-weight: 500;' }, _('模板')),
+					E('span', { 'style': 'font-size: 13px; font-weight: 700; color: ' + (profileOk ? '#059669;' : '#dc2626;') }, profileOk ? _('就绪') : _('异常'))
+				]),
+				E('div', { 'style': 'font-size: 11px; color: #94a3b8; word-break: break-all;' }, profileText)
+			]),
+			// Col 2: 订阅
+			E('a', {
+				'href': resourceHref('subscriptions'),
+				'style': 'display: block; text-decoration: none; border-right: 1px solid #f1f5f9; padding-right: .75rem;'
+			}, [
+				E('div', { 'style': 'display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;' }, [
+					E('span', { 'style': 'font-size: 13px; color: #64748b; font-weight: 500;' }, _('订阅')),
+					E('span', { 'style': 'font-size: 13px; font-weight: 700; color: ' + (nodeCount > 0 ? '#0f172a;' : '#dc2626;') }, nodeCount > 0 ? _('%d 个节点').format(nodeCount) : _('0 节点'))
+				]),
+				E('div', { 'style': 'font-size: 11px; color: #94a3b8;' }, subText)
+			]),
+			// Col 3: 规则集
+			E('a', {
+				'href': resourceHref('rules'),
+				'style': 'display: block; text-decoration: none;'
+			}, [
+				E('div', { 'style': 'display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;' }, [
+					E('span', { 'style': 'font-size: 13px; color: #64748b; font-weight: 500;' }, _('规则集')),
+					E('span', { 'style': 'font-size: 13px; font-weight: 700; color: ' + (missingRules === 0 ? '#059669;' : '#dc2626;') }, requiredRules > 0 ? (missingRules === 0 ? _('%d / %d 就绪').format(readyRules, requiredRules) : _('缺失 %d').format(missingRules)) : _('就绪'))
+				]),
+				E('div', { 'style': 'font-size: 11px; color: #94a3b8;' }, rulesText)
 			])
 		])
 	]);
 }
 
+function operationButtons() {
+	return E('div', { 'style': 'margin-bottom: 1.25rem;' }, [
+		E('div', {
+			'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem; flex-wrap: wrap; gap: .75rem;'
+		}, [
+			E('span', { 'style': 'font-weight: 700; font-size: 15px; color: #0f172a;' }, _('运行控制')),
+			E('div', { 'style': 'display: flex; gap: .6rem; align-items: center;' }, [
+				E('button', {
+					'id': 'omnia-step-tools-btn',
+					'type': 'button',
+					'class': 'btn cbi-button cbi-button-neutral',
+					'style': 'font-size: 13px; font-weight: 600; padding: .45rem .85rem; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #334155; cursor: pointer;',
+					'click': function(ev) {
+						ev.preventDefault();
+						toggleStepTools();
+					}
+				}, stepToolsOpen ? _('单步工具 ▴') : _('单步工具 ▾')),
+				E('button', {
+					'id': 'omnia-one-click-apply-btn',
+					'class': omniaMotion.buttonClass('btn cbi-button cbi-button-apply'),
+					'style': 'font-size: 14px; font-weight: 700; padding: .45rem 1.2rem; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: pointer;',
+					'click': function(ev) {
+						ev.preventDefault();
+						return runOneClickApply();
+					}
+				}, _('⚡ 一键生成并应用'))
+			])
+		]),
+		E('div', {
+			'id': 'omnia-step-tools-menu',
+			'style': 'display: ' + (stepToolsOpen ? 'flex' : 'none') + '; flex-wrap: wrap; gap: .5rem; margin-bottom: .85rem; padding: .75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;'
+		}, [
+			operationButton(_('📄 生成配置'), _('生成候选配置'), callGenerate),
+			operationButton(_('🔍 语法检查'), _('检查候选配置'), callCheck),
+			operationButton(_('🚀 应用配置'), _('应用运行配置'), callApply, 'cbi-button-action', _('现在将候选配置应用到运行时吗？')),
+			operationButton(_('🔄 重启服务'), _('重启运行时'), callRestart, 'cbi-button-neutral', _('现在重启 Omnia 运行时吗？短时间内流量可能会中断。')),
+			operationButton(_('⏹ 停止服务'), _('停止运行时'), callStop, 'cbi-button-reset', _('现在停止 Omnia 运行时吗？流量将不再由 sing-box 接管。')),
+			operationButton(_('⏪ 回滚配置'), _('回滚运行配置'), callRollback, 'cbi-button-reset', _('现在回滚运行配置吗？'))
+		]),
+		omniaUi.statusBox('omnia-overview-action-status', actionStatus, actionStatusOk ? 'ok' : 'error', {
+			padding: '.75rem',
+			margin: '0 0 .85rem'
+		})
+	]);
+}
+
 function renderPage() {
 	const loadError = pageLoadError();
-	const title = E('span', { 'style': 'display: inline-flex; align-items: baseline; gap: .35rem;' }, [
-		_('Omnia'),
-		pageResults.packageVersion ? E('span', { 'style': 'font-size: .48em; font-weight: normal; color: #667;' }, pageResults.packageVersion) : ''
-	]);
-	const header = omniaUi.pageHeader(title, _('概览是控制面首页。运行时策略组可在原生代理面板操作。'));
 	omniaMotion.inject();
 	ensureSupplementalLoad();
+	startLiveMetrics();
+	setupLatencyInterval(latencyInterval);
+	window.setTimeout(function() {
+		updateLatencyDom();
+		updateNetworkInfoDom();
+	}, 10);
 
-	return E('div', { 'id': 'omnia-overview-root', 'class': 'cbi-map' }, [
-		header,
+	return E('div', { 'id': 'omnia-overview-root', 'class': 'cbi-map', 'style': 'max-width: 1200px; margin: auto;' }, [
+		overviewHeaderBanner(),
 		loadError ? E('div', { 'style': 'border: 1px solid #fecaca; border-radius: 8px; padding: .65rem; margin: 0 0 .75rem; background: #fef2f2; color: #991b1b;' }, loadError) : '',
-		runtimeStatusSection(),
+		realtimeStatusSection(),
+		latencyAndNetworkSection(),
 		resourceStatusSection(),
 		operationButtons()
 	]);

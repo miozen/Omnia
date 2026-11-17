@@ -4,7 +4,9 @@
 
 'use strict';
 
-import { readfile } from 'fs';
+import { readfile, stat } from 'fs';
+import { PATH, BIN } from 'omnia.core.constants';
+import { ExecResult } from 'omnia.core.utils';
 import { Success } from 'omnia.core.result';
 import { runtime_status } from 'omnia.runtime';
 import { get_profile, profile_source_get } from 'omnia.profile';
@@ -233,6 +235,49 @@ function compact_source(key, result) {
 	return result;
 }
 
+function probe_singbox_version(trace_id) {
+	try {
+		let res = ExecResult(trace_id, [ BIN.SING_BOX, "version" ]);
+		if (res && res.code == 0 && res.stdout) {
+			let m = match(res.stdout, /sing-box version ([0-9a-zA-Z\.\-]+)/);
+			if (m && m[1]) return m[1];
+			let parts = split(trim(res.stdout), ' ');
+			if (length(parts) >= 3 && parts[0] == "sing-box" && parts[1] == "version")
+				return parts[2];
+		}
+	} catch (e) {}
+	return '';
+}
+
+function probe_process_uptime(runtime_item) {
+	try {
+		let rdata = result_data(runtime_item);
+		let state = rdata.state || {};
+		if (!state.sing_box_running)
+			return 0;
+
+		let procs = state.omnia_managed_processes;
+		if (type(procs) == 'array' && length(procs) > 0) {
+			let pid = procs[0].pid;
+			if (pid) {
+				let s = stat('/proc/' + pid);
+				if (s && s.mtime) {
+					let diff = time() - s.mtime;
+					if (diff >= 0) return diff;
+				}
+			}
+		}
+
+		let up_text = readfile('/proc/uptime');
+		if (up_text) {
+			let parts = split(trim(up_text), ' ');
+			if (length(parts) > 0)
+				return int(parts[0]);
+		}
+	} catch (e) {}
+	return 0;
+}
+
 function overview_status(trace_id, req) {
 	let items = {};
 	let errors = {};
@@ -251,8 +296,13 @@ function overview_status(trace_id, req) {
 		}
 	}
 
+	let singbox_ver = probe_singbox_version(trace_id);
+	let uptime_sec = probe_process_uptime(items.runtime);
+
 	return Success({
-		package_version: readfile('/usr/share/omnia/package-version') || '',
+		package_version: readfile(PATH.PACKAGE_VERSION) || '',
+		singbox_version: singbox_ver,
+		uptime_seconds: uptime_sec,
 		partial: partial,
 		items: items,
 		errors: errors

@@ -243,28 +243,16 @@ let latencyHistory = {
 let latencyLastTime = '';
 let latencyTesting = false;
 
-let netGlobalMasked = true;
-let netSiteData = {
-	proxy: {
-		id: 'proxy',
-		title: _('代理出口 (出海)'),
-		icon: '🌐',
-		region: '新加坡 · 亚太枢纽',
-		ip: '103.145.12.88',
-		isp: 'AS20940 Akamai Connected Cloud',
-		status: 'ok',
-		loading: false
-	},
-	direct: {
-		id: 'direct',
-		title: _('国内直连 (分流)'),
-		icon: '🇨🇳',
-		region: '中国 · 本地宽带',
-		ip: '2408:825c:2140:12::1',
-		isp: '中国电信 China Telecom',
-		status: 'ok',
-		loading: false
-	}
+let netGlobalMasked = false;
+let netChannels = {
+	channel1: 'ipip.net',
+	channel2: 'ip.sb'
+};
+let netSiteDatabase = {
+	'ipip.net': { id: 'ipip.net', name: 'ipip.net', url: 'https://myip.ipip.net/json', region: '中国 局域网', ip: '2408:825c:4e23:57ac::1', isp: '联通', loading: false },
+	'ip.sb': { id: 'ip.sb', name: 'ip.sb', url: 'https://api.ip.sb/geoip', region: '', ip: '166.0.198.207', isp: 'Cloudflare', loading: false },
+	'ipwho.is': { id: 'ipwho.is', name: 'ipwho.is', url: 'https://ipwho.is/', region: '中国 香港', ip: '104.28.19.42', isp: 'AS13335', loading: false },
+	'ipapi.is': { id: 'ipapi.is', name: 'ipapi.is', url: 'https://api.ipapi.is', region: '美国 洛杉矶', ip: '198.41.214.162', isp: 'Cloudflare', loading: false }
 };
 let networkUpdatedAt = '';
 let lastMetricsTimestamp = 0;
@@ -951,14 +939,14 @@ function pollMetricsCycle() {
 
 		const status = omniaUi.dataOf(pageResults.apiStatus) || {};
 		const official = status.singbox_api || {};
-		if (official.available === true)
+		if (clash.available === true)
+			liveMetricsData.sourceApi = 'Clash API';
+		else if (official.available === true)
 			liveMetricsData.sourceApi = 'sing-box API';
-		else if (clash.available === true)
-			liveMetricsData.sourceApi = 'Clash API';
 		else
-			liveMetricsData.sourceApi = 'Clash API';
+			liveMetricsData.sourceApi = 'Clash API (' + (clash.reason || _('不可用')) + ')';
 
-		liveMetricsData.available = clash.available === true || official.available === true;
+		liveMetricsData.available = clash.available === true;
 
 		liveUpSeries.push(up);
 		if (liveUpSeries.length > MAX_SERIES_POINTS) liveUpSeries.shift();
@@ -1017,7 +1005,8 @@ function startLiveMetrics() {
 	lastMetricsTimestamp = 0;
 	lastUploadTotal = 0;
 	lastDownloadTotal = 0;
-	pollMetricsCycle();
+	/* Delay initial cycle by 300ms to ensure DOM node is attached to document */
+	liveMetricsTimer = window.setTimeout(pollMetricsCycle, 300);
 }
 
 function stopLiveMetrics() {
@@ -1477,41 +1466,45 @@ function updateLatencyDom() {
 	}
 }
 
-function fetchNetworkInfoSingle(key) {
-	let target = netSiteData[key];
+function fetchNetworkInfoSingle(siteKey) {
+	let target = netSiteDatabase[siteKey];
 	if (!target) return Promise.resolve();
 	target.loading = true;
 	updateNetworkInfoDom();
 
-	let url = '';
-	if (key === 'proxy') {
-		url = 'https://api.ip.sb/geoip';
-	} else if (key === 'direct') {
-		url = 'https://myip.ipip.net/json';
-	}
-
 	let ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
 	let timer = ctrl ? setTimeout(function() { ctrl.abort(); }, 3500) : null;
 
-	return fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+	return fetch(target.url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
 		.then(function(res) {
 			if (timer) clearTimeout(timer);
 			return res.json();
 		})
 		.then(function(data) {
 			target.loading = false;
-			if (key === 'proxy' && data && data.ip) {
-				target.ip = data.ip;
-				let loc = [data.country || '', data.city || ''].filter(Boolean).join(' · ');
-				if (loc) target.region = loc;
-				target.isp = [data.asn ? 'AS' + data.asn : '', data.isp || data.organization || ''].filter(Boolean).join(' ');
-				target.status = 'ok';
-			} else if (key === 'direct' && data && data.data && data.data.ip) {
+			if (siteKey === 'ipip.net' && data && data.data && data.data.ip) {
 				target.ip = data.data.ip;
-				let loc = [data.data.country_name || '', data.data.region_name || '', data.data.city_name || ''].filter(Boolean).join(' · ');
-				if (loc) target.region = loc;
+				let loc = [data.data.country_name || '', data.data.region_name || '', data.data.city_name || ''].filter(Boolean).join(' ');
+				target.region = loc;
 				target.isp = data.data.isp || '';
-				target.status = 'ok';
+			} else if (siteKey === 'ip.sb' && data && data.ip) {
+				target.ip = data.ip;
+				let loc = [data.country || '', data.city || ''].filter(Boolean).join(' ');
+				target.region = loc;
+				target.isp = [data.asn ? 'AS' + data.asn : '', data.isp || data.organization || ''].filter(Boolean).join(' ');
+			} else if (siteKey === 'ipwho.is' && data && data.ip) {
+				target.ip = data.ip;
+				let loc = [data.country || '', data.region || '', data.city || ''].filter(Boolean).join(' ');
+				target.region = loc;
+				let conn = data.connection || {};
+				target.isp = [conn.asn ? 'AS' + conn.asn : '', conn.isp || conn.org || ''].filter(Boolean).join(' ');
+			} else if (siteKey === 'ipapi.is' && data && data.ip) {
+				target.ip = data.ip;
+				let loc = data.location ? [data.location.country || '', data.location.city || ''].filter(Boolean).join(' ') : '';
+				target.region = loc;
+				let company = data.company ? data.company.name : '';
+				let asn = data.asn ? 'AS' + data.asn.asn + ' ' + (data.asn.org || '') : '';
+				target.isp = company || asn || '';
 			}
 			const d = new Date();
 			const pad = function(n) { return n < 10 ? '0' + n : String(n); };
@@ -1521,69 +1514,74 @@ function fetchNetworkInfoSingle(key) {
 		.catch(function() {
 			if (timer) clearTimeout(timer);
 			target.loading = false;
-			target.status = 'error';
 			updateNetworkInfoDom();
 		});
 }
 
 function refreshNetworkInfo() {
 	return Promise.all([
-		fetchNetworkInfoSingle('proxy'),
-		fetchNetworkInfoSingle('direct')
+		fetchNetworkInfoSingle(netChannels.channel1),
+		fetchNetworkInfoSingle(netChannels.channel2)
 	]);
 }
 
 function updateNetworkInfoDom() {
 	const rows = document.getElementById('omnia-network-rows');
 	const footer = document.getElementById('omnia-network-footer');
-	const btn = document.getElementById('omnia-network-refresh-btn');
+	const refreshIcon = document.getElementById('omnia-network-refresh-icon');
+	const eyeIcon = document.getElementById('omnia-network-eye-icon');
 
-	let anyLoading = netSiteData.proxy.loading || netSiteData.direct.loading;
-	if (btn) btn.innerText = anyLoading ? _('刷新中...') : _('🔄 刷新');
+	if (eyeIcon) eyeIcon.innerText = netGlobalMasked ? '👁️' : '👁️‍🗨️';
+	let anyLoading = (netSiteDatabase[netChannels.channel1] && netSiteDatabase[netChannels.channel1].loading) ||
+	                 (netSiteDatabase[netChannels.channel2] && netSiteDatabase[netChannels.channel2].loading);
+	if (refreshIcon) refreshIcon.style.opacity = anyLoading ? '0.5' : '1';
 	if (footer) footer.innerText = networkUpdatedAt ? _('更新于: %s').format(networkUpdatedAt) : _('更新于: 刚刚');
 	if (!rows) return;
 	rows.innerHTML = '';
 
-	function renderOutboundCard(data) {
-		let displayIp = netGlobalMasked ? maskIpAddress(data.ip) : data.ip;
-		let statusColor = data.status === 'ok' ? '#10b981' : '#ef4444';
+	const siteOptions = ['ipip.net', 'ip.sb', 'ipwho.is', 'ipapi.is'];
+
+	function renderChannelRow(channelKey) {
+		let currentSiteKey = netChannels[channelKey];
+		let siteData = netSiteDatabase[currentSiteKey] || {};
+		let displayIp = netGlobalMasked ? maskIpAddress(siteData.ip) : siteData.ip;
+
+		let selectNode = E('select', {
+			'style': 'appearance: none; -webkit-appearance: none; padding: 2px 18px 2px 8px; font-size: 12px; font-weight: 600; color: #1e293b; background: #f1f5f9 url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'10\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23475569\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 5px center; border: 1px solid #cbd5e1; border-radius: 999px; cursor: pointer; line-height: 1.4;',
+			'change': function(ev) {
+				netChannels[channelKey] = ev.target.value;
+				fetchNetworkInfoSingle(ev.target.value);
+			}
+		}, siteOptions.map(function(opt) {
+			return E('option', { 'value': opt, 'selected': opt === currentSiteKey ? '' : null }, opt);
+		}));
+
+		let infoDetails = [];
+		if (siteData.loading) {
+			infoDetails.push(E('span', { 'style': 'font-size: 13px; color: #94a3b8;' }, _('正在探测 IP 信息...')));
+		} else {
+			let locDesc = [siteData.region, siteData.isp].filter(Boolean).join(' ');
+			if (locDesc) {
+				infoDetails.push(E('span', { 'style': 'font-size: 13px; font-weight: 600; color: #1e293b; margin-right: .45rem;' }, locDesc));
+			}
+			if (siteData.ip) {
+				infoDetails.push(E('span', { 'style': 'font-family: monospace; font-size: 13px; color: #475569;' }, '(' + displayIp + ')'));
+			}
+		}
 
 		return E('div', {
-			'style': 'padding: .65rem .75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; flex: 1; min-width: 200px;'
+			'style': 'display: flex; flex-direction: column; gap: .35rem; padding: .35rem 0;'
 		}, [
-			E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;' }, [
-				E('div', { 'style': 'display: flex; align-items: center; gap: .4rem;' }, [
-					E('span', { 'style': 'font-size: 14px;' }, data.icon),
-					E('span', { 'style': 'font-size: 12px; font-weight: 700; color: #334155;' }, data.title),
-					E('span', { 'style': 'width: 6px; height: 6px; border-radius: 50%; background: ' + statusColor + ';' })
-				]),
-				E('div', {
-					'style': 'display: flex; align-items: center; gap: .3rem; cursor: pointer; user-select: none;',
-					'title': _('点击切换 IP 遮挡/完整显示'),
-					'click': function() {
-						netGlobalMasked = !netGlobalMasked;
-						updateNetworkInfoDom();
-					}
-				}, [
-					E('span', { 'style': 'font-family: monospace; font-size: 12px; color: #2563eb; font-weight: 700;' }, displayIp),
-					E('span', { 'style': 'font-size: 11px; color: #64748b;' }, netGlobalMasked ? '🔒' : '🔓')
-				])
-			]),
-			E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #475569; margin-top: .25rem;' }, [
-				E('span', { 'style': 'font-weight: 500;' }, data.region || _('未知地区')),
-				E('span', { 'style': 'color: #64748b; font-size: 10px; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;' }, data.isp || '-')
-			])
+			E('div', { 'style': 'display: flex; align-items: center;' }, [selectNode]),
+			E('div', { 'style': 'display: flex; align-items: center; flex-wrap: wrap; margin-left: .2rem;' }, infoDetails)
 		]);
 	}
 
-	let grid = E('div', {
-		'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .6rem;'
-	}, [
-		renderOutboundCard(netSiteData.proxy),
-		renderOutboundCard(netSiteData.direct)
-	]);
+	let divider = E('div', { 'style': 'height: 1px; background: #f1f5f9; margin: .2rem 0;' });
 
-	rows.appendChild(grid);
+	rows.appendChild(renderChannelRow('channel1'));
+	rows.appendChild(divider);
+	rows.appendChild(renderChannelRow('channel2'));
 }
 
 function setupLatencyInterval(intervalStr) {
@@ -1736,22 +1734,34 @@ function latencyAndNetworkSection() {
 			'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);'
 		}, [
 			E('div', {
-				'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;'
+				'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem;'
 			}, [
 				E('span', { 'style': 'font-weight: 700; font-size: 14px; color: #0f172a;' }, _('网络信息')),
-				E('button', {
-					'id': 'omnia-network-refresh-btn',
-					'type': 'button',
-					'style': 'padding: 2px 8px; font-size: 12px; font-weight: 500; color: #475569; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer;',
-					'click': function(ev) {
-						ev.preventDefault();
-						refreshNetworkInfo();
-					}
-				}, (netSiteData.proxy.loading || netSiteData.direct.loading) ? _('刷新中...') : _('🔄 刷新'))
+				E('div', { 'style': 'display: flex; gap: .5rem; align-items: center;' }, [
+					E('span', {
+						'id': 'omnia-network-eye-icon',
+						'style': 'cursor: pointer; font-size: 14px; user-select: none;',
+						'title': _('切换 IP 遮挡/完整显示'),
+						'click': function(ev) {
+							ev.preventDefault();
+							netGlobalMasked = !netGlobalMasked;
+							updateNetworkInfoDom();
+						}
+					}, netGlobalMasked ? '👁️' : '👁️‍🗨️'),
+					E('span', {
+						'id': 'omnia-network-refresh-icon',
+						'style': 'cursor: pointer; font-size: 14px; user-select: none;',
+						'title': _('重新测试网络出口'),
+						'click': function(ev) {
+							ev.preventDefault();
+							refreshNetworkInfo();
+						}
+					}, '⚡')
+				])
 			]),
 			E('div', {
 				'id': 'omnia-network-rows',
-				'style': 'display: flex; flex-direction: column; gap: .45rem;'
+				'style': 'display: flex; flex-direction: column; gap: .35rem;'
 			}),
 			E('div', {
 				'id': 'omnia-network-footer',

@@ -74,6 +74,7 @@ let supplementalLoadSeq = 0;
 
 let liveMetricsTimer = null;
 let liveMetricsActive = false;
+let metricsInFlight = false;
 let liveUpSeries = [];
 let liveDownSeries = [];
 let liveConnSeries = [];
@@ -109,12 +110,18 @@ let latencyHistory = {
 let latencyLastTime = '';
 let latencyTesting = false;
 
-let networkInfoData = {
-	local: { provider: 'ipip.net', name: _('国内出口'), region: '中国 · 局域网', ip: '2408:825c:2140:12::1', masked: true },
-	proxy: { provider: 'ip.sb', name: _('代理出口'), region: '新加坡 · Akamai', ip: '103.145.12.88', masked: true },
-	loading: false,
-	updatedAt: ''
+let activeNetSite = 'ip.sb';
+let netSites = ['ip.sb', 'ipip.net', 'ipwho.is', 'ipapi.is'];
+let netSiteData = {
+	'ip.sb': { id: 'ip.sb', name: _('代理出口 · ip.sb'), region: '新加坡 · Akamai', ip: '103.145.12.88', isp: 'AS20940 Akamai', masked: true, loading: false },
+	'ipip.net': { id: 'ipip.net', name: _('国内出口 · ipip.net'), region: '中国 · 局域网', ip: '2408:825c:2140:12::1', isp: 'China Telecom', masked: true, loading: false },
+	'ipwho.is': { id: 'ipwho.is', name: _('综合查询 · ipwho.is'), region: '日本 · 东京', ip: '104.28.19.42', isp: 'AS13335 Cloudflare', masked: true, loading: false },
+	'ipapi.is': { id: 'ipapi.is', name: _('机房检测 · ipapi.is'), region: '美国 · 洛杉矶', ip: '198.41.214.162', isp: 'Cloudflare Anycast', masked: true, loading: false }
 };
+let networkUpdatedAt = '';
+let lastMetricsTimestamp = 0;
+let lastUploadTotal = 0;
+let lastDownloadTotal = 0;
 
 function stateOf() {
 	const data = omniaUi.dataOf(pageResults.runtime);
@@ -741,20 +748,52 @@ function renderSparklineSvg(series, strokeColor, fillColor) {
 
 function pollMetricsCycle() {
 	if (!liveMetricsActive) return;
-	if (document.hidden) return;
+	if (!document.getElementById('omnia-overview-root')) {
+		stopLiveMetrics();
+		return;
+	}
+	if (document.hidden) {
+		if (liveMetricsActive) {
+			liveMetricsTimer = window.setTimeout(pollMetricsCycle, 5000);
+		}
+		return;
+	}
+	if (metricsInFlight) return;
+	metricsInFlight = true;
 
 	callDashboardMetrics().then(function(res) {
-		if (!liveMetricsActive) return;
+		metricsInFlight = false;
+		if (!liveMetricsActive || !document.getElementById('omnia-overview-root')) {
+			stopLiveMetrics();
+			return;
+		}
 		let data = omniaUi.dataOf(res) || {};
 		let clash = data.clash_api || {};
-		let traffic = clash.traffic || {};
 		let conns = clash.connections || {};
 
-		let up = Number(traffic.up || 0);
-		let down = Number(traffic.down || 0);
 		let connCount = Number(conns.count || 0);
 		let upTotal = Number(conns.upload_total || 0);
 		let downTotal = Number(conns.download_total || 0);
+
+		let now = Date.now();
+		let up = 0;
+		let down = 0;
+
+		if (lastMetricsTimestamp > 0 && now > lastMetricsTimestamp) {
+			let dt = (now - lastMetricsTimestamp) / 1000;
+			if (dt > 0.5) {
+				if (lastUploadTotal > 0 && upTotal >= lastUploadTotal) {
+					up = Math.round((upTotal - lastUploadTotal) / dt);
+				}
+				if (lastDownloadTotal > 0 && downTotal >= lastDownloadTotal) {
+					down = Math.round((downTotal - lastDownloadTotal) / dt);
+				}
+			}
+		}
+
+		lastMetricsTimestamp = now;
+		if (upTotal > 0) lastUploadTotal = upTotal;
+		if (downTotal > 0) lastDownloadTotal = downTotal;
 
 		liveMetricsData.up = up;
 		liveMetricsData.down = down;
@@ -783,7 +822,15 @@ function pollMetricsCycle() {
 		if (liveConnSeries.length > MAX_SERIES_POINTS) liveConnSeries.shift();
 
 		updateLiveMetricsDom();
+
+		if (liveMetricsActive && document.getElementById('omnia-overview-root')) {
+			liveMetricsTimer = window.setTimeout(pollMetricsCycle, 3000);
+		}
 	}).catch(function() {
+		metricsInFlight = false;
+		if (liveMetricsActive && document.getElementById('omnia-overview-root')) {
+			liveMetricsTimer = window.setTimeout(pollMetricsCycle, 5000);
+		}
 	});
 }
 
@@ -818,13 +865,18 @@ function updateLiveMetricsDom() {
 function startLiveMetrics() {
 	stopLiveMetrics();
 	liveMetricsActive = true;
-	liveMetricsTimer = window.setInterval(pollMetricsCycle, 2000);
+	metricsInFlight = false;
+	lastMetricsTimestamp = 0;
+	lastUploadTotal = 0;
+	lastDownloadTotal = 0;
 	pollMetricsCycle();
 }
 
 function stopLiveMetrics() {
 	liveMetricsActive = false;
+	metricsInFlight = false;
 	if (liveMetricsTimer) {
+		window.clearTimeout(liveMetricsTimer);
 		window.clearInterval(liveMetricsTimer);
 		liveMetricsTimer = null;
 	}
@@ -1168,79 +1220,148 @@ function updateLatencyDom() {
 	}
 }
 
-function refreshNetworkInfo() {
-	networkInfoData.loading = true;
-	const btn = document.getElementById('omnia-network-refresh-btn');
-	if (btn) btn.innerText = _('刷新中...');
+function fetchSiteInfo(siteKey) {
+	let target = netSiteData[siteKey];
+	if (!target) return Promise.resolve();
+	target.loading = true;
+	updateNetworkInfoDom();
 
-	let p1 = fetch('https://api.ip.sb/geoip', { cache: 'no-store' })
-		.then(function(res) { return res.json(); })
+	let url = '';
+	if (siteKey === 'ip.sb') url = 'https://api.ip.sb/geoip';
+	else if (siteKey === 'ipwho.is') url = 'https://ipwho.is/';
+	else if (siteKey === 'ipapi.is') url = 'https://api.ipapi.is';
+	else if (siteKey === 'ipip.net') url = 'https://myip.ipip.net/json';
+
+	let ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+	let timer = ctrl ? setTimeout(function() { ctrl.abort(); }, 3500) : null;
+
+	return fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+		.then(function(res) {
+			if (timer) clearTimeout(timer);
+			return res.json();
+		})
 		.then(function(data) {
-			if (data && data.ip) {
-				networkInfoData.proxy.ip = data.ip;
-				let loc = [data.country || '', data.isp || data.organization || ''].filter(Boolean).join(' · ');
-				if (loc) networkInfoData.proxy.region = loc;
+			target.loading = false;
+			if (siteKey === 'ip.sb' && data && data.ip) {
+				target.ip = data.ip;
+				let loc = [data.country || '', data.city || ''].filter(Boolean).join(' · ');
+				if (loc) target.region = loc;
+				target.isp = [data.asn ? 'AS' + data.asn : '', data.isp || data.organization || ''].filter(Boolean).join(' ');
+			} else if (siteKey === 'ipwho.is' && data && data.ip) {
+				target.ip = data.ip;
+				let loc = [data.country || '', data.region || '', data.city || ''].filter(Boolean).join(' · ');
+				if (loc) target.region = loc;
+				let conn = data.connection || {};
+				target.isp = [conn.asn ? 'AS' + conn.asn : '', conn.isp || conn.org || ''].filter(Boolean).join(' ');
+			} else if (siteKey === 'ipapi.is' && data && data.ip) {
+				target.ip = data.ip;
+				let loc = data.location ? [data.location.country || '', data.location.city || ''].filter(Boolean).join(' · ') : '';
+				if (loc) target.region = loc;
+				let company = data.company ? data.company.name : '';
+				let asn = data.asn ? 'AS' + data.asn.asn + ' ' + (data.asn.org || '') : '';
+				target.isp = company || asn || '';
+			} else if (siteKey === 'ipip.net' && data && data.data && data.data.ip) {
+				target.ip = data.data.ip;
+				let loc = [data.data.country_name || '', data.data.region_name || '', data.data.city_name || ''].filter(Boolean).join(' · ');
+				if (loc) target.region = loc;
+				target.isp = data.data.isp || '';
 			}
-		}).catch(function() {});
+			const d = new Date();
+			const pad = function(n) { return n < 10 ? '0' + n : String(n); };
+			networkUpdatedAt = pad(d.getHours()) + ':' + pad(d.getMinutes());
+			updateNetworkInfoDom();
+		})
+		.catch(function() {
+			if (timer) clearTimeout(timer);
+			target.loading = false;
+			updateNetworkInfoDom();
+		});
+}
 
-	let p2 = fetch('https://myip.ipip.net/json', { cache: 'no-store' })
-		.then(function(res) { return res.json(); })
-		.then(function(json) {
-			if (json && json.data && json.data.ip) {
-				networkInfoData.local.ip = json.data.ip;
-				let loc = [json.data.country_name || '', json.data.region_name || '', json.data.city_name || ''].filter(Boolean).join(' · ');
-				if (loc) networkInfoData.local.region = loc;
-			}
-		}).catch(function() {});
-
-	Promise.all([p1, p2]).then(function() {
-		networkInfoData.loading = false;
-		const d = new Date();
-		const pad = function(n) { return n < 10 ? '0' + n : String(n); };
-		networkInfoData.updatedAt = pad(d.getHours()) + ':' + pad(d.getMinutes());
-		updateNetworkInfoDom();
-	}).catch(function() {
-		networkInfoData.loading = false;
-		updateNetworkInfoDom();
-	});
+function refreshNetworkInfo() {
+	return fetchSiteInfo(activeNetSite);
 }
 
 function updateNetworkInfoDom() {
 	const rows = document.getElementById('omnia-network-rows');
 	const footer = document.getElementById('omnia-network-footer');
 	const btn = document.getElementById('omnia-network-refresh-btn');
-	if (btn) btn.innerText = networkInfoData.loading ? _('刷新中...') : _('🔄 刷新');
-	if (footer) footer.innerText = networkInfoData.updatedAt ? _('更新于: %s').format(networkInfoData.updatedAt) : _('更新于: 刚刚');
+	const currentTarget = netSiteData[activeNetSite] || netSiteData['ip.sb'];
+
+	if (btn) btn.innerText = currentTarget.loading ? _('刷新中...') : _('🔄 刷新');
+	if (footer) footer.innerText = networkUpdatedAt ? _('更新于: %s').format(networkUpdatedAt) : _('更新于: 刚刚');
 	if (!rows) return;
 	rows.innerHTML = '';
 
-	const list = [ networkInfoData.local, networkInfoData.proxy ];
-	for (let i = 0; i < list.length; i++) {
-		const item = list[i];
-		const displayIp = item.masked ? maskIpAddress(item.ip) : item.ip;
-		const row = E('div', {
-			'style': 'display: flex; justify-content: space-between; align-items: center; padding: .5rem .6rem; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px; font-size: 12px;'
-		}, [
-			E('div', { 'style': 'display: flex; align-items: center; gap: .6rem;' }, [
-				E('span', { 'style': 'font-weight: 700; color: #1e293b; min-width: 65px;' }, item.provider),
-				E('span', { 'style': 'color: #64748b;' }, item.region)
-			]),
+	// 4 Site Pill Selector Bar
+	let pills = netSites.map(function(sKey) {
+		let s = netSiteData[sKey];
+		let isActive = activeNetSite === sKey;
+		return E('button', {
+			'type': 'button',
+			'style': 'padding: 2px 7px; font-size: 11px; font-weight: ' + (isActive ? '700' : '500') + '; border-radius: 4px; border: 1px solid ' + (isActive ? '#2563eb' : '#cbd5e1') + '; background: ' + (isActive ? '#eff6ff' : '#fff') + '; color: ' + (isActive ? '#2563eb' : '#64748b') + '; cursor: pointer; transition: all .14s ease;',
+			'click': function(ev) {
+				ev.preventDefault();
+				activeNetSite = sKey;
+				updateNetworkInfoDom();
+			}
+		}, s.id);
+	});
+
+	let selectorRow = E('div', {
+		'style': 'display: flex; gap: .35rem; align-items: center; margin-bottom: .6rem; flex-wrap: wrap;'
+	}, pills);
+
+	// Primary Details of Selected Site
+	let displayIp = currentTarget.masked ? maskIpAddress(currentTarget.ip) : currentTarget.ip;
+	let mainDetail = E('div', {
+		'style': 'padding: .65rem .75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;'
+	}, [
+		E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;' }, [
+			E('span', { 'style': 'font-size: 13px; font-weight: 700; color: #0f172a;' }, currentTarget.name),
 			E('div', {
 				'style': 'display: flex; align-items: center; gap: .35rem; cursor: pointer;',
 				'title': _('点击切换 IP 遮挡/完整显示'),
-				'click': (function(target) {
-					return function() {
-						target.masked = !target.masked;
-						updateNetworkInfoDom();
-					};
-				})(item)
+				'click': function() {
+					currentTarget.masked = !currentTarget.masked;
+					updateNetworkInfoDom();
+				}
 			}, [
-				E('span', { 'style': 'font-family: monospace; font-size: 12px; color: #0f172a; font-weight: 600;' }, displayIp),
-				E('span', { 'style': 'font-size: 11px; color: #94a3b8;' }, item.masked ? '🔒' : '🔓')
+				E('span', { 'style': 'font-family: monospace; font-size: 13px; color: #2563eb; font-weight: 700;' }, displayIp),
+				E('span', { 'style': 'font-size: 12px; color: #64748b;' }, currentTarget.masked ? '🔒' : '🔓')
 			])
+		]),
+		E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #475569;' }, [
+			E('span', {}, currentTarget.region || _('未知地区')),
+			E('span', { 'style': 'color: #64748b; font-size: 11px;' }, currentTarget.isp || '-')
+		])
+	]);
+
+	// Secondary Summary of other 3 sites
+	let otherSites = netSites.filter(function(k) { return k !== activeNetSite; });
+	let otherRows = otherSites.map(function(oKey) {
+		let oTarget = netSiteData[oKey];
+		let oDisplayIp = oTarget.masked ? maskIpAddress(oTarget.ip) : oTarget.ip;
+		return E('div', {
+			'style': 'display: flex; justify-content: space-between; align-items: center; padding: .35rem .5rem; background: #fff; border: 1px solid #f1f5f9; border-radius: 6px; font-size: 11px; cursor: pointer;',
+			'title': _('点击切换到此测速点'),
+			'click': function() {
+				activeNetSite = oKey;
+				updateNetworkInfoDom();
+			}
+		}, [
+			E('div', { 'style': 'display: flex; gap: .5rem; align-items: center;' }, [
+				E('span', { 'style': 'font-weight: 600; color: #334155;' }, oTarget.id),
+				E('span', { 'style': 'color: #94a3b8;' }, oTarget.region)
+			]),
+			E('span', { 'style': 'font-family: monospace; color: #64748b;' }, oDisplayIp)
 		]);
-		rows.appendChild(row);
-	}
+	});
+
+	rows.appendChild(selectorRow);
+	rows.appendChild(mainDetail);
+	let subContainer = E('div', { 'style': 'display: flex; flex-direction: column; gap: .35rem; margin-top: .5rem;' }, otherRows);
+	rows.appendChild(subContainer);
 }
 
 function setupLatencyInterval(intervalStr) {
@@ -1256,6 +1377,11 @@ function setupLatencyInterval(intervalStr) {
 
 	if (ms > 0) {
 		latencyTimer = window.setInterval(function() {
+			if (!document.getElementById('omnia-overview-root')) {
+				window.clearInterval(latencyTimer);
+				latencyTimer = null;
+				return;
+			}
 			if (!document.hidden) runLatencyTests();
 		}, ms);
 	}
@@ -1272,7 +1398,10 @@ function realtimeStatusSection() {
 		]),
 		E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .85rem;' }, [
 			// Upload Card
-			E('div', { 'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);' }, [
+			E('div', {
+				'class': omniaMotion.cardClass(),
+				'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);'
+			}, [
 				E('div', { 'style': 'font-size: 12px; color: #64748b; margin-bottom: .25rem;' }, _('上传')),
 				E('div', {
 					'id': 'omnia-live-up-value',
@@ -1285,7 +1414,10 @@ function realtimeStatusSection() {
 				}, _('累计: %s').format(formatTotalBytes(liveMetricsData.upTotal)))
 			]),
 			// Download Card
-			E('div', { 'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);' }, [
+			E('div', {
+				'class': omniaMotion.cardClass(),
+				'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);'
+			}, [
 				E('div', { 'style': 'font-size: 12px; color: #64748b; margin-bottom: .25rem;' }, _('下载')),
 				E('div', {
 					'id': 'omnia-live-down-value',
@@ -1299,6 +1431,7 @@ function realtimeStatusSection() {
 			]),
 			// Connections Card
 			E('div', {
+				'class': omniaMotion.cardClass(null, true),
 				'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03); cursor: pointer; user-select: none;',
 				'title': _('点击展开/收起连接统计下钻详情'),
 				'click': function() {
@@ -1334,6 +1467,7 @@ function latencyAndNetworkSection() {
 	}, [
 		// Latency Card
 		E('div', {
+			'class': omniaMotion.cardClass(),
 			'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);'
 		}, [
 			E('div', {
@@ -1376,6 +1510,7 @@ function latencyAndNetworkSection() {
 
 		// Network Info Card
 		E('div', {
+			'class': omniaMotion.cardClass(),
 			'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem .95rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);'
 		}, [
 			E('div', {
@@ -1390,16 +1525,16 @@ function latencyAndNetworkSection() {
 						ev.preventDefault();
 						refreshNetworkInfo();
 					}
-				}, networkInfoData.loading ? _('刷新中...') : _('🔄 刷新'))
+				}, (netSiteData[activeNetSite] && netSiteData[activeNetSite].loading) ? _('刷新中...') : _('🔄 刷新'))
 			]),
 			E('div', {
 				'id': 'omnia-network-rows',
-				'style': 'display: flex; flex-direction: column; gap: .65rem;'
+				'style': 'display: flex; flex-direction: column; gap: .45rem;'
 			}),
 			E('div', {
 				'id': 'omnia-network-footer',
 				'style': 'font-size: 11px; color: #94a3b8; margin-top: .65rem;'
-			}, networkInfoData.updatedAt ? _('更新于: %s').format(networkInfoData.updatedAt) : _('更新于: 刚刚'))
+			}, networkUpdatedAt ? _('更新于: %s').format(networkUpdatedAt) : _('更新于: 刚刚'))
 		])
 	]);
 }
@@ -1453,19 +1588,29 @@ function resourceStatusSection() {
 			E('span', { 'style': 'font-weight: 700; font-size: 15px; color: #0f172a;' }, _('配置资源')),
 			E('a', {
 				'href': resourceHref('subscriptions'),
-				'style': 'display: inline-flex; align-items: center; gap: .25rem; font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 600;'
+				'style': 'display: inline-flex; align-items: center; gap: .25rem; font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 600; cursor: pointer;',
+				'click': function(ev) {
+					ev.preventDefault();
+					window.location.href = resourceHref('subscriptions');
+				}
 			}, [
 				_('资源管理'),
 				externalLinkIcon()
 			])
 		]),
 		E('div', {
-			'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .85rem 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;'
+			'class': omniaMotion.cardClass(),
+			'style': 'background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: .65rem .85rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .75rem;'
 		}, [
 			// Col 1: 模板
-			E('a', {
-				'href': resourceHref('profile'),
-				'style': 'display: block; text-decoration: none; border-right: 1px solid #f1f5f9; padding-right: .75rem;'
+			E('div', {
+				'class': omniaMotion.cardClass(null, true),
+				'style': 'cursor: pointer; border-right: 1px solid #f1f5f9; padding: .45rem .65rem; border-radius: 8px;',
+				'title': _('点击跳转至模板配置'),
+				'click': function(ev) {
+					ev.preventDefault();
+					window.location.href = resourceHref('profile');
+				}
 			}, [
 				E('div', { 'style': 'display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;' }, [
 					E('span', { 'style': 'font-size: 13px; color: #64748b; font-weight: 500;' }, _('模板')),
@@ -1474,9 +1619,14 @@ function resourceStatusSection() {
 				E('div', { 'style': 'font-size: 11px; color: #94a3b8; word-break: break-all;' }, profileText)
 			]),
 			// Col 2: 订阅
-			E('a', {
-				'href': resourceHref('subscriptions'),
-				'style': 'display: block; text-decoration: none; border-right: 1px solid #f1f5f9; padding-right: .75rem;'
+			E('div', {
+				'class': omniaMotion.cardClass(null, true),
+				'style': 'cursor: pointer; border-right: 1px solid #f1f5f9; padding: .45rem .65rem; border-radius: 8px;',
+				'title': _('点击跳转至订阅管理'),
+				'click': function(ev) {
+					ev.preventDefault();
+					window.location.href = resourceHref('subscriptions');
+				}
 			}, [
 				E('div', { 'style': 'display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;' }, [
 					E('span', { 'style': 'font-size: 13px; color: #64748b; font-weight: 500;' }, _('订阅')),
@@ -1485,9 +1635,14 @@ function resourceStatusSection() {
 				E('div', { 'style': 'font-size: 11px; color: #94a3b8;' }, subText)
 			]),
 			// Col 3: 规则集
-			E('a', {
-				'href': resourceHref('rules'),
-				'style': 'display: block; text-decoration: none;'
+			E('div', {
+				'class': omniaMotion.cardClass(null, true),
+				'style': 'cursor: pointer; padding: .45rem .65rem; border-radius: 8px;',
+				'title': _('点击跳转至规则集管理'),
+				'click': function(ev) {
+					ev.preventDefault();
+					window.location.href = resourceHref('rules');
+				}
 			}, [
 				E('div', { 'style': 'display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;' }, [
 					E('span', { 'style': 'font-size: 13px; color: #64748b; font-weight: 500;' }, _('规则集')),

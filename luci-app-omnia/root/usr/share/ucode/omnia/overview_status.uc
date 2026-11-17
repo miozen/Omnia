@@ -237,13 +237,32 @@ function compact_source(key, result) {
 
 function probe_singbox_version(trace_id) {
 	try {
+		let cached = readfile("/var/run/omnia/singbox_version");
+		if (cached && trim(cached) != "")
+			return trim(cached);
+	} catch (e) {}
+
+	try {
 		let res = ExecResult(trace_id, [ BIN.SING_BOX, "version" ]);
 		if (res && res.code == 0 && res.stdout) {
+			let ver = "";
 			let m = match(res.stdout, /sing-box version ([0-9a-zA-Z\.\-]+)/);
-			if (m && m[1]) return m[1];
-			let parts = split(trim(res.stdout), ' ');
-			if (length(parts) >= 3 && parts[0] == "sing-box" && parts[1] == "version")
-				return parts[2];
+			if (m && m[1]) ver = m[1];
+			else {
+				let parts = split(trim(res.stdout), ' ');
+				if (length(parts) >= 3 && parts[0] == "sing-box" && parts[1] == "version")
+					ver = parts[2];
+			}
+			if (ver != "") {
+				try {
+					let f = open("/var/run/omnia/singbox_version", "w");
+					if (f) {
+						f.write(ver);
+						f.close();
+					}
+				} catch (e) {}
+				return ver;
+			}
 		}
 	} catch (e) {}
 	return '';

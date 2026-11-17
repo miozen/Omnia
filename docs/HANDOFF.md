@@ -2,34 +2,36 @@
 
 ## Last Updated
 
-2026-11-17T18:32+08:00
+2026-11-17T20:08+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `94ae05a`
+- **HEAD:** `4db6bac` (committed and pushed)
 - **Working Tree:** CLEAN
-- **Remote Sync:** Pushed to `origin/dev`
+- **Remote Sync:** Branch `dev` synchronized to `origin/dev`
 
 ## Development State
 
 - **Current Phase:** Overview Page Redesign (Zashboard Pattern)
-- **Current Task:** Full completion of Slices 1~5 and push to `dev`
+- **Current Task:** Performance fix & UX enhancement
 - **Last Completed:**
-  1. Backend Telemetry:
-     - `constants.uc`: Defined `PATH.PACKAGE_VERSION: "/usr/share/omnia/package-version"`.
-     - `overview_status.uc`: Added `probe_singbox_version` and `probe_process_uptime`.
-     - `dashboard.uc`: Enhanced `observe_connections` with `upload_total` and `download_total`.
-  2. Frontend Redesign (`overview.js`):
-     - `overviewHeaderBanner`: Status badge, sing-box version, uptime, and right-aligned Zashboard link.
-     - `realtimeStatusSection`: 3 equal-width cards (upload, download, connections) with pure SVG sparklines, zero external dependencies, and Page Visibility throttling.
-     - `updateConnectionDetailsDom`: Interactive connection statistics breakdown across Source IP, Outbound Node, and Policy Group with native arrow indicators (`▾ / ▴`).
-     - `latencyAndNetworkSection`: Baidu / Cloudflare / GitHub / YouTube latency testing with pure SVG spark-bars & intervals; dual-egress network information with IP privacy mask toggle.
-     - `resourceStatusSection`: Compact 3-column resource status bar for Template, Subscriptions, and Rulesets with direct management navigation links.
-     - `operationButtons`: Promoted `[ ⚡ 一键生成并应用 ]` primary button, folded granular debugging tools into `[ 单步工具 ▾ ]` dropdown menu.
-  3. Testing & Validation:
-     - `tests/overview-ui.cjs`: 6 test suites covering sparkline rendering, IP masking, spark-bars thresholds, multi-stage apply flow, and dropdown toggle.
-     - `git diff --check`: 0 formatting or whitespace issues.
+  1. `dashboard.uc` & `overview_status.uc`:
+     - Removed blocking call to `/traffic` SSE endpoint, avoiding rpcd worker starvation.
+     - Bypassed heavy `observe_runtime` in high-frequency `dashboard_metrics()`.
+     - Cached singbox version string to `/var/run/omnia/singbox_version`.
+  2. `overview.js`:
+     - In-flight RPC guard (`metricsInFlight`) and chained `setTimeout(pollMetricsCycle, 3000)`.
+     - Bandwidth Telemetry: Calculates smooth upload and download rates based on total cumulative byte deltas ($\Delta \text{bytes} / \Delta t$).
+     - Unmount Cleanup: Added `!document.getElementById('omnia-overview-root')` checks in polling and latency timers.
+     - Motion Animations: Restored `omniaMotion.cardClass()` across cards.
+     - Direct Tab Jump: Restored reliable `window.location.href = resourceHref(...)` click handlers on Template, Subscriptions, and Rulesets columns.
+     - 4-Site Network Switcher: Added pill tabs supporting `ip.sb`, `ipip.net`, `ipwho.is`, and `ipapi.is` with per-site querying, privacy mask toggle, and comparison list.
+  3. Tests:
+     - `node tests/overview-ui.cjs`: PASS (6/6).
+     - `ci-static.sh`: PASS.
+     - `run-all-convert-tests.sh`: PASS.
+     - `git diff --check`: PASS (0 errors).
 
 ## Uncommitted Work
 
@@ -38,12 +40,14 @@ None.
 ## Validation Performed
 
 - `node tests/overview-ui.cjs`: PASS (Test 0-5 all passed)
+- `tests/ci-static.sh`: PASS
+- `tests/run-all-convert-tests.sh`: PASS (13 suites + ucode compilation)
 - `git diff --check`: 0 errors
 
 ## Exact Next Action
 
-Awaiting user instructions for next feature or milestone.
+Ready for next task.
 
 ## Cross-machine Ready
 
-**YES** — All changes committed and pushed to `origin/dev`.
+**YES** — Working tree clean, changes committed and pushed to `dev`.

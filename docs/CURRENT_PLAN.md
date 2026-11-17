@@ -115,6 +115,13 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Slice 3: Interactive connection statistics drill-down drawer (Source IP / Outbound Node / Group) + Side-by-side Latency test (with SVG spark-bars & auto intervals) and Network Info (dual-egress & IP masking toggle).
   - [x] Slice 4: Compressed 3-column configuration resource status bar + Restructured action bar (promoted One-click Apply & folded single-step debugging dropdown).
   - [x] Slice 5: End-to-end integration testing and visual review.
+  - [x] Overview Performance & UX Fix:
+    - [x] Removed blocking `/traffic` SSE endpoint in `dashboard.uc` (preventing rpcd/ubus timeouts & global menu freeze).
+    - [x] Switched bandwidth telemetry to non-blocking frontend differential calculation on cumulative bytes.
+    - [x] Added page-unmount timer cleanup to halt polling upon navigating away from Overview.
+    - [x] Restored direct tab navigation on Configuration Resource columns (Template, Subscriptions, Rulesets).
+    - [x] Restored `omniaMotion.cardClass()` hover lift animations across overview cards.
+    - [x] Added 4-site network info switcher supporting `ip.sb`, `ipip.net`, `ipwho.is`, and `ipapi.is`.
 
 ## Remaining
 

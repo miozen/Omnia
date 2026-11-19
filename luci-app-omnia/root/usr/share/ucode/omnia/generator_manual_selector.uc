@@ -26,10 +26,15 @@ function collect_manual_selector_consumers(profile) {
 	return consumers;
 }
 
-function restore_manual_selector_references(profile, consumers) {
+function restore_manual_selector_references(profile, consumers, selector_configs) {
 	for (let outbound in profile.outbounds) {
 		if (type(outbound) != "object" || outbound == null || !consumers[outbound.tag])
 			continue;
+		if (type(selector_configs) == "object" && selector_configs != null) {
+			let custom = selector_configs[outbound.tag];
+			if (type(custom) == "array" && length(custom) > 0)
+				continue;
+		}
 		if (type(outbound.outbounds) != "array")
 			outbound.outbounds = [];
 		append_unique(outbound.outbounds, MANUAL_SELECTOR_TAG);

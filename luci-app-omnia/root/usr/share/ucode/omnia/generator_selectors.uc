@@ -7,6 +7,8 @@
 import { append_unique } from 'omnia.generator_util';
 import { validated_main_selector_tag } from 'omnia.generator_validate';
 import { group_tag_list, group_tags_for_regions, grouped_node_tags, unmatched_node_tag_list, regions_from_x_rule } from 'omnia.generator_groups';
+import { resolve_selector_members } from 'omnia.profile_selectors';
+import { MANUAL_SELECTOR_TAG } from 'omnia.generator_manual_selector';
 
 function direct_outbound_tag(profile) {
 	for (let outbound in profile.outbounds) {
@@ -42,7 +44,7 @@ function set_selector_outbounds(outbound, next) {
 	return true;
 }
 
-function inject_selectors(profile, nodes, groups) {
+function inject_selectors(profile, nodes, groups, selector_configs) {
 	let all_groups = group_tag_list(groups);
 	let matched_nodes = grouped_node_tags(groups);
 	let unmatched_nodes = unmatched_node_tag_list(nodes, matched_nodes);
@@ -52,9 +54,6 @@ function inject_selectors(profile, nodes, groups) {
 
 	for (let outbound in profile.outbounds) {
 		if (type(outbound) != "object" || outbound == null || outbound.type != "selector")
-			continue;
-
-		if (outbound.x_rule == "keep" || type(outbound.x_rule) != "string")
 			continue;
 
 		if (outbound.x_rule == "main") {
@@ -68,6 +67,19 @@ function inject_selectors(profile, nodes, groups) {
 				injected = injected + 1;
 			continue;
 		}
+
+		if (type(selector_configs) == "object" && selector_configs != null) {
+			let custom = selector_configs[outbound.tag];
+			if (type(custom) == "array" && length(custom) > 0) {
+				let resolved = resolve_selector_members(custom, groups, main_tag, direct_tag, MANUAL_SELECTOR_TAG);
+				if (set_selector_outbounds(outbound, resolved))
+					injected = injected + 1;
+				continue;
+			}
+		}
+
+		if (outbound.x_rule == "keep" || type(outbound.x_rule) != "string")
+			continue;
 
 		if (outbound.x_rule == "all_regions") {
 			let next = [];

@@ -9,6 +9,7 @@ const PATH = {
 	PROFILE_BAK: "/etc/omnia/main-profile.json.bak",
 	PROFILE_DEFAULT: "/usr/share/omnia/profiles/main-profile.json",
 	PROFILE_SOURCE: "/etc/omnia/profile-source.json",
+	SELECTORS: "/etc/omnia/selectors.json",
 	NOTIFY: "/etc/omnia/notify.json",
 	NOTIFY_STATE: "/var/run/omnia/notify.state.json",
 	DASHBOARD_SOURCE: "/etc/omnia/dashboard.json",

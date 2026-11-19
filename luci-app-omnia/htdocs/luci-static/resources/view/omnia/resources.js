@@ -3,13 +3,13 @@
 'require omnia.ui as omniaUi';
 'require omnia.motion as omniaMotion';
 
-let activeTab = 'profile';
+let activeTab = 'subscriptions';
 let modules = {};
 let loaded = {};
 
 const tabs = [
-	{ id: 'profile', label: _('模板'), module: 'view.omnia.profile' },
 	{ id: 'subscriptions', label: _('订阅'), module: 'view.omnia.subscriptions' },
+	{ id: 'profile', label: _('模板'), module: 'view.omnia.profile' },
 	{ id: 'rules', label: _('规则集'), module: 'view.omnia.rulesets' },
 	{ id: 'panel', label: _('面板'), module: 'view.omnia.panel_settings' },
 	{ id: 'notify', label: _('通知'), module: 'view.omnia.notify' }

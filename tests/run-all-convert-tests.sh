@@ -48,10 +48,13 @@ ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/generator-dedicat
 echo "13. M4 Local nodes & sandboxed ucode scripts..."
 ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/convert-step-m4-local-and-script.uc
 
-echo "14. Compiling all ucode modules (-c,module)..."
+echo "14. Selector Outbounds Dynamic Allocation..."
+ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/profile-selectors.uc
+
+echo "15. Compiling all ucode modules (-c,module)..."
 find /work/luci-app-omnia/root/usr/share/ucode -type f -name "*.uc" | while read -r f; do
 	ucode -L /work/luci-app-omnia/root/usr/share/ucode -c,module -o /tmp/check "$f" || exit 1
 done
 
-echo "=== All 13 Unit/Integration Tests & Module Compilation Passed! ==="
+echo "=== All 14 Unit/Integration Tests & Module Compilation Passed! ==="
 '

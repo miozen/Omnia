@@ -4,6 +4,7 @@ import { Success, Fail } from 'omnia.core.result';
 import { ERR } from 'omnia.core.error';
 import { init as gen_trace_id } from 'omnia.core.trace';
 import { get_profile, profile_source_get, profile_source_save, profile_sync_remote, validate_profile, save_profile, restore_default_profile, rollback_profile } from 'omnia.profile';
+import { template_selectors_get, template_selectors_save } from 'omnia.profile_selectors';
 import { subscriptions_get, subscriptions_save, subscriptions_refresh, subscription_refresh_source, subscriptions_refresh_start, subscription_refresh_source_start, subscriptions_refresh_status, node_snapshot_get, node_snapshot_summary, subscription_test_source, subscription_fetch_preflight, subscription_source_preview } from 'omnia.subscription';
 import { runtime_status, runtime_start, runtime_stop, runtime_restart } from 'omnia.runtime';
 import { generate_candidate, check_candidate } from 'omnia.generator';
@@ -146,6 +147,24 @@ const methods = {
 		call: function(req) {
 			let trace_id = gen_trace_id();
 			return gateway(trace_id, rollback_profile, req);
+		}
+	},
+
+	template_selectors_get: {
+		args: {},
+		call: function(req) {
+			let trace_id = gen_trace_id();
+			return gateway(trace_id, template_selectors_get, req);
+		}
+	},
+
+	template_selectors_save: {
+		args: {
+			content: ""
+		},
+		call: function(req) {
+			let trace_id = gen_trace_id();
+			return gateway(trace_id, template_selectors_save, req);
 		}
 	},
 

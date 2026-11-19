@@ -2,48 +2,54 @@
 
 ## Last Updated
 
-2026-11-19T15:18+08:00
+2026-11-19T17:15+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `a1616e0` (committed and pushed)
+- **HEAD:** `021e890` (committed and pushed)
 - **Working Tree:** CLEAN
 - **Remote Sync:** Branch `dev` synchronized with remote origin/dev
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Stabilization — Feature Refinement & Bug Fixes
-- **Current Task:** Local Node Save Bug Fix & Sub-Store-style Sing-box Node Preview
+- **Current Phase:** Post-v0.1.0 Stabilization — Feature Refinement & Selector Allocation
+- **Current Task:** Selector Outbounds Dynamic Allocation & Resource Tab Reorder
 - **Last Completed:**
-  1. Local Node Save & Status Bug Fix:
-     - Fixed `ui.js` `checkboxInput` missing DOM boolean property assignment (`input.checked = isChecked; input.defaultChecked = isChecked;`), which previously caused `omnia-editor-enabled` to always evaluate as `false`.
-     - Hardened `saveSourceEditor` in `subscriptions.js` to robustly evaluate `isEnabled` with property and attribute fallback.
-     - Enhanced `subscriptions_save` in `subscription.uc` with `compile_local_source`, automatically compiling local sources into `/etc/omnia/node-snapshot.json` on save.
-     - Updated `reloadPolicyFromBackend` in `subscriptions.js` to refresh snapshot summary alongside subscriptions config, updating matrix node counts and status immediately without manual page reload.
-  2. Sub-Store-style Sing-box Node Preview:
-     - Implemented `subscription_source_preview(trace_id, req)` in `subscription.uc`, supporting both saved sources (by `source_id`) and drafted source objects (by `source`), returning standardized sing-box `outbounds` and `protocol_counts`.
-     - Registered and exposed `subscription_source_preview` via rpcd (`omnia.uc`) and ACL (`luci-app-omnia.json`).
-     - Implemented rich `openNodePreviewModal` in `subscriptions.js`:
-       - Interactive protocol pill badges (Shadowsocks, VLESS, VMess, Trojan, Hysteria2, TUIC, WireGuard, Direct) with instant filter on click.
-       - Real-time client-side search filtering across node tags, server addresses, ports, and protocols.
-       - Dual-view switcher: List Card View (showing protocol badge, server:port, TLS/Reality tags, Transport tags, and expandable individual outbound JSON) and Raw JSON View (showing full sing-box formatted outbounds with 1-click clipboard copy).
-       - Keyboard `Esc` and backdrop click dismissal.
-     - Integrated preview into:
-       - Each subscription source row in `sourceMatrix` ("预览" button).
-       - Source editor modal bottom actions ("👁️ 节点预览" button).
-       - Top subscription page actions ("👁️ 预览快照节点" button for the global snapshot).
-  3. Automated Testing:
-     - Added test 5 to `tests/subscription-ui.cjs` asserting local source atomic save with `enabled: true`.
+  1. Resource Management Tab Order Swap:
+     - Reordered tabs in `resources.js` placing `[ 订阅 (Subscriptions) ]` before `[ 模板 (Template & Selectors) ]`.
+     - Set default active tab to `'subscriptions'`.
+  2. Selector Outbounds Dynamic Allocation Core Engine:
+     - Added `PATH.SELECTORS` to `core/constants.uc` (`/etc/omnia/selectors.json`).
+     - Implemented `profile_selectors.uc` with storage persistence, candidate pool resolution (`get_selector_candidate_pool`), member resolution (`resolve_selector_members`) with automatic fallback to `main`, and synchronization (`sync_template_selectors`).
+     - Updated `generator_selectors.uc` (`inject_selectors`) supporting 4-tier source priority (Priority 1: Omnia user config; Priority 2: template `x_rule`; Priority 3: template native outbounds; Priority 4: automatic fallback to `main`).
+     - Preserved system root `main` (`🗽 节点选择`, `x_rule: "main"`) as immutable global aggregator and fallback.
+     - Updated `generator_manual_selector.uc` to isolate custom-configured selectors from automatic manual selector injection.
+     - Wired selector configuration into `generator.uc` (`generate_candidate`).
+     - Integrated `sync_template_selectors` into `profile.uc` on save, remote sync, restore default, and rollback.
+  3. RPC & ACL Integration:
+     - Exposed `template_selectors_get` and `template_selectors_save` in `omnia.uc`.
+     - Added `template_selectors_get` to read ACL and `template_selectors_save` to write ACL in `luci-app-omnia.json`.
+  4. LuCI Frontend Card Allocator in `profile.js`:
+     - Rendered Selector Outbounds Allocation cards section above the raw JSON editor.
+     - Provided member chips with removal `✕`, candidate quick-add buttons for 5 regions (`HK`, `TW`, `SG`, `JP`, `US`), `⚡ 全选地区` shortcut, and core system targets (`main`, `direct`, `manual`).
+     - Implemented single-selector preview modal dialog triggered by magnifying glass (`🔍`) button next to each selector tag, featuring formatted sing-box outbound JSON and 1-click clipboard copy.
+     - Added save and reset action buttons.
+  5. Automated Testing:
+     - Created `tests/profile-selectors.uc` testing member resolution, priority 1 override, fallback, manual selector isolation, and tag helpers.
+     - Added test 14 to `tests/run-all-convert-tests.sh` (all 14 ucode test suites passing).
+     - Updated `tests/profile-ui.cjs` asserting member addition, removal, quick all regions, save, reset, and modal preview (all 10 UI tests passing).
+     - Verified static checks `tests/ci-static.sh` passing.
 
 ## Validation Performed
 
 - `bash tests/ci-static.sh`: PASS (All UI, static, and workflow suites passed)
-- `bash tests/run-all-convert-tests.sh`: PASS (All 13 pure-function and integration suites passed)
+- `bash tests/run-all-convert-tests.sh`: PASS (All 14 pure-function, integration, and module compilation suites passed)
+- `docker run ... control-encoding.uc && grpc-proto.uc`: PASS
 
 ## Exact Next Action
 
-Ready for device acceptance testing on OpenWrt 25.12+ / real hardware before merging dev into master.
+Ready for testing and device deployment on OpenWrt 25.12+ / real hardware before merging dev into master.
 
 ## Cross-machine Ready
 

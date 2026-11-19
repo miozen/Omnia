@@ -11,6 +11,7 @@ import { lock_acquire, lock_release } from 'omnia.core.lock';
 import { read_text, read_optional_text, write_text_atomic, parse_json_object, request_content, request_keys, json_stringify, ExecResult } from 'omnia.core.utils';
 import { fetch_text } from 'omnia.resource_fetch';
 import { validate_fetch_strategy } from 'omnia.subscription_policy_schema';
+import { sync_template_selectors, profile_source_key } from 'omnia.profile_selectors';
 
 function validate_profile_object(profile) {
 	if (type(profile.inbounds) != "array")
@@ -176,7 +177,7 @@ function profile_sync_remote(trace_id, req) {
 		if (!fetched.ok)
 			die("fetch failed: strategy=" + strategy + " " + fetched.error + " exit=" + fetched.exit_code + " stderr=" + fetched.stderr);
 		let content = fetched.body;
-		validate_profile_content(content);
+		let profile = validate_profile_content(content);
 
 		lock = lock_acquire("profile", trace_id);
 		let current = read_text(PATH.PROFILE);
@@ -184,6 +185,7 @@ function profile_sync_remote(trace_id, req) {
 		write_text_atomic(PATH.PROFILE, content);
 		source.updated_at = now_utc(trace_id);
 		write_text_atomic(PATH.PROFILE_SOURCE, profile_source_content(source));
+		sync_template_selectors(source.url != "" ? source.url : "default", profile);
 		lock_release(lock);
 
 		return Success({
@@ -219,11 +221,12 @@ function save_profile(trace_id, req) {
 		let content = request_content(req);
 		if (content == "")
 			die("Missing Profile content; request keys: " + request_keys(req));
-		validate_profile_content(content);
+		let profile = validate_profile_content(content);
 		lock = lock_acquire("profile", trace_id);
 		let current = read_text(PATH.PROFILE);
 		write_text_atomic(PATH.PROFILE_BAK, current);
 		write_text_atomic(PATH.PROFILE, content);
+		sync_template_selectors(profile_source_key(), profile);
 		lock_release(lock);
 		return Success({ path: PATH.PROFILE, backup: PATH.PROFILE_BAK }, 200, trace_id, "Profile saved");
 	} catch (e) {
@@ -240,9 +243,10 @@ function restore_default_profile(trace_id, req) {
 		lock = lock_acquire("profile", trace_id);
 		let current = read_text(PATH.PROFILE);
 		let defaults = read_text(PATH.PROFILE_DEFAULT);
-		validate_profile_content(defaults);
+		let profile = validate_profile_content(defaults);
 		write_text_atomic(PATH.PROFILE_BAK, current);
 		write_text_atomic(PATH.PROFILE, defaults);
+		sync_template_selectors(profile_source_key(), profile);
 		lock_release(lock);
 		return Success({ path: PATH.PROFILE, backup: PATH.PROFILE_BAK }, 200, trace_id, "Default Profile restored");
 	} catch (e) {
@@ -258,10 +262,11 @@ function rollback_profile(trace_id, req) {
 	try {
 		lock = lock_acquire("profile", trace_id);
 		let backup = read_text(PATH.PROFILE_BAK);
-		validate_profile_content(backup);
+		let profile = validate_profile_content(backup);
 		let current = read_text(PATH.PROFILE);
 		write_text_atomic(PATH.PROFILE_BAK, current);
 		write_text_atomic(PATH.PROFILE, backup);
+		sync_template_selectors(profile_source_key(), profile);
 		lock_release(lock);
 		return Success({ path: PATH.PROFILE, backup: PATH.PROFILE_BAK }, 200, trace_id, "Profile rolled back");
 	} catch (e) {

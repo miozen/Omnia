@@ -81,6 +81,28 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Upgraded `omniaUi.paintStatus` in `resources/omnia/ui.js` to natively mount DOM element payloads and document fragments.
   - [x] Created comprehensive test suite `tests/overview-ui.cjs` and integrated into `tests/ci-static.sh`.
 
+- [x] Completed Selector Outbounds Dynamic Allocation & Resource Tab Reorder:
+  - [x] Swapped LuCI Resource Management menu tab order (`resources.js`): `[ 订阅 (Subscriptions) ]` placed before `[ 模板 (Template & Selectors) ]`, with `subscriptions` set as default active tab.
+  - [x] Implemented dedicated core selector allocation module `profile_selectors.uc` with persistent storage at `/etc/omnia/selectors.json`.
+  - [x] Implemented 4-tier member resolution priority in `generator_selectors.uc`:
+    - Priority 1: Omnia user configuration (100% priority override, no merge with template rules).
+    - Priority 2: Template `x_rule` (`region:...`, `region+direct:...`, `all_regions`, `keep`).
+    - Priority 3: Template native `outbounds`.
+    - Priority 4: Fallback to root node pool (`🗽 节点选择`) when selected regions contain no valid nodes.
+  - [x] Main system root pool (`🗽 节点选择`, `x_rule: "main"`) remains 100% protected as global aggregator and fallback, excluded from business selector overrides.
+  - [x] Manual selector isolation (`generator_manual_selector.uc`): customized selectors skip automatic manual selector appending unless explicitly selected.
+  - [x] Automatic template selector synchronization (`sync_template_selectors` in `profile.uc`): syncs on profile save, remote sync, restore default, and rollback with tag inheritance, orphan purging, and strict template order preservation.
+  - [x] Registered RPC methods `template_selectors_get` and `template_selectors_save` in `omnia.uc` and ACL permissions in `luci-app-omnia.json`.
+  - [x] LuCI Frontend card allocator in `profile.js`:
+    - Clean selector card layout with tag name, status pills, and member chip management (with remove `✕`).
+    - Candidate quick-add buttons for 5 regions (`HK`, `TW`, `SG`, `JP`, `US`), `⚡ 全选地区` shortcut, and core system targets (`main`, `direct`, `manual`).
+    - Single selector outbound JSON preview modal with magnifying glass (`🔍`) button and 1-click clipboard copy.
+    - Save and reset buttons.
+  - [x] Comprehensive test suites:
+    - Added `tests/profile-selectors.uc` to `tests/run-all-convert-tests.sh` (all 14 ucode test suites passing).
+    - Updated `tests/profile-ui.cjs` covering member addition, removal, quick all regions, save, reset, and modal preview (all 10 tests passing).
+    - Static checks `tests/ci-static.sh` passing.
+
 ## In Progress
 
 - [x] System Audit Slice 1: Underlying communication & status fidelity (wget `-S`, native gRPC secret probe, traffic & expiry badges).
@@ -98,6 +120,28 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - [x] Step 4: Source matrix visual indicators (local node badge, dedicated DNS tag, operator count).
   - [x] Step 5: Cleaned up legacy Sub-Store text across LuCI frontend.
   - [x] Step 6: Verified static checks (`ci-static.sh`), UI tests (`subscription-ui.cjs`), convert suite (13 tests), and subscription integration tests.
+
+- [x] Completed Selector Outbounds Dynamic Allocation & Resource Tab Reorder:
+  - [x] Swapped LuCI Resource Management menu tab order (`resources.js`): `[ 订阅 (Subscriptions) ]` placed before `[ 模板 (Template & Selectors) ]`, with `subscriptions` set as default active tab.
+  - [x] Implemented dedicated core selector allocation module `profile_selectors.uc` with persistent storage at `/etc/omnia/selectors.json`.
+  - [x] Implemented 4-tier member resolution priority in `generator_selectors.uc`:
+    - Priority 1: Omnia user configuration (100% priority override, no merge with template rules).
+    - Priority 2: Template `x_rule` (`region:...`, `region+direct:...`, `all_regions`, `keep`).
+    - Priority 3: Template native `outbounds`.
+    - Priority 4: Fallback to root node pool (`🗽 节点选择`) when selected regions contain no valid nodes.
+  - [x] Main system root pool (`🗽 节点选择`, `x_rule: "main"`) remains 100% protected as global aggregator and fallback, excluded from business selector overrides.
+  - [x] Manual selector isolation (`generator_manual_selector.uc`): customized selectors skip automatic manual selector appending unless explicitly selected.
+  - [x] Automatic template selector synchronization (`sync_template_selectors` in `profile.uc`): syncs on profile save, remote sync, restore default, and rollback with tag inheritance, orphan purging, and strict template order preservation.
+  - [x] Registered RPC methods `template_selectors_get` and `template_selectors_save` in `omnia.uc` and ACL permissions in `luci-app-omnia.json`.
+  - [x] LuCI Frontend card allocator in `profile.js`:
+    - Clean selector card layout with tag name, status pills, and member chip management (with remove `✕`).
+    - Candidate quick-add buttons for 5 regions (`HK`, `TW`, `SG`, `JP`, `US`), `⚡ 全选地区` shortcut, and core system targets (`main`, `direct`, `manual`).
+    - Single selector outbound JSON preview modal with magnifying glass (`🔍`) button and 1-click clipboard copy.
+    - Save and reset buttons.
+  - [x] Comprehensive test suites:
+    - Added `tests/profile-selectors.uc` to `tests/run-all-convert-tests.sh` (all 14 ucode test suites passing).
+    - Updated `tests/profile-ui.cjs` covering member addition, removal, quick all regions, save, reset, and modal preview (all 10 tests passing).
+    - Static checks `tests/ci-static.sh` passing.
 
 ## In Progress
 

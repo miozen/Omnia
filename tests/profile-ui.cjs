@@ -6,6 +6,7 @@ const schema = JSON.parse(fs.readFileSync('luci-app-omnia/htdocs/luci-static/res
 const profile = JSON.parse(fs.readFileSync('profiles/main-profile.json', 'utf8'));
 
 let savedContent = null;
+let savedSelectorsContent = null;
 let profileValidateCalled = false;
 let statusMessage = '';
 let statusOk = true;
@@ -21,7 +22,43 @@ const responses = {
 	profile_rollback: async () => ({ ok: true, data: {} }),
 	config_generate: async () => ({ ok: true, data: { node_count: 30, generated_groups: 3 } }),
 	config_check_candidate: async () => ({ ok: true, data: {} }),
-	config_apply: async () => ({ ok: true, data: { health_ready: true } })
+	config_apply: async () => ({ ok: true, data: { health_ready: true } }),
+	template_selectors_get: async () => ({
+		ok: true,
+		data: {
+			regions: [
+				{ id: 'HK', label: '🇭🇰 香港 (HK)' },
+				{ id: 'TW', label: '🇹🇼 台湾 (TW)' },
+				{ id: 'SG', label: '🇸🇬 新加坡 (SG)' },
+				{ id: 'JP', label: '🇯🇵 日本 (JP)' },
+				{ id: 'US', label: '🇺🇸 美国 (US)' }
+			],
+			system: [
+				{ id: 'main', tag: '🗽 节点选择', label: '🗽 节点选择' },
+				{ id: 'direct', tag: '🎯 全球直连', label: '🎯 全球直连' },
+				{ id: 'manual', tag: '🍭 手动选择', label: '🍭 手动选择' }
+			],
+			selectors: [
+				{
+					tag: '📺️ Netflix',
+					is_main: false,
+					x_rule: 'region:SG,HK,TW',
+					configured_members: [],
+					is_custom: false,
+					preview_outbounds: ['🗽 节点选择', '🇸🇬 SG-Group', '🇭🇰 HK-Group', '🇹🇼 TW-Group'],
+					preview_object: {
+						type: 'selector',
+						tag: '📺️ Netflix',
+						outbounds: ['🗽 节点选择', '🇸🇬 SG-Group', '🇭🇰 HK-Group', '🇹🇼 TW-Group']
+					}
+				}
+			]
+		}
+	}),
+	template_selectors_save: async (content) => {
+		savedSelectorsContent = content;
+		return { ok: true, data: { saved: true } };
+	}
 };
 
 const domElements = {};
@@ -161,7 +198,17 @@ const wrapped = `
 				saveSource,
 				loadSingboxSchema,
 				stripOmniaExtensions,
-				validateSchema
+				validateSchema,
+				saveSelectors,
+				initSelectorState,
+				openPreviewModal,
+				closePreviewModal,
+				addMember,
+				removeMember,
+				addAllRegions,
+				resetSelector,
+				resetAllSelectors,
+				generateSelectorPreview
 			};
 			return view.extend({
 		`)}
@@ -245,6 +292,48 @@ const viewObj = vm.runInContext(wrapped, context);
 	await mod.saveAndApplyProfile();
 	assert.ok(savedContent != null, 'saveAndApplyProfile saved content');
 	assert.equal(context.statusOk, true, 'Status is marked ok on successful save and apply');
+
+	// 9. Test Selector Outbounds Allocation
+	const tag = '📺️ Netflix';
+	mod.addMember(tag, 'SG');
+	mod.addMember(tag, 'HK');
+	mod.addMember(tag, 'main');
+	let previewObj = mod.generateSelectorPreview({ tag });
+	assert.equal(previewObj.type, 'selector', 'Preview object type is selector');
+	assert.equal(previewObj.tag, tag, 'Preview object tag matches');
+	assert.ok(previewObj.outbounds.includes('🇸🇬 新加坡测速组'), 'Preview includes SG group');
+	assert.ok(previewObj.outbounds.includes('🇭🇰 香港测速组'), 'Preview includes HK group');
+	assert.ok(previewObj.outbounds.includes('🗽 节点选择'), 'Preview includes main selector');
+
+	// Remove member
+	mod.removeMember(tag, 'SG');
+	previewObj = mod.generateSelectorPreview({ tag });
+	assert.ok(!previewObj.outbounds.includes('🇸🇬 新加坡测速组'), 'Removed SG group not in preview');
+
+	// Add all regions shortcut
+	mod.addAllRegions(tag);
+	previewObj = mod.generateSelectorPreview({ tag });
+	assert.ok(previewObj.outbounds.includes('🇸🇬 新加坡测速组'), 'All regions re-added SG');
+	assert.ok(previewObj.outbounds.includes('🇯🇵 日本测速组'), 'All regions added JP');
+	assert.ok(previewObj.outbounds.includes('🇺🇸 美国测速组'), 'All regions added US');
+
+	// Reset selector to empty (fallback to template)
+	mod.resetSelector(tag);
+	const fallbackItem = {
+		tag,
+		preview_outbounds: ['🗽 节点选择', '🇸🇬 SG-Group']
+	};
+	const fallbackObj = mod.generateSelectorPreview(fallbackItem);
+	assert.deepEqual(fallbackObj.outbounds, ['🗽 节点选择', '🇸🇬 SG-Group'], 'Empty selector falls back to template preview');
+
+	// 10. Test Selector Save Flow
+	mod.addMember(tag, 'HK');
+	savedSelectorsContent = null;
+	await mod.saveSelectors();
+	assert.ok(savedSelectorsContent != null, 'saveSelectors invoked template_selectors_save');
+	const parsedSaved = JSON.parse(savedSelectorsContent);
+	assert.ok(Array.isArray(parsedSaved[tag]), 'Saved selectors map has array for tag');
+	assert.ok(parsedSaved[tag].includes('HK'), 'Saved selectors map contains HK member');
 
 	console.log('All profile-ui tests passed successfully!');
 })().catch(err => {

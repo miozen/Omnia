@@ -15,6 +15,7 @@ import { collect_profile_tags, normalized_nodes, collect_node_tags } from 'omnia
 import { generate_region_groups, grouped_node_tags, unmatched_node_tag_list, matched_node_count } from 'omnia.generator_groups';
 import { direct_outbound_tag, inject_selectors, main_selector_option_count, merge_outbounds } from 'omnia.generator_selectors';
 import { collect_manual_selector_consumers, restore_manual_selector_references, generate_manual_selector } from 'omnia.generator_manual_selector';
+import { read_selectors_config, profile_source_key } from 'omnia.profile_selectors';
 import { generate_dns_urltest, route_dns_detours, apply_source_dedicated_dns } from 'omnia.generator_dns';
 import { localize_rulesets } from 'omnia.generator_rulesets';
 import { apply_dashboard_api_service, ensure_control_plane_proxy_inbound } from 'omnia.generator_control_plane';
@@ -38,8 +39,9 @@ function generate_candidate(trace_id, req) {
 		let unmatched_nodes = unmatched_node_tag_list(nodes, matched_nodes);
 		let matched_count = matched_node_count(nodes, matched_nodes);
 		let unmatched_count = length(unmatched_nodes);
-		let injected = inject_selectors(profile, nodes, groups);
-		restore_manual_selector_references(profile, manual_consumers);
+		let selector_configs = read_selectors_config(profile_source_key());
+		let injected = inject_selectors(profile, nodes, groups, selector_configs);
+		restore_manual_selector_references(profile, manual_consumers, selector_configs);
 		let manual_selector = generate_manual_selector(subscriptions, nodes, direct_outbound_tag(profile), profile_tags, node_tags);
 		let main_options = main_selector_option_count(profile);
 		let dedicated_dns = apply_source_dedicated_dns(profile, subscriptions, nodes);

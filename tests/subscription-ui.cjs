@@ -101,6 +101,23 @@ savePromise.then(() => {
 		const afterRemove = JSON.parse(savedPayload);
 		assert.equal(afterRemove.sources.length, 0, 'Sources array should be empty after deletion');
 		console.log('subscription atomic delete OK');
+
+		// 5. Atomically persists local source with enabled flag
+		savedPayload = null;
+		mockElements['omnia-editor-name'].value = 'My Local Nodes';
+		mockElements['omnia-editor-type'].value = 'local';
+		mockElements['omnia-editor-subtype'] = { value: 'paste' };
+		mockElements['omnia-editor-payload'] = { value: 'ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@1.2.3.4:8388#TestNode' };
+		mockElements['omnia-editor-enabled'].checked = true;
+		const localSavePromise = context.refreshTest.saveSourceEditor();
+		return localSavePromise.then(() => {
+			assert(savedPayload != null, 'Local source payload should be saved');
+			const parsedLocal = JSON.parse(savedPayload);
+			assert.equal(parsedLocal.sources.length, 1);
+			assert.equal(parsedLocal.sources[0].type, 'local');
+			assert.equal(parsedLocal.sources[0].enabled, true);
+			console.log('subscription local source save OK');
+		});
 	});
 }).catch(e => {
 	console.error(e);

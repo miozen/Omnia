@@ -223,7 +223,10 @@ function checkboxInput(options) {
 			mark.style.display = checked ? 'block' : 'none';
 	}
 
+	let isChecked = !!(options.checked === true || options.checked === 'checked' || options.checked === 'true');
 	input = E('input', attrs);
+	input.checked = isChecked;
+	input.defaultChecked = isChecked;
 	box = E('span', {
 		'aria-hidden': 'true',
 		'style': 'display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; min-width: 18px; box-sizing: border-box; border: 1px solid #94a3b8; border-radius: 4px; background: #fff; color: #fff; font-size: 14px; font-weight: 700; line-height: 1; vertical-align: middle;'

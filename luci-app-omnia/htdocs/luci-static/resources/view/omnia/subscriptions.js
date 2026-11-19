@@ -139,6 +139,19 @@ const callSubscriptionTestSource = rpc.declare({
 	expect: { '': {} }
 });
 
+const callNodeSnapshotGet = rpc.declare({
+	object: 'omnia',
+	method: 'node_snapshot_get',
+	expect: { '': {} }
+});
+
+const callSubscriptionSourcePreview = rpc.declare({
+	object: 'omnia',
+	method: 'subscription_source_preview',
+	params: [ 'source_id', 'strategy', 'source' ],
+	expect: { '': {} }
+});
+
 const DEFAULT_REGION_KEYWORDS = {
 	HK: [ 'HK', 'Hong Kong', 'HongKong', '香港' ],
 	TW: [ 'TW', 'Taiwan', '台湾', '台灣' ],
@@ -360,7 +373,11 @@ function setValue(id, value) {
 
 function checked(id) {
 	let el = document.getElementById(id);
-	return el ? !!el.checked : false;
+	if (!el) return false;
+	if (typeof el.checked === 'boolean')
+		return el.checked;
+	let attr = el.getAttribute ? el.getAttribute('checked') : null;
+	return attr === 'checked' || attr === 'true';
 }
 
 function activeRefresh() {
@@ -664,6 +681,14 @@ function sourceMatrix(policy, summary) {
 									testSource(item.name, item.url, policy.refresh_strategy, 'omnia-test-report');
 								}
 							}, _('测试')),
+							' ',
+							E('button', {
+								'class': omniaMotion.buttonClass('btn cbi-button'),
+								'click': function(ev) {
+									ev.preventDefault();
+									previewSourceNodes(index);
+								}
+							}, _('预览')),
 							' ',
 							E('button', {
 								'class': omniaMotion.buttonClass('btn cbi-button cbi-button-apply'),
@@ -1516,7 +1541,8 @@ function sourceEditor(policy, index) {
 			E('div', { 'id': 'omnia-editor-test-report', 'style': 'display: none; border: 1px solid #ddd; border-radius: 8px; padding: .65rem; margin-top: .75rem; overflow-wrap: anywhere;' }),
 			E('div', { 'style': 'display: flex; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; margin-top: 1rem;' }, [
 				E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'click': function(ev) { ev.preventDefault(); closeSourceEditor(); } }, _('取消')),
-				E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'click': function(ev) { ev.preventDefault(); testEditorSource(); } }, _('测试与预览')),
+				E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'click': function(ev) { ev.preventDefault(); testEditorSource(); } }, _('测试连通性')),
+				E('button', { 'class': omniaMotion.buttonClass('btn cbi-button'), 'click': function(ev) { ev.preventDefault(); previewEditorSource(); } }, _('👁️ 节点预览')),
 				E('button', { 'id': 'omnia-editor-save-btn', 'class': omniaMotion.buttonClass('btn cbi-button cbi-button-save'), 'click': function(ev) { ev.preventDefault(); saveSourceEditor(); } }, _('保存订阅源'))
 			])
 		])
@@ -1868,6 +1894,443 @@ function testEditorSource() {
 	);
 }
 
+function protocolBadgeColor(proto) {
+	let p = String(proto || '').toLowerCase();
+	if (p === 'shadowsocks' || p === 'ss') return '#2563eb';
+	if (p === 'vless') return '#7c3aed';
+	if (p === 'vmess') return '#db2777';
+	if (p === 'trojan') return '#0891b2';
+	if (p === 'hysteria' || p === 'hysteria2') return '#f59e0b';
+	if (p === 'tuic') return '#059669';
+	if (p === 'wireguard') return '#dc2626';
+	if (p === 'direct') return '#475569';
+	return '#64748b';
+}
+
+function copyToClipboard(text, btn) {
+	let finish = function(success) {
+		if (!btn) return;
+		let orig = btn.innerText;
+		btn.innerText = success ? _('已复制！') : _('复制失败');
+		setTimeout(function() { btn.innerText = orig; }, 2000);
+	};
+	if (navigator.clipboard && navigator.clipboard.writeText) {
+		navigator.clipboard.writeText(text).then(function() { finish(true); }).catch(function() {
+			finish(false);
+		});
+	} else {
+		try {
+			let ta = document.createElement('textarea');
+			ta.value = text;
+			ta.style.position = 'fixed';
+			ta.style.opacity = '0';
+			document.body.appendChild(ta);
+			ta.select();
+			let ok = document.execCommand('copy');
+			document.body.removeChild(ta);
+			finish(ok);
+		} catch (e) {
+			finish(false);
+		}
+	}
+}
+
+function openNodePreviewModal(opts) {
+	let title = (opts && opts.title) || _('节点预览');
+	let allOutbounds = (opts && Array.isArray(opts.outbounds)) ? opts.outbounds : [];
+	let protocolCounts = (opts && opts.protocolCounts) || {};
+
+	let activeView = 'cards';
+	let filterQuery = '';
+	let activeProtoFilter = '';
+
+	let overlay = E('div', {
+		'id': 'omnia-preview-modal-overlay',
+		'style': 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 1.25rem; box-sizing: border-box;'
+	});
+
+	let modal = E('div', {
+		'class': 'cbi-section',
+		'style': 'width: 960px; max-width: 96vw; height: 86vh; max-height: 880px; margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); border: 1px solid var(--cbi-section-border, #cbd5e1);'
+	});
+
+	function closeModal() {
+		document.removeEventListener('keydown', handleKey);
+		if (overlay.parentNode)
+			overlay.parentNode.removeChild(overlay);
+	}
+
+	function handleKey(ev) {
+		if (ev.key === 'Escape' || ev.keyCode === 27)
+			closeModal();
+	}
+	document.addEventListener('keydown', handleKey);
+
+	overlay.addEventListener('click', function(ev) {
+		if (ev.target === overlay)
+			closeModal();
+	});
+
+	let header = E('div', {
+		'style': 'display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--cbi-section-border, #e2e8f0);'
+	}, [
+		E('div', { 'style': 'display: flex; align-items: center; gap: .6rem;' }, [
+			E('span', { 'style': 'font-size: 1.2rem;' }, '👁️'),
+			E('h3', { 'style': 'margin: 0; font-size: 1.1rem; font-weight: 700;' }, title)
+		]),
+		E('button', {
+			'type': 'button',
+			'class': 'btn cbi-button',
+			'style': 'font-size: 1.1rem; padding: 0 .5rem; line-height: 1.5; border-radius: 6px;',
+			'click': closeModal
+		}, '✕')
+	]);
+
+	let statsRow = E('div', {
+		'style': 'display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; padding: .65rem 1.25rem; background: var(--cbi-field-background, #f8fafc); border-bottom: 1px solid var(--cbi-section-border, #e2e8f0); font-size: 12px;'
+	});
+
+	function renderStatsRow() {
+		statsRow.innerHTML = '';
+		let totalPill = E('span', {
+			'style': 'display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; background: #334155; color: #fff; font-weight: 600; cursor: pointer;',
+			'click': function() {
+				activeProtoFilter = '';
+				renderStatsRow();
+				renderBody();
+			}
+		}, _('全部节点: %d').format(allOutbounds.length));
+		statsRow.appendChild(totalPill);
+
+		Object.keys(protocolCounts).sort().forEach(function(proto) {
+			let cnt = protocolCounts[proto];
+			let isSelected = (activeProtoFilter === proto);
+			let color = protocolBadgeColor(proto);
+			let protoPill = E('span', {
+				'style': 'display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all .15s ease;' +
+					(isSelected ? 'background: ' + color + '; color: #fff; box-shadow: 0 0 0 2px #fff, 0 0 0 4px ' + color + ';' : 'background: ' + color + '15; color: ' + color + '; border: 1px solid ' + color + '40;'),
+				'click': function() {
+					activeProtoFilter = (activeProtoFilter === proto ? '' : proto);
+					renderStatsRow();
+					renderBody();
+				}
+			}, proto.toUpperCase() + ' (' + cnt + ')');
+			statsRow.appendChild(protoPill);
+		});
+	}
+
+	let toolbar = E('div', {
+		'style': 'display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding: .65rem 1.25rem; border-bottom: 1px solid var(--cbi-section-border, #e2e8f0);'
+	});
+
+	let searchInput = E('input', {
+		'type': 'text',
+		'class': 'cbi-input-text',
+		'style': 'flex: 1; min-width: 220px; font-size: 13px;',
+		'placeholder': _('🔍 过滤节点名称、服务器地址、端口、协议...'),
+		'input': function(ev) {
+			filterQuery = (ev.target.value || '').trim().toLowerCase();
+			renderBody();
+		}
+	});
+
+	let viewSwitchCards = E('button', {
+		'class': 'btn cbi-button cbi-button-action',
+		'style': 'font-size: 12px; font-weight: 600;',
+		'click': function() {
+			activeView = 'cards';
+			updateViewSwitch();
+			renderBody();
+		}
+	}, _('📋 节点卡片'));
+
+	let viewSwitchJson = E('button', {
+		'class': 'btn cbi-button',
+		'style': 'font-size: 12px; font-weight: 600;',
+		'click': function() {
+			activeView = 'json';
+			updateViewSwitch();
+			renderBody();
+		}
+	}, _('⚙️ sing-box JSON'));
+
+	let copyJsonBtn = E('button', {
+		'class': 'btn cbi-button',
+		'style': 'font-size: 12px; font-weight: 600; display: none;',
+		'click': function(ev) {
+			let filtered = getFilteredOutbounds();
+			copyToClipboard(JSON.stringify(filtered, null, 2), ev.target);
+		}
+	}, _('📄 复制 JSON'));
+
+	function updateViewSwitch() {
+		if (activeView === 'cards') {
+			viewSwitchCards.className = 'btn cbi-button cbi-button-action';
+			viewSwitchJson.className = 'btn cbi-button';
+			copyJsonBtn.style.display = 'none';
+		} else {
+			viewSwitchCards.className = 'btn cbi-button';
+			viewSwitchJson.className = 'btn cbi-button cbi-button-action';
+			copyJsonBtn.style.display = 'inline-block';
+		}
+	}
+
+	toolbar.appendChild(searchInput);
+	toolbar.appendChild(E('div', { 'style': 'display: flex; gap: .4rem; align-items: center;' }, [
+		viewSwitchCards,
+		viewSwitchJson,
+		copyJsonBtn
+	]));
+
+	let bodyContainer = E('div', {
+		'style': 'flex: 1; overflow-y: auto; padding: 1rem 1.25rem;'
+	});
+
+	function getFilteredOutbounds() {
+		return allOutbounds.filter(function(ob) {
+			if (activeProtoFilter && String(ob.type || '').toLowerCase() !== activeProtoFilter.toLowerCase())
+				return false;
+			if (!filterQuery) return true;
+			let tag = String(ob.tag || '').toLowerCase();
+			let srv = String(ob.server || '').toLowerCase();
+			let proto = String(ob.type || '').toLowerCase();
+			let port = String(ob.server_port || '');
+			return tag.indexOf(filterQuery) >= 0 || srv.indexOf(filterQuery) >= 0 || proto.indexOf(filterQuery) >= 0 || port.indexOf(filterQuery) >= 0;
+		});
+	}
+
+	function renderBody() {
+		bodyContainer.innerHTML = '';
+		let filtered = getFilteredOutbounds();
+
+		if (activeView === 'json') {
+			let codeEl = E('pre', {
+				'style': 'margin: 0; padding: 1rem; background: #0f172a; color: #f8fafc; border-radius: 8px; font-family: monospace; font-size: 12px; line-height: 1.5; overflow: auto; max-height: 100%; word-break: break-all; white-space: pre-wrap;'
+			}, JSON.stringify(filtered, null, 2));
+			bodyContainer.appendChild(codeEl);
+			return;
+		}
+
+		if (filtered.length === 0) {
+			bodyContainer.appendChild(E('div', {
+				'style': 'text-align: center; color: #64748b; padding: 3rem 1rem;'
+			}, [
+				E('div', { 'style': 'font-size: 2rem; margin-bottom: .5rem;' }, '🔍'),
+				E('div', { 'style': 'font-size: 14px; font-weight: 600;' }, _('未找到匹配的节点')),
+				E('div', { 'style': 'font-size: 12px; margin-top: .25rem;' }, _('请尝试调整搜索关键词或协议筛选'))
+			]));
+			return;
+		}
+
+		let list = E('div', {
+			'style': 'display: flex; flex-direction: column; gap: .6rem;'
+		});
+
+		filtered.forEach(function(ob, idx) {
+			let proto = String(ob.type || 'unknown').toLowerCase();
+			let badgeColor = protocolBadgeColor(proto);
+
+			let tlsTag = '';
+			if (ob.tls && ob.tls.enabled) {
+				if (ob.tls.reality && ob.tls.reality.enabled) {
+					tlsTag = 'Reality';
+				} else {
+					tlsTag = 'TLS';
+				}
+			}
+			let transportTag = (ob.transport && ob.transport.type) ? String(ob.transport.type).toUpperCase() : '';
+
+			let jsonDetailBox = E('div', {
+				'style': 'display: none; margin-top: .6rem; padding-top: .6rem; border-top: 1px dashed var(--cbi-section-border, #e2e8f0);'
+			}, [
+				E('pre', {
+					'style': 'margin: 0; padding: .6rem; background: #0f172a; color: #f8fafc; border-radius: 6px; font-family: monospace; font-size: 11px; line-height: 1.4; overflow: auto; max-height: 250px; white-space: pre-wrap; word-break: break-all;'
+				}, JSON.stringify(ob, null, 2))
+			]);
+
+			let toggleBtn = E('button', {
+				'type': 'button',
+				'class': 'btn cbi-button',
+				'style': 'font-size: 11px; padding: 2px 6px; line-height: 1.2;',
+				'click': function(ev) {
+					ev.preventDefault();
+					let isOpen = (jsonDetailBox.style.display !== 'none');
+					jsonDetailBox.style.display = isOpen ? 'none' : 'block';
+					toggleBtn.innerText = isOpen ? _('{ } 配置') : _('✕ 收起');
+				}
+			}, _('{ } 配置'));
+
+			let card = E('div', {
+				'style': 'background: var(--cbi-section-background, #fff); border: 1px solid var(--cbi-section-border, #e2e8f0); border-radius: 8px; padding: .65rem .85rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); transition: border-color .15s ease;'
+			}, [
+				E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap;' }, [
+					E('div', { 'style': 'display: flex; align-items: center; gap: .5rem; flex: 1; min-width: 200px;' }, [
+						E('span', {
+							'style': 'font-size: 11px; font-family: monospace; color: #94a3b8; min-width: 24px;'
+						}, '#' + (idx + 1)),
+						E('span', {
+							'style': 'display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; color: #fff; background: ' + badgeColor + ';'
+						}, proto.toUpperCase()),
+						E('span', {
+							'style': 'font-weight: 600; font-size: 13px; color: var(--cbi-color-text, #1e293b); word-break: break-word;'
+						}, ob.tag || _('未命名节点'))
+					]),
+					E('div', { 'style': 'display: flex; align-items: center; gap: .4rem; font-size: 12px;' }, [
+						ob.server ? E('span', {
+							'style': 'font-family: monospace; color: #64748b;'
+						}, ob.server + (ob.server_port ? ':' + ob.server_port : '')) : E('span'),
+						tlsTag ? E('span', {
+							'style': 'padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 600; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;'
+						}, tlsTag) : E('span'),
+						transportTag ? E('span', {
+							'style': 'padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 600; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;'
+						}, transportTag) : E('span'),
+						toggleBtn
+					])
+				]),
+				jsonDetailBox
+			]);
+
+			list.appendChild(card);
+		});
+
+		bodyContainer.appendChild(list);
+	}
+
+	renderStatsRow();
+	renderBody();
+
+	modal.appendChild(header);
+	modal.appendChild(statsRow);
+	modal.appendChild(toolbar);
+	modal.appendChild(bodyContainer);
+	overlay.appendChild(modal);
+	document.body.appendChild(overlay);
+}
+
+function previewSourceNodes(index) {
+	let policy = collectPolicyFromPage();
+	let item = (policy.sources && policy.sources[index]) || {};
+	let name = item.name || item.id || _('未命名源');
+
+	setStatus(_('正在加载订阅源节点预览...'), true);
+	return callSubscriptionSourcePreview(item.id || '', policy.refresh_strategy, item).then(function(result) {
+		if (result && result.ok && result.data) {
+			setStatus('', true);
+			openNodePreviewModal({
+				title: _('订阅源节点预览 - %s').format(name),
+				outbounds: result.data.outbounds || [],
+				protocolCounts: result.data.protocol_counts || {}
+			});
+		} else {
+			let msg = (result && (result.detail || result.message)) || _('加载预览失败');
+			setStatus(_('预览失败：%s').format(msg), false);
+		}
+	}).catch(function(err) {
+		setStatus(_('预览失败：%s').format(err.message || String(err)), false);
+	});
+}
+
+function previewSnapshotNodes() {
+	setStatus(_('正在加载全局节点快照预览...'), true);
+	return callNodeSnapshotGet().then(function(result) {
+		if (result && result.ok && result.data) {
+			let snapshot = {};
+			try {
+				snapshot = JSON.parse(result.data.content || '{}');
+			} catch (e) {
+				setStatus(_('解析节点快照失败：%s').format(e.message || String(e)), false);
+				return;
+			}
+			let outbounds = Array.isArray(snapshot.outbounds) ? snapshot.outbounds : [];
+			let protoCounts = {};
+			outbounds.forEach(function(ob) {
+				let proto = String(ob.type || 'unknown').toLowerCase();
+				protoCounts[proto] = (protoCounts[proto] || 0) + 1;
+			});
+			setStatus('', true);
+			openNodePreviewModal({
+				title: _('全局节点快照预览'),
+				outbounds: outbounds,
+				protocolCounts: protoCounts
+			});
+		} else {
+			let msg = (result && (result.detail || result.message)) || _('加载快照失败');
+			setStatus(_('预览快照失败：%s').format(msg), false);
+		}
+	}).catch(function(err) {
+		setStatus(_('预览快照失败：%s').format(err.message || String(err)), false);
+	});
+}
+
+function previewEditorSource() {
+	let policy = collectPolicyFromPage();
+	let sType = getValue('omnia-editor-type') || 'remote';
+	let ops = collectEditorOperators();
+	let dnsConfig = collectEditorDns();
+	let name = getValue('omnia-editor-name').trim() || _('草稿源');
+	let regions = [];
+	let inputs = document.querySelectorAll ? document.querySelectorAll('.omnia-editor-region') : [];
+	for (let i = 0; i < inputs.length; i++) {
+		if (inputs[i].checked)
+			regions.push(inputs[i].value);
+	}
+
+	let sourceObj = {
+		name: name,
+		type: sType,
+		url: sType === 'remote' ? getValue('omnia-editor-url').trim() : '',
+		allowed_regions: regions,
+		operators: ops,
+		dns: dnsConfig
+	};
+
+	if (sType === 'remote') {
+		let ua = getValue('omnia-editor-user-agent').trim();
+		if (ua) sourceObj.user_agent = ua;
+		if (!sourceObj.url) {
+			setStatus(_('订阅源 URL 不能为空。'), false);
+			let urlInput = document.getElementById('omnia-editor-url');
+			if (urlInput && typeof urlInput.focus === 'function') urlInput.focus();
+			return;
+		}
+	} else {
+		let subtype = getValue('omnia-editor-subtype') || 'paste';
+		sourceObj.subtype = subtype;
+		let payload = getValue('omnia-editor-payload');
+		if (subtype === 'form') {
+			try {
+				sourceObj.nodes = JSON.parse(payload);
+			} catch (e) {
+				sourceObj.payload = payload;
+			}
+		} else {
+			sourceObj.payload = payload;
+		}
+		if (!sourceObj.payload && (!sourceObj.nodes || !sourceObj.nodes.length)) {
+			setStatus(_('本地节点内容不能为空。'), false);
+			return;
+		}
+	}
+
+	setStatus(_('正在生成当前编辑源节点预览...'), true);
+	return callSubscriptionSourcePreview('', policy.refresh_strategy, sourceObj).then(function(result) {
+		if (result && result.ok && result.data) {
+			setStatus('', true);
+			openNodePreviewModal({
+				title: _('节点预览 - %s').format(name),
+				outbounds: result.data.outbounds || [],
+				protocolCounts: result.data.protocol_counts || {}
+			});
+		} else {
+			let msg = (result && (result.detail || result.message)) || _('生成预览失败');
+			setStatus(_('预览失败：%s').format(msg), false);
+		}
+	}).catch(function(err) {
+		setStatus(_('预览失败：%s').format(err.message || String(err)), false);
+	});
+}
+
 function refreshProgressText(refresh) {
 	let task = refresh.task || {};
 	let meta = task.meta && typeof task.meta === 'object' ? task.meta : {};
@@ -2043,12 +2506,25 @@ function saveSourceEditor() {
 		return;
 	}
 
+	let enabledEl = document.getElementById('omnia-editor-enabled');
+	let isEnabled = true;
+	if (enabledEl) {
+		if (typeof enabledEl.checked === 'boolean')
+			isEnabled = enabledEl.checked;
+		else {
+			let attr = enabledEl.getAttribute ? enabledEl.getAttribute('checked') : null;
+			isEnabled = (attr === 'checked' || attr === 'true' || attr === '');
+		}
+	} else if (index >= 0 && policy.sources[index] && policy.sources[index].enabled != null) {
+		isEnabled = !!policy.sources[index].enabled;
+	}
+
 	let sourceObj = {
 		id: (index >= 0 && policy.sources[index] && policy.sources[index].id) ? policy.sources[index].id : '',
 		name: name,
 		type: sType,
 		url: sType === 'remote' ? getValue('omnia-editor-url').trim() : '',
-		enabled: checked('omnia-editor-enabled'),
+		enabled: isEnabled,
 		allowed_regions: regions,
 		operators: ops,
 		dns: dnsConfig
@@ -2145,11 +2621,22 @@ function updateSummary(summary) {
 }
 
 function reloadPolicyFromBackend() {
-	return callSubscriptionsGet().then(function(result) {
-		if (!(result && result.ok && result.data))
+	return Promise.all([
+		callSubscriptionsGet(),
+		callNodeSnapshotSummary().catch(function() { return null; })
+	]).then(function(results) {
+		let subRes = results[0];
+		let snapRes = results[1];
+		if (snapRes && snapRes.ok && snapRes.data) {
+			window.omniaNodeSnapshotSummary = snapRes.data;
+			let container = document.getElementById('omnia-node-snapshot-summary');
+			if (container)
+				container.parentNode.replaceChild(snapshotSummary(snapRes.data), container);
+		}
+		if (!(subRes && subRes.ok && subRes.data))
 			return;
 
-		let policy = parseSubscriptions(result.data.content || '{}');
+		let policy = parseSubscriptions(subRes.data.content || '{}');
 		setDraft(policy);
 		updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
 	});
@@ -2208,6 +2695,7 @@ return view.extend({
 						E('option', { 'value': 'proxy', 'selected': policy.refresh_strategy === 'proxy' ? 'selected' : null }, _('代理刷新'))
 					]),
 					E('button', { 'class': omniaMotion.buttonClass('btn cbi-button cbi-button-save'), 'click': this.handleSave.bind(this) }, _('保存订阅设置')),
+					E('button', { 'id': 'omnia-preview-all', 'class': omniaMotion.buttonClass('btn cbi-button'), 'click': function(ev) { ev.preventDefault(); previewSnapshotNodes(); } }, _('👁️ 预览快照节点')),
 					E('button', { 'id': 'omnia-refresh-all', 'class': omniaMotion.buttonClass('btn cbi-button cbi-button-apply'), 'disabled': refreshInProgress() ? 'disabled' : null, 'click': this.handleRefresh.bind(this) }, _('刷新节点快照'))
 				]),
 				renderMain(policy, summary, null),

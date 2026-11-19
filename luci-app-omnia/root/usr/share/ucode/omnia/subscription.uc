@@ -9,7 +9,7 @@ import { Success, Fail } from 'omnia.core.result';
 import { ERR } from 'omnia.core.error';
 import { lock_acquire, lock_release } from 'omnia.core.lock';
 import { read_text, write_text_atomic, request_content, request_keys, json_stringify, json_stringify_pretty, ExecSafe } from 'omnia.core.utils';
-import { validate_refresh_strategy } from 'omnia.subscription_policy_schema';
+import { validate_refresh_strategy, normalize_source } from 'omnia.subscription_policy_schema';
 import { finish_task, fail_task } from 'omnia.core.task';
 import { validate_url, validate_subscriptions_content, refresh_strategy } from 'omnia.subscription_config';
 import { preflight_for_url } from 'omnia.subscription_preflight';
@@ -291,6 +291,36 @@ function subscriptions_get(trace_id, req) {
 	}
 }
 
+function compile_local_source(trace_id, source) {
+	if (source.enabled == false) {
+		return {
+			source: source_result_object(source, "direct", "disabled_removed", true, 0, "disabled"),
+			outbounds: []
+		};
+	}
+
+	let outbounds = [];
+	if (type(source.nodes) == "array" || type(source.payload) == "array") {
+		let raw_nodes = type(source.nodes) == "array" ? source.nodes : source.payload;
+		let conv = convert_form_nodes(raw_nodes, { operators: source.operators });
+		if (!conv.ok)
+			die("Local form nodes conversion failed: " + conv.error);
+		outbounds = conv.outbounds;
+	} else {
+		let payload_str = type(source.payload) == "string" ? source.payload : "";
+		let parse_res = parse_subscription_safely(trace_id, payload_str, { operators: source.operators });
+		outbounds = parse_res.outbounds;
+	}
+
+	outbounds = sanitize_and_validate_outbounds(outbounds);
+	validate_outbounds(outbounds);
+	preserve_source_attribution(outbounds, source.id, source.name);
+	return {
+		source: source_result_object(source, "direct", "success", true, length(outbounds), ""),
+		outbounds: outbounds
+	};
+}
+
 function subscriptions_save(trace_id, req) {
 	let lock = null;
 	try {
@@ -304,8 +334,82 @@ function subscriptions_save(trace_id, req) {
 		let deleted_ids = deleted_source_ids(old_config, config);
 		let snapshot_prune = prune_snapshot_deleted_sources(deleted_ids);
 		write_text_atomic(PATH.SUBSCRIPTIONS, json_stringify(config));
-		if (snapshot_prune.content != "")
+
+		let has_local = false;
+		for (let s in config.sources) {
+			if (s.type == "local") {
+				has_local = true;
+				break;
+			}
+		}
+
+		if (has_local) {
+			let current_snap = null;
+			if (snapshot_prune.content != "") {
+				try {
+					current_snap = validate_node_snapshot_content(snapshot_prune.content);
+				} catch (e) {
+					current_snap = null;
+				}
+			}
+			if (current_snap == null) {
+				let old_snap = read_old_snapshot();
+				if (old_snap.available) {
+					current_snap = {
+						schema_version: 1,
+						updated_at: "",
+						source: "omnia",
+						refresh_strategy: "direct",
+						sources: old_snap.sources,
+						outbounds: old_snap.outbounds
+					};
+				} else {
+					current_snap = {
+						schema_version: 1,
+						updated_at: "",
+						source: "omnia",
+						refresh_strategy: "direct",
+						sources: [],
+						outbounds: []
+					};
+				}
+			}
+
+			let timestamp = ExecSafe(trace_id, [ "date", "-u", "+%Y-%m-%dT%H:%M:%SZ" ]);
+			timestamp = replace(replace(timestamp, "\n", ""), "\r", "");
+			current_snap.updated_at = timestamp;
+
+			for (let s in config.sources) {
+				if (s.type == "local") {
+					let compiled = compile_local_source(trace_id, s);
+					let found_src = false;
+					for (let i = 0; i < length(current_snap.sources); i++) {
+						if (current_snap.sources[i].id == s.id) {
+							current_snap.sources[i] = compiled.source;
+							found_src = true;
+							break;
+						}
+					}
+					if (!found_src)
+						push(current_snap.sources, compiled.source);
+
+					let filtered_outbounds = [];
+					for (let ob in current_snap.outbounds) {
+						if (ob.x_omnia_source_id != s.id)
+							push(filtered_outbounds, ob);
+					}
+					append_outbounds(filtered_outbounds, compiled.outbounds);
+					current_snap.outbounds = filtered_outbounds;
+				}
+			}
+
+			let new_snap_str = json_stringify_pretty(current_snap) + "\n";
+			validate_node_snapshot_content(new_snap_str);
+			write_text_atomic(PATH.NODE_SNAPSHOT, new_snap_str);
+		} else if (snapshot_prune.content != "") {
 			write_text_atomic(PATH.NODE_SNAPSHOT, snapshot_prune.content);
+		}
+
 		lock_release(lock);
 		return Success({
 			path: PATH.SUBSCRIPTIONS,
@@ -434,6 +538,75 @@ function subscription_fetch_preflight(trace_id, req) {
 	} catch (e) {
 		let err = "" + e;
 		return Fail(ERR.E_SUBSCRIPTION_FETCH_FAILED, "Subscription fetch preflight failed", trace_id, err);
+	}
+}
+
+function subscription_source_preview(trace_id, req) {
+	try {
+		let source_id = source_arg(req, "source_id");
+		if (source_id == "")
+			source_id = source_arg(req, "id");
+		let source = null;
+
+		if (type(req) == "object" && type(req.source) == "object" && req.source != null) {
+			source = normalize_source(req.source, [], 0, {}, {});
+		} else if (source_id != "") {
+			let config = validate_subscriptions_content(read_text(PATH.SUBSCRIPTIONS));
+			for (let s in config.sources) {
+				if (s.id == source_id) {
+					source = s;
+					break;
+				}
+			}
+			if (source == null)
+				return Fail(ERR.E_NOT_FOUND, "Subscription source not found", trace_id, "Source ID: " + source_id);
+		} else {
+			return Fail(ERR.E_INVALID_ARGUMENT, "Missing source_id or source object", trace_id);
+		}
+
+		let outbounds = [];
+		if (source.type == "local") {
+			if (type(source.nodes) == "array" || type(source.payload) == "array") {
+				let raw_nodes = type(source.nodes) == "array" ? source.nodes : source.payload;
+				let conv = convert_form_nodes(raw_nodes, { operators: source.operators });
+				if (!conv.ok)
+					die("Local form nodes conversion failed: " + conv.error);
+				outbounds = conv.outbounds;
+			} else {
+				let payload_str = type(source.payload) == "string" ? source.payload : "";
+				let parse_res = parse_subscription_safely(trace_id, payload_str, { operators: source.operators });
+				outbounds = parse_res.outbounds;
+			}
+		} else {
+			let strategy = source_arg(req, "strategy");
+			if (strategy == "")
+				strategy = "direct";
+			let fetched = fetch_subscription_checked(trace_id, source.url, strategy, { user_agent: source.user_agent });
+			let parse_res = parse_subscription_safely(trace_id, fetched.body, { operators: source.operators });
+			outbounds = parse_res.outbounds;
+		}
+
+		outbounds = sanitize_and_validate_outbounds(outbounds);
+		validate_outbounds(outbounds);
+		preserve_source_attribution(outbounds, source.id, source.name);
+
+		let protocol_counts = {};
+		for (let ob in outbounds) {
+			let proto = type(ob.type) == "string" ? ob.type : "unknown";
+			protocol_counts[proto] = int(protocol_counts[proto] || 0) + 1;
+		}
+
+		return Success({
+			id: source.id || "",
+			name: source.name || "",
+			type: source.type || "remote",
+			node_count: length(outbounds),
+			protocol_counts: protocol_counts,
+			outbounds: outbounds
+		}, 200, trace_id, "Subscription source preview generated");
+	} catch (e) {
+		let err = "" + e;
+		return Fail(ERR.E_SUBSCRIPTION_FETCH_FAILED, "Failed to preview Subscription source", trace_id, err);
 	}
 }
 
@@ -651,4 +824,4 @@ function subscription_refresh_source_start(trace_id, req) {
 	return task_subscription_refresh_source_start(trace_id, req);
 }
 
-export { subscriptions_get, subscriptions_save, subscriptions_refresh, subscription_refresh_source, subscriptions_refresh_start, subscription_refresh_source_start, subscriptions_refresh_status, node_snapshot_get, node_snapshot_summary, subscription_test_source, subscription_fetch_preflight };
+export { subscriptions_get, subscriptions_save, subscriptions_refresh, subscription_refresh_source, subscriptions_refresh_start, subscription_refresh_source_start, subscriptions_refresh_status, node_snapshot_get, node_snapshot_summary, subscription_test_source, subscription_fetch_preflight, subscription_source_preview };

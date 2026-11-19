@@ -134,6 +134,19 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - [x] Frontend latency test error handling (`img.onerror` -> `done(false)` reporting timeout instead of 5ms), cleared hardcoded placeholder IPs in `overview.js`.
     - [x] LuCI dark mode CSS variables integration across `ui.js` and `overview.js`.
     - [x] Consolidated canonical utility functions in `core/utils.uc` (`trim`, `trim_line`, `starts_with`, `ends_with`, `append_unique`).
+  - [x] Local Node Saving & Disabled Status Bug Fix:
+    - [x] Fixed `ui.js` `checkboxInput` missing DOM boolean property assignment (`input.checked = isChecked; input.defaultChecked = isChecked;`).
+    - [x] Hardened `saveSourceEditor` in `subscriptions.js` to ensure resilient `enabled` boolean parsing.
+    - [x] Enhanced `subscriptions_save` in `subscription.uc` to automatically compile local source nodes into `/etc/omnia/node-snapshot.json`.
+    - [x] Updated `reloadPolicyFromBackend` in `subscriptions.js` to refresh snapshot summary alongside subscriptions config, updating matrix node counts and status immediately without manual page reload.
+  - [x] Sub-Store-style sing-box Node Preview:
+    - [x] Implemented `subscription_source_preview` RPC in `subscription.uc` with rpcd (`omnia.uc`) and ACL (`luci-app-omnia.json`) registration.
+    - [x] Implemented rich `openNodePreviewModal` in `subscriptions.js`:
+      - [x] Real-time client-side search filtering across node tags, server addresses, ports, and protocols.
+      - [x] Summary bar with total node count and interactive protocol pill badges (Shadowsocks, VLESS, VMess, Trojan, Hysteria2, TUIC, WireGuard, Direct).
+      - [x] Dual-view switcher: List Card View (showing protocol badge, server:port, TLS/Reality tags, Transport tags, and expandable individual outbound JSON) and Raw JSON View (showing full sing-box formatted outbounds with 1-click clipboard copy).
+      - [x] ESC key and backdrop click dismissal.
+    - [x] Integrated preview triggers: per-source "预览" button in matrix, "👁️ 节点预览" in editor, and "👁️ 预览快照节点" in page header.
 
 ## Remaining
 

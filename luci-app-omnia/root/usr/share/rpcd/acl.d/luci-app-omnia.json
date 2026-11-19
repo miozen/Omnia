@@ -14,6 +14,7 @@
           "node_snapshot_get",
           "node_snapshot_summary",
           "subscription_test_source",
+          "subscription_source_preview",
           "subscription_fetch_preflight",
           "runtime_status",
           "config_check_candidate",

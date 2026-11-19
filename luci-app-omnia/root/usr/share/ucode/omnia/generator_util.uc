@@ -35,10 +35,55 @@ function upper_text(value) {
 	return text;
 }
 
+function is_ascii_alpha_string(str) {
+	if (type(str) != "string" || str == "")
+		return false;
+	for (let i = 0; i < length(str); i++) {
+		let ch = substr(str, i, 1);
+		if ((ch < "A" || ch > "Z") && (ch < "a" || ch > "z"))
+			return false;
+	}
+	return true;
+}
+
 function tag_contains_keyword(tag_upper, keyword) {
 	if (type(keyword) != "string" || keyword == "")
 		return false;
-	return index(tag_upper, upper_text(keyword)) >= 0;
+
+	let kw_upper = upper_text(keyword);
+	if (!is_ascii_alpha_string(kw_upper))
+		return index(tag_upper, kw_upper) >= 0;
+
+	let kw_len = length(kw_upper);
+	let tag_len = length(tag_upper);
+	let start_pos = 0;
+
+	while (start_pos <= tag_len - kw_len) {
+		let found_idx = index(tag_upper, kw_upper, start_pos);
+		if (found_idx < 0)
+			return false;
+
+		let prev_ok = true;
+		if (found_idx > 0) {
+			let prev_ch = substr(tag_upper, found_idx - 1, 1);
+			if ((prev_ch >= "A" && prev_ch <= "Z") || (prev_ch >= "a" && prev_ch <= "z"))
+				prev_ok = false;
+		}
+
+		let next_ok = true;
+		if (found_idx + kw_len < tag_len) {
+			let next_ch = substr(tag_upper, found_idx + kw_len, 1);
+			if ((next_ch >= "A" && next_ch <= "Z") || (next_ch >= "a" && next_ch <= "z"))
+				next_ok = false;
+		}
+
+		if (prev_ok && next_ok)
+			return true;
+
+		start_pos = found_idx + 1;
+	}
+
+	return false;
 }
 
 function is_digit(ch) {

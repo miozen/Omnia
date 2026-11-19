@@ -6,7 +6,7 @@
 
 import { mkdir, rmdir, stat } from 'fs';
 import { PATH, AUTO_TASK } from 'omnia.core.constants';
-import { read_optional_text, write_text_atomic, parse_json_object, json_stringify, ExecResult } from 'omnia.core.utils';
+import { read_optional_text, write_text_atomic, parse_json_object, json_stringify, ExecResult, trim_line } from 'omnia.core.utils';
 
 function path_exists(path) {
 	let info = stat(path);
@@ -25,39 +25,50 @@ function ensure_scheduler_dir() {
 	ensure_dir(PATH.SCHEDULER_DIR);
 }
 
-function trim_line(value) {
-	value = "" + value;
-	value = replace(value, "\r", "");
-	value = replace(value, "\n", "");
-	return value;
+
+let _last_time_sec = 0;
+let _cached_time_info = null;
+
+function fetch_time_components(trace_id) {
+	let now_sec = time();
+	if (_cached_time_info != null && now_sec == _last_time_sec)
+		return _cached_time_info;
+
+	let result = ExecResult(trace_id || "omnia-scheduler", [ "date", "+%Y-%m-%dT%H:%M:%SZ %H %Y-%m-%dT%H %Y" ]);
+	if (result.code != 0) {
+		return {
+			now_utc: "",
+			hour: int((now_sec % 86400) / 3600),
+			run_key: "",
+			year: 0
+		};
+	}
+
+	let parts = split(trim_line(result.stdout), " ");
+	_last_time_sec = now_sec;
+	_cached_time_info = {
+		now_utc: parts[0] || "",
+		hour: int(parts[1] || 0),
+		run_key: parts[2] || "",
+		year: int(parts[3] || 0)
+	};
+	return _cached_time_info;
 }
 
 function now_utc(trace_id) {
-	let result = ExecResult(trace_id || "omnia-scheduler", [ "date", "-u", "+%Y-%m-%dT%H:%M:%SZ" ]);
-	if (result.code != 0)
-		return "";
-	return trim_line(result.stdout);
+	return fetch_time_components(trace_id).now_utc;
 }
 
 function current_hour(trace_id) {
-	let result = ExecResult(trace_id || "omnia-scheduler", [ "date", "+%H" ]);
-	if (result.code != 0)
-		return -1;
-	return int(trim_line(result.stdout));
+	return fetch_time_components(trace_id).hour;
 }
 
 function current_run_key(trace_id) {
-	let result = ExecResult(trace_id || "omnia-scheduler", [ "date", "+%Y-%m-%dT%H" ]);
-	if (result.code != 0)
-		return "";
-	return trim_line(result.stdout);
+	return fetch_time_components(trace_id).run_key;
 }
 
 function current_year(trace_id) {
-	let result = ExecResult(trace_id || "omnia-scheduler", [ "date", "+%Y" ]);
-	if (result.code != 0)
-		return 0;
-	return int(trim_line(result.stdout));
+	return fetch_time_components(trace_id).year;
 }
 
 function boot_id() {

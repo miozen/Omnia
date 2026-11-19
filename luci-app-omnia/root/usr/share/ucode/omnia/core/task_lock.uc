@@ -78,7 +78,41 @@ function task_lock_status(trace_id, task_type) {
 	let active = !task_done(task.status);
 	let updated_epoch = int(task.updated_at_epoch || 0);
 	let age_sec = updated_epoch > 0 ? time() - updated_epoch : -1;
-	let stale = exists && !alive && (task_done(task.status) || (active && age_sec >= STALE_AFTER_SEC));
+	let lock_mtime = exists ? int(info.mtime || 0) : 0;
+	let lock_age_sec = lock_mtime > 0 ? time() - lock_mtime : (age_sec > 0 ? age_sec : 0);
+
+	let stale = false;
+	let reason = "unknown";
+
+	if (!exists) {
+		reason = "not_locked";
+	} else if (alive) {
+		if (active && age_sec >= STALE_AFTER_SEC) {
+			stale = true;
+			reason = "heartbeat_expired";
+		} else {
+			reason = "runner_alive";
+		}
+	} else if (task_done(task.status)) {
+		stale = true;
+		reason = "terminal_task_lock";
+	} else if (pid == "") {
+		if (lock_age_sec >= 30) {
+			stale = true;
+			reason = "launch_timed_out";
+		} else {
+			stale = false;
+			reason = "runner_starting";
+		}
+	} else {
+		if (lock_age_sec >= 5) {
+			stale = true;
+			reason = "runner_died";
+		} else {
+			stale = false;
+			reason = "runner_exiting";
+		}
+	}
 
 	return {
 		task_type: task_type,
@@ -89,10 +123,11 @@ function task_lock_status(trace_id, task_type) {
 		task: task,
 		run_id: task_run_id(task),
 		age_sec: age_sec,
+		lock_age_sec: lock_age_sec,
 		stale_after_sec: STALE_AFTER_SEC,
 		stale: stale,
 		recoverable: stale,
-		reason: !exists ? "not_locked" : (alive ? "runner_alive" : (task_done(task.status) ? "terminal_task_lock" : (age_sec >= STALE_AFTER_SEC ? "heartbeat_expired" : "heartbeat_recent")))
+		reason: reason
 	};
 }
 

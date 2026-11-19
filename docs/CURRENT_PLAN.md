@@ -122,6 +122,18 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - [x] Restored direct tab navigation on Configuration Resource columns (Template, Subscriptions, Rulesets).
     - [x] Restored `omniaMotion.cardClass()` hover lift animations across overview cards.
     - [x] Added 4-site network info switcher supporting `ip.sb`, `ipip.net`, `ipwho.is`, and `ipapi.is`.
+  - [x] Comprehensive Quality & Protocol Audit Fixes (10 Core Items):
+    - [x] Shadowsocks protocol name standardization (`ss` -> `shadowsocks` in `producer.uc`, `ir.uc`, `singbox.uc`, `subscription_snapshot.uc`).
+    - [x] Shadowsocks URI parser `plugin` and `plugin_opts` extraction and producer mapping.
+    - [x] ISO country code word-boundary matching in `generator_util.uc`, eliminating region misclassification (`AUSTRALIA`/`RUSSIA` -> `US`, `ESG` -> `SG`).
+    - [x] RFC 8259 control character escaping via ucode native `sprintf("%J")` in `core/utils.uc`.
+    - [x] Task lock stale recovery state machine in `core/task_lock.uc` (5s recovery for dead PID, 30s launch protection for preclaimed lock).
+    - [x] In-memory `stat(mtime)` metadata cache in `clash.uc`, eliminating duplicate `config.json` reads and parses during 3s polling.
+    - [x] Process spawning reduction: single-execution time components fetch in `scheduler_state.uc` + lazy route diagnostics in `runtime.uc`.
+    - [x] rpcd synchronous blocking mitigation with short-interval status cache in `runtime.uc`.
+    - [x] Frontend latency test error handling (`img.onerror` -> `done(false)` reporting timeout instead of 5ms), cleared hardcoded placeholder IPs in `overview.js`.
+    - [x] LuCI dark mode CSS variables integration across `ui.js` and `overview.js`.
+    - [x] Consolidated canonical utility functions in `core/utils.uc` (`trim`, `trim_line`, `starts_with`, `ends_with`, `append_unique`).
 
 ## Remaining
 

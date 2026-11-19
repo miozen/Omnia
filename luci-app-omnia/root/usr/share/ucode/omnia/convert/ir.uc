@@ -13,6 +13,7 @@
  */
 const SUPPORTED_PROTOCOLS = {
 	'ss': 'full',
+	'shadowsocks': 'full',
 	'vmess': 'full',
 	'vless': 'full',
 	'trojan': 'full',
@@ -44,6 +45,8 @@ function create_ir_node(data) {
 		return null;
 
 	let proto = type(data.type) == 'string' ? data.type : '';
+	if (proto == 'shadowsocks')
+		proto = 'ss';
 	let port = int(data.port || 0);
 
 	return {
@@ -71,6 +74,8 @@ function create_ir_node(data) {
 		congestion_control: type(data.congestion_control) == 'string' ? data.congestion_control : '',
 		obfs: type(data.obfs) == 'string' ? data.obfs : '',
 		obfs_password: type(data.obfs_password) == 'string' ? data.obfs_password : '',
+		plugin: type(data.plugin) == 'string' ? data.plugin : '',
+		plugin_opts: type(data.plugin_opts) == 'string' || type(data.plugin_opts) == 'object' ? data.plugin_opts : (type(data['plugin-opts']) == 'string' || type(data['plugin-opts']) == 'object' ? data['plugin-opts'] : ''),
 		udp: data.udp == true || data.udp == 1,
 		packet_encoding: type(data.packet_encoding) == 'string' ? data.packet_encoding : '',
 		_raw_outbound: type(data._raw_outbound) == 'object' && data._raw_outbound != null ? data._raw_outbound : null

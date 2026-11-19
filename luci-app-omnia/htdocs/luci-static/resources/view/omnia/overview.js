@@ -249,10 +249,10 @@ let netChannels = {
 	channel2: 'ip.sb'
 };
 let netSiteDatabase = {
-	'ipip.net': { id: 'ipip.net', name: 'ipip.net', url: 'https://myip.ipip.net/json', region: '中国 局域网', ip: '2408:825c:4e23:57ac::1', isp: '联通', loading: false },
-	'ip.sb': { id: 'ip.sb', name: 'ip.sb', url: 'https://api.ip.sb/geoip', region: '', ip: '166.0.198.207', isp: 'Cloudflare', loading: false },
-	'ipwho.is': { id: 'ipwho.is', name: 'ipwho.is', url: 'https://ipwho.is/', region: '中国 香港', ip: '104.28.19.42', isp: 'AS13335', loading: false },
-	'ipapi.is': { id: 'ipapi.is', name: 'ipapi.is', url: 'https://api.ipapi.is', region: '美国 洛杉矶', ip: '198.41.214.162', isp: 'Cloudflare', loading: false }
+	'ipip.net': { id: 'ipip.net', name: 'ipip.net', url: 'https://myip.ipip.net/json', region: '-', ip: '-', isp: '-', loading: false },
+	'ip.sb': { id: 'ip.sb', name: 'ip.sb', url: 'https://api.ip.sb/geoip', region: '-', ip: '-', isp: '-', loading: false },
+	'ipwho.is': { id: 'ipwho.is', name: 'ipwho.is', url: 'https://ipwho.is/', region: '-', ip: '-', isp: '-', loading: false },
+	'ipapi.is': { id: 'ipapi.is', name: 'ipapi.is', url: 'https://api.ipapi.is', region: '-', ip: '-', isp: '-', loading: false }
 };
 let networkUpdatedAt = '';
 let lastMetricsTimestamp = 0;
@@ -280,7 +280,7 @@ function routerHostUrl(url) {
 }
 
 function cardStyle(accent, clickable) {
-	return 'border: 1px solid #dfe3e8; border-left: 4px solid %s; border-radius: 8px; padding: .65rem .75rem; background: #fff; box-sizing: border-box; min-height: 76px;%s'.format(
+	return 'border: 1px solid var(--border-color, #dfe3e8); border-left: 4px solid %s; border-radius: 8px; padding: .65rem .75rem; background: var(--card-background, var(--background-color, #fff)); color: var(--text-color, inherit); box-sizing: border-box; min-height: 76px;%s'.format(
 		accent || '#64748b',
 		clickable ? ' display: block; color: inherit; text-decoration: none; cursor: pointer;' : ''
 	);
@@ -1358,7 +1358,7 @@ function updateConnectionDetailsDom() {
 	}
 
 	let box = E('div', {
-		'style': 'background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: .85rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);'
+		'style': 'background: var(--card-background, var(--background-color, #fff)); color: var(--text-color, inherit); border: 1px solid var(--border-color, #cbd5e1); border-radius: 8px; padding: .85rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);'
 	}, [
 		headerRow,
 		bodyNode
@@ -1377,10 +1377,10 @@ function probeLatencyTarget(url) {
 			settled = true;
 			const delta = Date.now() - start;
 			img.onload = img.onerror = null;
-			resolve(delta);
+			resolve(success ? delta : null);
 		}
 		img.onload = function() { done(true); };
-		img.onerror = function() { done(true); };
+		img.onerror = function() { done(false); };
 		setTimeout(function() {
 			if (!settled) {
 				settled = true;
@@ -1407,11 +1407,13 @@ function runLatencyTests() {
 
 	let promises = targets.map(function(t) {
 		return probeLatencyTarget(t.url).then(function(delta) {
+			if (!latencyHistory[t.key]) latencyHistory[t.key] = [];
 			if (delta !== null && delta > 0) {
-				if (!latencyHistory[t.key]) latencyHistory[t.key] = [];
 				latencyHistory[t.key].push(delta);
-				if (latencyHistory[t.key].length > 10) latencyHistory[t.key].shift();
+			} else {
+				latencyHistory[t.key].push(-1);
 			}
+			if (latencyHistory[t.key].length > 10) latencyHistory[t.key].shift();
 		});
 	});
 
@@ -1447,11 +1449,20 @@ function updateLatencyDom() {
 		const s = sites[i];
 		const history = latencyHistory[s.key] || [];
 		const lastVal = history.length > 0 ? history[history.length - 1] : null;
-		let valText = lastVal !== null ? lastVal + ' ms' : '-';
-		let valColor = lastVal !== null ? (lastVal <= 100 ? '#10b981' : (lastVal <= 250 ? '#f59e0b' : '#ef4444')) : '#94a3b8';
+		let valText = '-';
+		let valColor = '#94a3b8';
+		if (lastVal !== null) {
+			if (lastVal > 0) {
+				valText = lastVal + ' ms';
+				valColor = lastVal <= 100 ? '#10b981' : (lastVal <= 250 ? '#f59e0b' : '#ef4444');
+			} else {
+				valText = _('超时/阻断');
+				valColor = '#ef4444';
+			}
+		}
 
 		const item = E('div', {
-			'style': 'padding: .4rem .5rem; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px;'
+			'style': 'padding: .4rem .5rem; background: var(--table-hover-color, #f8fafc); border: 1px solid var(--border-color, #f1f5f9); border-radius: 6px;'
 		}, [
 			E('div', { 'style': 'font-size: 12px; font-weight: 500; color: #64748b; margin-bottom: .2rem;' }, s.name),
 			E('div', { 'style': 'display: flex; justify-content: space-between; align-items: center;' }, [

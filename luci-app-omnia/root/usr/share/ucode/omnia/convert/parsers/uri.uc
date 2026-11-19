@@ -167,6 +167,18 @@ function parse_ss(uri) {
 	}
 
 	let udp = parsed.query.udp != '0' && parsed.query.udp != 'false';
+	let plugin = '';
+	let plugin_opts = '';
+	if (type(parsed.query.plugin) == 'string' && parsed.query.plugin != '') {
+		let raw_plugin = parsed.query.plugin;
+		let semi = index(raw_plugin, ';');
+		if (semi >= 0) {
+			plugin = substr(raw_plugin, 0, semi);
+			plugin_opts = substr(raw_plugin, semi + 1);
+		} else {
+			plugin = raw_plugin;
+		}
+	}
 
 	return create_ir_node({
 		name: name,
@@ -175,7 +187,9 @@ function parse_ss(uri) {
 		port: port,
 		cipher: cipher,
 		password: password,
-		udp: udp
+		udp: udp,
+		plugin: plugin,
+		plugin_opts: plugin_opts
 	});
 }
 

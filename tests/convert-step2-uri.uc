@@ -23,6 +23,13 @@ assert(ss_node.cipher == "aes-128-gcm", "ss cipher mismatch: " + ss_node.cipher)
 assert(ss_node.password == "password", "ss password mismatch: " + ss_node.password);
 assert(ss_node.name == "SS Node", "ss name mismatch: " + ss_node.name);
 
+// 1.1 Shadowsocks SIP002 with plugin
+let ss_plugin_uri = "ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@ss.example.com:8388/?plugin=obfs-local%3Bobfs%3Dhttp%3Bobfs-host%3Dexample.com#SS%20Obfs";
+let ss_plugin_node = parse_single_uri(ss_plugin_uri);
+assert(ss_plugin_node != null, "ss_plugin_node parsed null");
+assert(ss_plugin_node.plugin == "obfs-local", "ss plugin mismatch: " + ss_plugin_node.plugin);
+assert(ss_plugin_node.plugin_opts == "obfs=http;obfs-host=example.com", "ss plugin_opts mismatch: " + ss_plugin_node.plugin_opts);
+
 // 2. VMess v2rayN Base64 JSON
 // {"v":"2","ps":"VMess Test","add":"vmess.example.com","port":"443","id":"a0000000-0000-0000-0000-000000000001","aid":"0","scy":"auto","net":"ws","host":"cdn.example.com","path":"/ws","tls":"tls","sni":"sni.example.com"}
 let vmess_b64 = "vmess://eyJ2IjoiMiIsInBzIjoiVk1lc3MgVGVzdCIsImFkZCI6InZtZXNzLmV4YW1wbGUuY29tIiwicG9ydCI6IjQ0MyIsImlkIjoiYTAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiYWlkIjoiMCIsInNjeSI6ImF1dG8iLCJuZXQiOiJ3cyIsImhvc3QiOiJjZG4uZXhhbXBsZS5jb20iLCJwYXRoIjoiL3dzIiwidGxzIjoidGxzIiwic25pIjoic25pLmV4YW1wbGUuY29tIn0=";

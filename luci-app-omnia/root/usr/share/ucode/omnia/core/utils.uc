@@ -60,13 +60,12 @@ function shell_escape(arg) {
 }
 
 function json_escape(arg) {
-	let value = "" + arg;
-	value = replace(value, "\\", "\\\\");
-	value = replace(value, "\"", "\\\"");
-	value = replace(value, "\r", "\\r");
-	value = replace(value, "\n", "\\n");
-	value = replace(value, "\t", "\\t");
-	return value;
+	if (arg == null)
+		return "";
+	let s = sprintf("%J", "" + arg);
+	if (length(s) >= 2 && substr(s, 0, 1) == '"' && substr(s, length(s) - 1, 1) == '"')
+		return substr(s, 1, length(s) - 2);
+	return s;
 }
 
 function json_stringify(value) {
@@ -81,7 +80,7 @@ function json_pretty_indent(level) {
 }
 
 function json_string_literal(value) {
-	return "\"" + json_escape(value) + "\"";
+	return sprintf("%J", "" + (value != null ? value : ""));
 }
 
 function json_stringify_pretty(value, level) {
@@ -189,6 +188,58 @@ function ExecSafe(trace_id, argv) {
 	return result.stdout;
 }
 
+function trim(str) {
+	if (type(str) != 'string')
+		return '';
+	let start = 0;
+	let end = length(str) - 1;
+	while (start <= end) {
+		let c = substr(str, start, 1);
+		if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
+			break;
+		start++;
+	}
+	while (end >= start) {
+		let c = substr(str, end, 1);
+		if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
+			break;
+		end--;
+	}
+	if (start > end)
+		return '';
+	return substr(str, start, end - start + 1);
+}
+
+function trim_line(value) {
+	value = "" + (value != null ? value : "");
+	value = replace(value, "\r", "");
+	value = replace(value, "\n", "");
+	return value;
+}
+
+function starts_with(str, prefix) {
+	if (type(str) != 'string' || type(prefix) != 'string')
+		return false;
+	return index(str, prefix) == 0;
+}
+
+function ends_with(str, suffix) {
+	if (type(str) != 'string' || type(suffix) != 'string')
+		return false;
+	let idx = length(str) - length(suffix);
+	return idx >= 0 && substr(str, idx) == suffix;
+}
+
+function append_unique(list, value) {
+	if (type(list) != 'array' || type(value) != 'string' || value == '')
+		return;
+	for (let item in list) {
+		if (item == value)
+			return;
+	}
+	push(list, value);
+}
+
 function file_exists(path) {
 	let info = stat(path);
 	return type(info) == "object" && info != null;
@@ -220,4 +271,26 @@ function read_optional_text(path) {
 	return data;
 }
 
-export { read_text, read_optional_text, write_text_atomic, write_runtime_text_atomic, parse_json_object, request_keys, request_content, shell_escape, json_escape, json_stringify, json_stringify_pretty, file_exists, ensure_runtime_dir, ensure_config_dir, ExecResult, ExecSafe };
+export {
+	read_text,
+	read_optional_text,
+	write_text_atomic,
+	write_runtime_text_atomic,
+	parse_json_object,
+	request_keys,
+	request_content,
+	shell_escape,
+	json_escape,
+	json_stringify,
+	json_stringify_pretty,
+	file_exists,
+	ensure_runtime_dir,
+	ensure_config_dir,
+	ExecResult,
+	ExecSafe,
+	trim,
+	trim_line,
+	starts_with,
+	ends_with,
+	append_unique
+};

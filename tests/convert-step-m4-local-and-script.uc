@@ -210,7 +210,7 @@ assert(parsed_batch.stats.skipped == 2, 'Skipped invalid nodes 2');
 let conv_res = convert_form_nodes(form_batch);
 assert(conv_res.ok == true, 'Form batch conversion succeeded');
 assert(length(conv_res.outbounds) == 3, 'Outbounds count matches valid nodes');
-assert(conv_res.outbounds[0].type == 'ss', 'Outbound 0 is ss');
+assert(conv_res.outbounds[0].type == 'shadowsocks', 'Outbound 0 is shadowsocks');
 assert(conv_res.outbounds[1].type == 'vmess', 'Outbound 1 is vmess');
 assert(conv_res.outbounds[2].type == 'vless', 'Outbound 2 is vless');
 

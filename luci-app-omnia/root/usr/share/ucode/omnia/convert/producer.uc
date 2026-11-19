@@ -76,13 +76,18 @@ function produce_transport(ir) {
 
 function produce_ss(ir) {
 	let out = {
-		type: 'ss',
+		type: 'shadowsocks',
 		tag: ir.name,
 		server: ir.server,
 		server_port: ir.port,
 		method: ir.cipher != '' ? ir.cipher : 'aes-128-gcm',
 		password: ir.password || ''
 	};
+	if (type(ir.plugin) == 'string' && ir.plugin != '') {
+		out.plugin = ir.plugin;
+		if (ir.plugin_opts != null && ir.plugin_opts != '')
+			out.plugin_opts = ir.plugin_opts;
+	}
 	return out;
 }
 
@@ -235,12 +240,14 @@ function produce_singbox_outbound(ir) {
 		out.tag = ir.name;
 		out.server = ir.server;
 		out.server_port = ir.port;
+		if (out.type == 'ss')
+			out.type = 'shadowsocks';
 		return out;
 	}
 
 	// Synthesis for non-raw IR nodes
 	let p_type = ir.type;
-	if (p_type == 'ss') return produce_ss(ir);
+	if (p_type == 'ss' || p_type == 'shadowsocks') return produce_ss(ir);
 	if (p_type == 'vmess') return produce_vmess(ir);
 	if (p_type == 'vless') return produce_vless(ir);
 	if (p_type == 'trojan') return produce_trojan(ir);

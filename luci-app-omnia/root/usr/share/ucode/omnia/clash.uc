@@ -4,8 +4,44 @@
 
 'use strict';
 
+import { stat } from 'fs';
 import { PATH, BIN, CLASH_API } from 'omnia.core.constants';
-import { read_optional_text, parse_json_object, ExecResult } from 'omnia.core.utils';
+import { read_optional_text, parse_json_object, ExecResult, trim } from 'omnia.core.utils';
+
+let _cached_mtime = -1;
+let _cached_secret = "";
+let _cached_controller = CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
+
+function refresh_clash_api_cache() {
+	let info = stat(PATH.RUNTIME_CONFIG);
+	let current_mtime = type(info) == "object" && info != null ? int(info.mtime || 0) : 0;
+	if (current_mtime > 0 && current_mtime == _cached_mtime)
+		return;
+
+	_cached_mtime = current_mtime;
+	let content = read_optional_text(PATH.RUNTIME_CONFIG);
+	if (content == "") {
+		_cached_secret = "";
+		_cached_controller = CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
+		return;
+	}
+
+	try {
+		let config = parse_json_object(content, "Runtime Config");
+		if (type(config.experimental) == "object" && config.experimental != null &&
+		    type(config.experimental.clash_api) == "object" && config.experimental.clash_api != null) {
+			let api = config.experimental.clash_api;
+			_cached_secret = type(api.secret) == "string" ? api.secret : "";
+			_cached_controller = (type(api.external_controller) == "string" && api.external_controller != "") ? api.external_controller : CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
+		} else {
+			_cached_secret = "";
+			_cached_controller = CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
+		}
+	} catch (e) {
+		_cached_secret = "";
+		_cached_controller = CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
+	}
+}
 
 function first_json_line(text) {
 	text = "" + text;
@@ -24,43 +60,13 @@ function first_json_line(text) {
 }
 
 function clash_api_secret() {
-	let content = read_optional_text(PATH.RUNTIME_CONFIG);
-	if (content == "")
-		return "";
-
-	try {
-		let config = parse_json_object(content, "Runtime Config");
-		if (type(config.experimental) != "object" || config.experimental == null)
-			return "";
-		if (type(config.experimental.clash_api) != "object" || config.experimental.clash_api == null)
-			return "";
-		if (type(config.experimental.clash_api.secret) != "string")
-			return "";
-		return config.experimental.clash_api.secret;
-	} catch (e) {
-		let err = "" + e;
-		return "";
-	}
+	refresh_clash_api_cache();
+	return _cached_secret;
 }
 
 function clash_api_external_controller() {
-	let content = read_optional_text(PATH.RUNTIME_CONFIG);
-	if (content == "")
-		return CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
-
-	try {
-		let config = parse_json_object(content, "Runtime Config");
-		if (type(config.experimental) != "object" || config.experimental == null)
-			return CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
-		if (type(config.experimental.clash_api) != "object" || config.experimental.clash_api == null)
-			return CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
-		if (type(config.experimental.clash_api.external_controller) != "string" || config.experimental.clash_api.external_controller == "")
-			return CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
-		return config.experimental.clash_api.external_controller;
-	} catch (e) {
-		let err = "" + e;
-		return CLASH_API.DEFAULT_EXTERNAL_CONTROLLER;
-	}
+	refresh_clash_api_cache();
+	return _cached_controller;
 }
 
 function strip_trailing_slash(value) {
@@ -106,31 +112,9 @@ function wget_args(method, url, body, timeout_sec) {
 	return args;
 }
 
-function trim_string(str) {
-	if (type(str) != 'string')
-		return '';
-	let start = 0;
-	let end = length(str) - 1;
-	while (start <= end) {
-		let c = substr(str, start, 1);
-		if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
-			break;
-		start++;
-	}
-	while (end >= start) {
-		let c = substr(str, end, 1);
-		if (c != ' ' && c != '\t' && c != '\r' && c != '\n')
-			break;
-		end--;
-	}
-	if (start > end)
-		return '';
-	return substr(str, start, end - start + 1);
-}
-
 function http_get_json(trace_id, url, timeout_sec) {
 	let result = ExecResult(trace_id, wget_args("GET", url, "", timeout_sec));
-	let text = trim_string(result.stdout);
+	let text = trim(result.stdout);
 
 	if (result.code != 0)
 		die(result.stderr || result.stdout || "HTTP GET failed");

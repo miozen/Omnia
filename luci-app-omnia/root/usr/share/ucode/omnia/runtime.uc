@@ -106,9 +106,9 @@ function runtime_state_json(trace_id, service_result, ownership) {
 	let last_apply_result = read_optional_text(PATH.LAST_APPLY_RESULT);
 	let last_error = read_optional_text(PATH.LAST_ERROR);
 	let tun_name = tun_name_from_config();
-	let cleanup = cleanup_observe_safe(trace_id);
-	let stale_routes = running ? [] : (cleanup.stale_omnia_routes || []);
-	let stale_rules = running ? [] : (cleanup.stale_omnia_rules || []);
+	let cleanup = running ? { stale_omnia_routes: [], stale_omnia_rules: [], tun_existed: false } : cleanup_observe_safe(trace_id);
+	let stale_routes = cleanup.stale_omnia_routes || [];
+	let stale_rules = cleanup.stale_omnia_rules || [];
 
 	if (!running && service_result.stderr != "")
 		last_error = service_result.stderr;
@@ -152,6 +152,23 @@ function observe_runtime(trace_id) {
 
 function runtime_status(trace_id, req) {
 	try {
+		let force = req && req.force == true;
+		if (!force) {
+			let info = stat(PATH.RUNTIME_STATE);
+			if (type(info) == "object" && info != null) {
+				let age = time() - int(info.mtime || 0);
+				if (age >= 0 && age <= 3) {
+					let cached = read_optional_text(PATH.RUNTIME_STATE);
+					if (cached != "") {
+						return Success({
+							path: PATH.RUNTIME_STATE,
+							state: json(cached)
+						}, 200, trace_id, "Runtime status cached");
+					}
+				}
+			}
+		}
+
 		let observed = observe_runtime(trace_id);
 		return Success({
 			path: PATH.RUNTIME_STATE,

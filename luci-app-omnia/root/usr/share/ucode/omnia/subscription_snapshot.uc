@@ -35,6 +35,9 @@ function sanitize_and_validate_outbounds(outbounds) {
 		if (p_type == '' || !is_protocol_supported(p_type))
 			continue;
 
+		if (p_type == 'ss')
+			outbound.type = 'shadowsocks';
+
 		// Security constraint: Reject and drop any chained detour nodes
 		// Legacy parser or corrupted node must NEVER bypass detour restriction
 		if (outbound.detour != null && outbound.detour != '')

@@ -20,11 +20,11 @@ function valueText(value) {
 }
 
 function sectionStyle(extra) {
-	return mergeStyle('border: 1px solid #dfe3e8; border-radius: 8px; padding: .75rem 1rem; margin: 0 0 .75rem; background: #fff;', extra);
+	return mergeStyle('border: 1px solid var(--border-color, #dfe3e8); border-radius: 8px; padding: .75rem 1rem; margin: 0 0 .75rem; background: var(--card-background, var(--background-color, #fff)); color: var(--text-color, inherit);', extra);
 }
 
 function mutedStyle(extra) {
-	return mergeStyle('color: #667; line-height: 1.35; overflow-wrap: anywhere;', extra);
+	return mergeStyle('color: var(--text-color-muted, #667); line-height: 1.35; overflow-wrap: anywhere;', extra);
 }
 
 function section(children, options) {
@@ -52,7 +52,7 @@ function sectionDescription(text) {
 }
 
 function fieldLabel(text) {
-	return E('div', { 'style': 'font-size: 12px; color: #667; font-weight: 700; margin: 0 0 .25rem; line-height: 1.25;' }, text);
+	return E('div', { 'style': 'font-size: 12px; color: var(--text-color-muted, #667); font-weight: 700; margin: 0 0 .25rem; line-height: 1.25;' }, text);
 }
 
 function formField(label, input, help, options) {
@@ -190,9 +190,9 @@ function statCard(label, value, options) {
 	options = options || {};
 	return E('div', {
 		'class': options.class || null,
-		'style': mergeStyle('border: 1px solid #e5e7eb; border-radius: 8px; padding: .65rem; background: #f8fafc;', options.style)
+		'style': mergeStyle('border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; padding: .65rem; background: var(--table-hover-color, #f8fafc);', options.style)
 	}, [
-		E('div', { 'style': 'font-size: 12px; color: #667; font-weight: 700;' }, label),
+		E('div', { 'style': 'font-size: 12px; color: var(--text-color-muted, #667); font-weight: 700;' }, label),
 		E('div', { 'style': mergeStyle('font-size: 20px; font-weight: 800; margin-top: .25rem; overflow-wrap: anywhere;', options.valueStyle) }, valueText(value))
 	]);
 }

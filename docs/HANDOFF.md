@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-2026-11-20T23:30+08:00
+2026-11-21T00:35+08:00
 
 ## Repository State
 
@@ -14,38 +14,29 @@
 ## Development State
 
 - **Current Phase:** Post-v0.1.0 Stabilization — Real-Hardware Ergonomics & Conversion Enhancements
-- **Current Task:** Fix subscription error auto-clear, local node stats & VLESS parsing, region delete button, matrix headers wrapping, and main selector contrast
+- **Current Task:** Sub-Store-compatible VLESS URI parser & region group name left alignment
 - **Last Completed:**
-  1. Auto-clear Subscription Error Messages (`subscriptions.js`):
-     - Removed obsolete `item.error` fallback rendering from subscription matrix in `subscriptions.js`.
-     - Errors are now tied solely to active refresh execution (`refreshResultForSource`), ensuring failed download logs naturally clear when refreshing or reloading the page.
-  2. Local Node Counting & Disabled Status Preservation (`subscription.uc`):
-     - Updated `compile_local_source` in `subscription.uc` to compute and return true `total_count` even when `source.enabled == false`.
-     - Updated `preserve_unselected_source` in `subscription.uc` to retain previous node count instead of clearing to 0 when disabled.
-  3. Robust VLESS & sing-box JSON Parsing (`form.uc`, `sniffer.uc`, `singbox.uc`):
-     - Supported single sing-box outbound objects in `sniffer.uc` (`parsed.type` with `server` / `port` / `tag`) and `singbox.uc` (`raw_outbounds = [ parsed_json ]`).
-     - Enhanced `form.uc` with full support for sing-box nested `tls: { enabled: true, server_name: "...", reality: { ... } }`, extracted `reality`, `sni`, `alpn`, `skip_cert_verify`, and transport layers (`ws`, `grpc`, `http`).
-     - Enhanced `cipher` mapping fallback for `method` in `singbox.uc`.
-  4. Regional Keyword Delete Button Alignment (`subscriptions.js`):
-     - Moved the delete button in `policySettings` (`subscriptions.js`) to the end of the input field in `cbi-value-field`.
-     - Standardized its style to `omniaMotion.buttonClass('btn cbi-button cbi-button-remove')` with `_('删除')` label matching the subscriptions table.
-  5. Subscription Matrix Layout Optimization (`subscriptions.js`):
-     - Added `white-space: nowrap; min-width: 3.5rem;` to `<th>` for `启用` and `节点` columns, completely preventing awkward Chinese character line breaks.
-     - Separated custom DNS and operators into a dedicated second line below the URL to free up horizontal column space.
-  6. High-Contrast Root Main Selector Card (`selectors.js`):
-     - Replaced low-contrast `#f8fafc` text on slate background in `selectors.js` with `#eff6ff` light-blue card, `#1e3a8a` dark-blue title, `#1d4ed8` button, and `#475569` description, ensuring crystal-clear readability on light themes.
-  7. Verification:
-     - Validated syntax on all JavaScript files via `node --check`.
-     - Verified all UI and behavior test suites (`panel-behavior.cjs`, `subscription-ui.cjs`, `selectors-ui.cjs`, `profile-ui.cjs`, `diagnostics-ui.cjs`, `overview-ui.cjs`).
+  1. Sub-Store-Compatible VLESS URI Parser (`uri.uc`):
+     - Implemented Sub-Store `proxy-utils` authority handling: automatically detects and safely base64-decodes authorities (`auto:UUID@host:port`), stripping `auto:` / `none:` encryption prefixes to ensure valid UUIDs.
+     - Extracted node names with fallback priority: `fragment` > `remarks` > `remark` > `title` > `host:port`.
+     - Multi-faceted Reality & TLS detection: recognises `pbk` (Reality public key), `xtls=2`, or `security=reality`, and extracts SNI from `sni` or `peer`.
+     - Transport normalization: maps `type`, `net`, `network`, `obfs`, `transport` to standard types, extracting gRPC `service_name` from `serviceName` or `path` (`obfs=grpc&path=grpc`).
+  2. Region Group Name Left-Alignment (`subscriptions.js`):
+     - Added `text-align: left;` to `label.cbi-value-title` in `policySettings` to ensure national flag emojis and region names line up neatly on the left margin.
+  3. Comprehensive Verification & Unit Tests:
+     - Added unit tests for both user VLESS links (Reality TCP & Reality gRPC) to `tests/convert-step2-uri.uc`.
+     - All 15 convert and integration test suites passed in Docker OpenWrt rootfs (`tests/run-all-convert-tests.sh`).
+     - Static checks and UI test suites passed 100% (`tests/ci-static.sh`).
 
 ## Validation Performed
 
-- `node --check` across all JS files: PASS
-- `node tests/panel-behavior.cjs; node tests/subscription-ui.cjs; node tests/selectors-ui.cjs; node tests/profile-ui.cjs; node tests/diagnostics-ui.cjs; node tests/overview-ui.cjs`: PASS
+- `bash tests/run-all-convert-tests.sh` (inside Docker rootfs): PASS (All 15 suites & module compilations passed)
+- `bash tests/ci-static.sh`: PASS (All UI suites, schema validation, and workflow checks passed)
+- `node tests/subscription-ui.cjs; node tests/selectors-ui.cjs; node tests/profile-ui.cjs; node tests/overview-ui.cjs`: PASS
 
 ## Exact Next Action
 
-Deploy on OpenWrt real hardware (`op.lan`), verify subscription refresh error clearing on F5, local node count visibility, VLESS nodes parsing, region delete button ergonomics, and selectors high-contrast card.
+Deploy on OpenWrt real hardware (`op.lan`), verify local VLESS Reality nodes parsing, and check region group names left-aligned layout.
 
 ## Cross-machine Ready
 

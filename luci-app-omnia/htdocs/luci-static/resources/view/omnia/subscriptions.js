@@ -1094,7 +1094,7 @@ function policySettings(policy) {
 		let meta = getCountryMetadata(region);
 		let titleLabel = (meta.flag ? meta.flag + ' ' : '') + (meta.name && meta.name !== region ? meta.name + ' (' + region + ')' : region);
 		return E('div', { 'class': 'cbi-value', 'style': 'margin-bottom: .6rem;' }, [
-			E('label', { 'class': 'cbi-value-title', 'style': 'margin-bottom: 3px; font-weight: 500;' }, [
+			E('label', { 'class': 'cbi-value-title', 'style': 'text-align: left; margin-bottom: 3px; font-weight: 500;' }, [
 				E('span', {}, titleLabel)
 			]),
 			E('div', { 'class': 'cbi-value-field', 'style': 'display: flex; gap: .5rem; align-items: center;' }, [

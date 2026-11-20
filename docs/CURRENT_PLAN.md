@@ -182,6 +182,8 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - [x] Custom region keyword delete button alignment (`subscriptions.js`): moved delete button to the end of the input field with standard `cbi-button-remove` styling.
     - [x] Subscription matrix layout optimization (`subscriptions.js`): added `white-space: nowrap; min-width: 3.5rem;` to `启用` and `节点` headers to prevent wrapping; separated custom DNS and operators into a dedicated second line below the URL.
     - [x] System root main selector card styling (`selectors.js`): replaced low-contrast `#f8fafc` text on slate background with high-contrast `#eff6ff` card, `#1e3a8a` title, `#1d4ed8` preview button, and `#475569` description.
+    - [x] Sub-Store-compatible VLESS URI Parser (`uri.uc`): replicated Sub-Store proxy-utils handling for Base64 authority (`auto:UUID@host:port`), `?remarks=` node names, `pbk`/`xtls=2` Reality detection, `peer` SNI, and `obfs=grpc`/`path=grpc` transport.
+    - [x] Region Group Name Left-Alignment (`subscriptions.js`): explicitly styled `.cbi-value-title` with `text-align: left;` to neatly align flag emojis and region names.
 
 ## Remaining
 

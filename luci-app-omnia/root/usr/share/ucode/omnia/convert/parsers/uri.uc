@@ -111,6 +111,14 @@ function parse_generic_uri(uri) {
 	else if (scheme == 'socks5' || scheme == 'socks') default_port = 1080;
 
 	let authority = parse_authority(auth_str, default_port);
+	if (authority.host != '' && authority.port == 0 && authority.userinfo == '') {
+		let decoded_auth = safe_b64decode(auth_str);
+		if (decoded_auth != null && (index(decoded_auth, '@') >= 0 || index(decoded_auth, ':') >= 0)) {
+			let alt_auth = parse_authority(decoded_auth, default_port);
+			if (alt_auth.host != '' && alt_auth.port > 0)
+				authority = alt_auth;
+		}
+	}
 	let query = parse_query(query_str);
 
 	return {
@@ -293,13 +301,21 @@ function parse_vless(uri) {
 		return null;
 
 	let q = parsed.query;
-	let network = q.type || q.net || 'tcp';
+	let uuid = parsed.userinfo;
+	let colon_idx = index(uuid, ':');
+	if (colon_idx >= 0)
+		uuid = substr(uuid, colon_idx + 1);
+
+	let name = parsed.fragment != '' ? parsed.fragment : (q.remarks || q.remark || q.title || (parsed.host + ':' + parsed.port));
+
+	let network = q.type || q.net || q.network || q.obfs || q.transport || 'tcp';
 	let security = lc(q.security || '');
-	let tls = security == 'tls' || security == 'reality';
-	let sni = q.sni || q.host || '';
+	let has_reality = q.pbk != '' || security == 'reality' || q.xtls == '2';
+	let tls = q.tls == '1' || q.tls == 'tls' || q.tls == 'true' || security == 'tls' || has_reality;
+	let sni = q.sni || q.peer || q.host || '';
 
 	let reality = null;
-	if (security == 'reality') {
+	if (has_reality && q.pbk != '') {
 		reality = {
 			enabled: true,
 			public_key: q.pbk || '',
@@ -309,14 +325,15 @@ function parse_vless(uri) {
 
 	let ws_opts = null;
 	let grpc_opts = null;
-	if (network == 'ws') {
+	if (network == 'ws' || network == 'websocket') {
+		network = 'ws';
 		ws_opts = {
 			path: q.path || '/',
-			headers: q.host != '' ? { Host: q.host } : {}
+			headers: (q.host || q.sni || q.peer) != '' ? { Host: q.host || q.sni || q.peer } : {}
 		};
 	} else if (network == 'grpc') {
 		grpc_opts = {
-			service_name: q.serviceName || q.path || ''
+			service_name: q.serviceName || q.service_name || q.path || ''
 		};
 	}
 
@@ -325,11 +342,11 @@ function parse_vless(uri) {
 		alpn = split(q.alpn, ',');
 
 	return create_ir_node({
-		name: parsed.fragment != '' ? parsed.fragment : (parsed.host + ':' + parsed.port),
+		name: name,
 		type: 'vless',
 		server: parsed.host,
 		port: parsed.port,
-		uuid: parsed.userinfo,
+		uuid: uuid,
 		flow: q.flow || '',
 		network: network,
 		tls: tls,
@@ -348,19 +365,20 @@ function parse_trojan(uri) {
 		return null;
 
 	let q = parsed.query;
-	let network = q.type || q.net || 'tcp';
-	let sni = q.sni || q.peer || '';
+	let network = q.type || q.net || q.network || q.obfs || q.transport || 'tcp';
+	let sni = q.sni || q.peer || q.host || '';
 
 	let ws_opts = null;
 	let grpc_opts = null;
-	if (network == 'ws') {
+	if (network == 'ws' || network == 'websocket') {
+		network = 'ws';
 		ws_opts = {
 			path: q.path || '/',
-			headers: q.host != '' ? { Host: q.host } : {}
+			headers: (q.host || q.sni || q.peer) != '' ? { Host: q.host || q.sni || q.peer } : {}
 		};
 	} else if (network == 'grpc') {
 		grpc_opts = {
-			service_name: q.serviceName || q.path || ''
+			service_name: q.serviceName || q.service_name || q.path || ''
 		};
 	}
 
@@ -368,8 +386,10 @@ function parse_trojan(uri) {
 	if (q.alpn != '')
 		alpn = split(q.alpn, ',');
 
+	let name = parsed.fragment != '' ? parsed.fragment : (q.remarks || q.remark || q.title || (parsed.host + ':' + parsed.port));
+
 	return create_ir_node({
-		name: parsed.fragment != '' ? parsed.fragment : (parsed.host + ':' + parsed.port),
+		name: name,
 		type: 'trojan',
 		server: parsed.host,
 		port: parsed.port,

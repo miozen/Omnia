@@ -59,6 +59,37 @@ assert(vless_node.reality != null, "vless reality is null");
 assert(vless_node.reality.public_key == "1111222233334444555566667777888899990000111=", "vless pbk mismatch");
 assert(vless_node.reality.short_id == "1234abcd", "vless sid mismatch");
 
+// 3.1 Sub-Store compatible VLESS Reality TCP (Base64 Authority + remarks query)
+let vless_b64_tcp = "vless://YXV0bzowM2JlYzZmMy1iOGQyLTQ0MmItYjE0Mi04OWY1YjcyNzlmODJAMTQ3LjIyNC40MC4xNDA6MjE2MzM=?remarks=🇺🇸 14-US 01&tls=1&peer=addons.mozilla.org&xtls=2&pbk=YakB6CsDniRFXcc4AbgMm8v98RileSRiDB5kPazACkt";
+let vless_node1 = parse_single_uri(vless_b64_tcp);
+assert(vless_node1 != null, "vless_node1 parsed null");
+assert(vless_node1.type == "vless", "vless_node1 type mismatch");
+assert(vless_node1.name == "🇺🇸 14-US 01", "vless_node1 name mismatch: " + vless_node1.name);
+assert(vless_node1.server == "147.224.40.140", "vless_node1 server mismatch: " + vless_node1.server);
+assert(vless_node1.port == 21633, "vless_node1 port mismatch: " + vless_node1.port);
+assert(vless_node1.uuid == "03bec6f3-b8d2-442b-b142-89f5b7279f82", "vless_node1 uuid mismatch: " + vless_node1.uuid);
+assert(vless_node1.tls == true, "vless_node1 tls mismatch");
+assert(vless_node1.sni == "addons.mozilla.org", "vless_node1 sni mismatch: " + vless_node1.sni);
+assert(vless_node1.network == "tcp", "vless_node1 network mismatch: " + vless_node1.network);
+assert(vless_node1.reality != null, "vless_node1 reality null");
+assert(vless_node1.reality.public_key == "YakB6CsDniRFXcc4AbgMm8v98RileSRiDB5kPazACkt", "vless_node1 pbk mismatch");
+
+// 3.2 Sub-Store compatible VLESS Reality gRPC (obfs=grpc + path=grpc)
+let vless_b64_grpc = "vless://YXV0bzowM2JlYzZmMy1iOGQyLTQ0MmItYjE0Mi04OWY1YjcyNzlmODJAMTQ3LjIyNC40MC4xNDA6MjE2NDI=?remarks=🇺🇸 14-US 06&path=grpc&obfs=grpc&tls=1&peer=addons.mozilla.org&pbk=YakB6CsDniRFXcc4AbgMm8v98RileSRiDB5kPazACkt";
+let vless_node2 = parse_single_uri(vless_b64_grpc);
+assert(vless_node2 != null, "vless_node2 parsed null");
+assert(vless_node2.type == "vless", "vless_node2 type mismatch");
+assert(vless_node2.name == "🇺🇸 14-US 06", "vless_node2 name mismatch: " + vless_node2.name);
+assert(vless_node2.server == "147.224.40.140", "vless_node2 server mismatch: " + vless_node2.server);
+assert(vless_node2.port == 21642, "vless_node2 port mismatch: " + vless_node2.port);
+assert(vless_node2.uuid == "03bec6f3-b8d2-442b-b142-89f5b7279f82", "vless_node2 uuid mismatch: " + vless_node2.uuid);
+assert(vless_node2.tls == true, "vless_node2 tls mismatch");
+assert(vless_node2.network == "grpc", "vless_node2 network mismatch: " + vless_node2.network);
+assert(vless_node2.grpc_opts != null, "vless_node2 grpc_opts null");
+assert(vless_node2.grpc_opts.service_name == "grpc", "vless_node2 grpc service_name mismatch: " + vless_node2.grpc_opts.service_name);
+assert(vless_node2.reality != null, "vless_node2 reality null");
+assert(vless_node2.reality.public_key == "YakB6CsDniRFXcc4AbgMm8v98RileSRiDB5kPazACkt", "vless_node2 pbk mismatch");
+
 // 4. Trojan gRPC
 let trojan_grpc = "trojan://secret-pwd@trojan.example.com:443?type=grpc&serviceName=my-grpc&sni=tr.example.com#Trojan%20gRPC";
 let trojan_node = parse_single_uri(trojan_grpc);

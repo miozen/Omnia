@@ -115,7 +115,11 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - Dynamic column rendering for Subscription Matrix and source editor checkboxes with flag badges.
   - [x] Profile selector allocation preview (`profile.js`): dynamic formatting `${candidateLabel(m)} 测速组`.
   - [x] Fixed keyword matching infinite loop in `generator_util.uc` (`tag_contains_keyword`): replaced unsupported 3-argument `index(str, needle, offset)` with `substr` window slicing, eliminating rpcd CPU spinlock and Resources page hang on real hardware.
-  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc` (including word boundary and infinite loop regression tests). Validated 100% passing.
+  - [x] Fixed undeclared variable exceptions in `runtime.uc` and `profile_selectors.uc`:
+    - Imported `stat` from `fs` in `runtime.uc`, eliminating runtime status observation failure on Overview page.
+    - Moved `profile_source_key()` before `template_selectors_get()` in `profile_selectors.uc` to satisfy ucode `'use strict'` declaration-before-call ordering, and added defensive fallback around node snapshot / group generation to ensure business selectors load reliably.
+    - Added user-facing error reporting in `profile.js` when `selectorsResult` fails.
+  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc` (including word boundary, infinite loop, and template_selectors_get / runtime_status integration tests). Validated 100% passing.
 
 ## In Progress
 
@@ -169,7 +173,11 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - Dynamic column rendering for Subscription Matrix and source editor checkboxes with flag badges.
   - [x] Profile selector allocation preview (`profile.js`): dynamic formatting `${candidateLabel(m)} 测速组`.
   - [x] Fixed keyword matching infinite loop in `generator_util.uc` (`tag_contains_keyword`): replaced unsupported 3-argument `index(str, needle, offset)` with `substr` window slicing, eliminating rpcd CPU spinlock and Resources page hang on real hardware.
-  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc` (including word boundary and infinite loop regression tests). Validated 100% passing.
+  - [x] Fixed undeclared variable exceptions in `runtime.uc` and `profile_selectors.uc`:
+    - Imported `stat` from `fs` in `runtime.uc`, eliminating runtime status observation failure on Overview page.
+    - Moved `profile_source_key()` before `template_selectors_get()` in `profile_selectors.uc` to satisfy ucode `'use strict'` declaration-before-call ordering, and added defensive fallback around node snapshot / group generation to ensure business selectors load reliably.
+    - Added user-facing error reporting in `profile.js` when `selectorsResult` fails.
+  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc` (including word boundary, infinite loop, and template_selectors_get / runtime_status integration tests). Validated 100% passing.
 
 ## In Progress
 

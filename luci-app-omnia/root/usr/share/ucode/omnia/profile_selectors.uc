@@ -237,6 +237,18 @@ function get_selector_candidate_pool(profile, groups, subscriptions, template_ke
 	};
 }
 
+function profile_source_key() {
+	let content = read_optional_text(PATH.PROFILE_SOURCE);
+	if (content != "") {
+		try {
+			let src = parse_json_object(content, "Profile Source");
+			if (type(src) == "object" && src != null && type(src.url) == "string" && src.url != "")
+				return src.url;
+		} catch (e) {}
+	}
+	return "default";
+}
+
 function template_selectors_get(trace_id, req) {
 	try {
 		let profile = {};
@@ -247,10 +259,16 @@ function template_selectors_get(trace_id, req) {
 		try { subscriptions = parse_subscriptions_policy(); } catch (e) {}
 
 		let profile_tags = collect_profile_tags(profile);
-		let normalized = normalized_nodes(snapshot, profile_tags, subscriptions);
+		let normalized = { nodes: [] };
+		try {
+			normalized = normalized_nodes(snapshot, profile_tags, subscriptions);
+		} catch (e) {}
 		let nodes = normalized.nodes;
 		let node_tags = collect_node_tags(nodes);
-		let groups = generate_region_groups(subscriptions, nodes, profile_tags, node_tags);
+		let groups = [];
+		try {
+			groups = generate_region_groups(subscriptions, nodes, profile_tags, node_tags);
+		} catch (e) {}
 		let key = profile_source_key();
 		let data = get_selector_candidate_pool(profile, groups, subscriptions, key);
 		return Success(data, 200, trace_id, "Template selectors pool loaded");
@@ -278,18 +296,6 @@ function template_selectors_save(trace_id, req) {
 		let err = "" + e;
 		return Fail(ERR.E_INTERNAL, "Failed to save template selectors", trace_id, err);
 	}
-}
-
-function profile_source_key() {
-	let content = read_optional_text(PATH.PROFILE_SOURCE);
-	if (content != "") {
-		try {
-			let src = parse_json_object(content, "Profile Source");
-			if (type(src) == "object" && src != null && type(src.url) == "string" && src.url != "")
-				return src.url;
-		} catch (e) {}
-	}
-	return "default";
 }
 
 export {

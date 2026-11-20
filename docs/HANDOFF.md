@@ -2,32 +2,30 @@
 
 ## Last Updated
 
-2026-11-20T19:00+08:00
+2026-11-20T20:15+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `ad56f87` (committed and pushed)
+- **HEAD:** `32f7f1d` (committed and pushed)
 - **Working Tree:** CLEAN
 - **Remote Sync:** Branch `dev` synchronized with remote origin/dev
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Stabilization — rpcd CPU Spinlock Fix & Custom Regions
-- **Current Task:** Fix tag_contains_keyword infinite loop in generator_util.uc
+- **Current Phase:** Post-v0.1.0 Stabilization — Strict Mode Undeclared Variable Fixes
+- **Current Task:** Fix undeclared variable stat and profile_source_key
 - **Last Completed:**
-  1. Keyword Matching & Anti-Infinite-Loop Fix (`generator_util.uc`):
-     - Identified root cause of 100% CPU lockup and Resources page freeze on real hardware: ucode's string `index()` ignores the 3rd `offset` argument, causing `index(tag_upper, kw_upper, start_pos)` to repeatedly match at offset 0 and deadlock in `while` loop whenever a node name contained an embedded keyword substring (e.g., `NETWORK` matching `TW`, `PLUS` matching `US`, `STAR` matching `AR`).
-     - Replaced with windowed substring slice `substr(tag_upper, start_pos)` and standard 2-argument `index(sub, kw_upper)`.
-     - Strictly guaranteed monotonic advancement of `start_pos`, ensuring complete termination within `tag_len` iterations.
-  2. Regression Test Suite (`tests/profile-selectors.uc`):
-     - Added test section asserting rejection of embedded keywords (`NETWORK` for `TW`, `PLUS` for `US`, `STAR` for `AR`, `DESIGN` for `SG`, `RUSSIA` for `US`, `BUSINESS` for `US`, `BETWEEN` for `TW`).
-     - Added assertions verifying proper matching of isolated / boundary-separated keywords (`IEPL-TW-01`, `US-VIP-01`, `01 US Node`, `SG_01`, `🇹🇼 台湾 01`, `HK`).
-     - Added mixed test verifying proper match after a rejected prefix (`NETWORK-TW-01`).
-  3. Validation:
-     - `bash tests/ci-static.sh`: PASS.
-     - `bash tests/run-all-convert-tests.sh`: PASS (all 14 suites + module compilation).
-     - `node tests/profile-ui.cjs`, `subscription-ui.cjs`, `overview-ui.cjs`: PASS.
+  1. Runtime Status Missing `stat` Import Fix (`runtime.uc`):
+     - Imported `stat` from `fs` under `'use strict'`, eliminating fatal `access to undeclared variable stat` exception when checking cached runtime state.
+     - Restored normal runtime status observation and sing-box running status display on Overview page.
+  2. Template Selectors Function Hoisting & Defensive Loading (`profile_selectors.uc`, `profile.js`):
+     - Moved `profile_source_key()` before `template_selectors_get()`, eliminating ucode `'use strict'` exception `access to undeclared variable profile_source_key`.
+     - Wrapped `normalized_nodes` and `generate_region_groups` in defensive `try/catch` within `template_selectors_get` to guarantee template business selectors are extracted and returned even during edge-case node anomalies.
+     - Added explicit error alert in `profile.js` when `selectorsResult` fails.
+  3. Regression & Integration Test Suite (`tests/profile-selectors.uc`):
+     - Added end-to-end assertions verifying that `template_selectors_get` and `runtime_status` execute successfully without undeclared variable errors.
+     - Verified all 14 convert tests, module compilation, and static CI checks pass.
 
 ## Validation Performed
 
@@ -37,7 +35,7 @@
 
 ## Exact Next Action
 
-Deploy on OpenWrt 25.12+ real hardware and verify that opening the Resources page is instantaneous and CPU usage remains normal.
+Deploy on OpenWrt 25.12+ real hardware and verify that Overview page accurately observes sing-box running status and Template Outbound Allocation renders all business selectors.
 
 ## Cross-machine Ready
 

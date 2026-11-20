@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { resolve_selector_members, sync_template_selectors, get_main_selector_tag, get_direct_outbound_tag, region_flag_str, region_name_str, get_selector_candidate_pool } from 'omnia.profile_selectors';
+import { resolve_selector_members, sync_template_selectors, get_main_selector_tag, get_direct_outbound_tag, region_flag_str, region_name_str, get_selector_candidate_pool, template_selectors_get } from 'omnia.profile_selectors';
 import { inject_selectors } from 'omnia.generator_selectors';
 import { restore_manual_selector_references, MANUAL_SELECTOR_TAG } from 'omnia.generator_manual_selector';
 import { tag_contains_keyword, upper_text } from 'omnia.generator_util';
+import { runtime_status } from 'omnia.runtime';
 
 function assert(condition, message) {
 	if (!condition)
@@ -194,5 +195,17 @@ assert(tag_contains_keyword(upper_text("HK"), "HK"), "Exact HK matches HK");
 
 // Mixed: contains both embedded rejected word and valid isolated keyword
 assert(tag_contains_keyword(upper_text("NETWORK-TW-01"), "TW"), "NETWORK-TW-01 correctly finds isolated TW after rejected NETWORK");
+
+// -----------------------------------------------------------------------------
+// 7. template_selectors_get & runtime_status integration
+// -----------------------------------------------------------------------------
+print("Testing template_selectors_get & runtime_status integration...\n");
+let t_res = template_selectors_get("test-trace", {});
+assert(t_res.ok == true, "template_selectors_get executed successfully without undeclared variable errors");
+assert(type(t_res.data) == "object", "data object returned");
+assert(type(t_res.data.selectors) == "array", "selectors array returned");
+
+let rt_res = runtime_status("test-trace", {});
+assert(rt_res.ok == true, "runtime_status executed successfully without undeclared variable stat error");
 
 print("ALL profile_selectors unit tests passed successfully!\n");

@@ -4,6 +4,7 @@
 
 'use strict';
 
+import { stat } from 'fs';
 import { PATH, BIN } from 'omnia.core.constants';
 import { Success, Fail } from 'omnia.core.result';
 import { ERR } from 'omnia.core.error';

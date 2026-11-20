@@ -1282,6 +1282,12 @@ return view.extend({
 		sourceResult = results && results[1] ? results[1] : {};
 		selectorsResult = results && results[2] ? results[2] : {};
 		initSelectorState(dataOf(selectorsResult));
+		if (selectorsResult && selectorsResult.ok === false) {
+			let msg = selectorsResult.message || selectorsResult.detail || _('加载分流出站失败');
+			window.setTimeout(function() {
+				setSelectorStatus(_('加载失败：%s').format(msg), false);
+			}, 0);
+		}
 
 		return renderPage();
 	},

@@ -58,6 +58,8 @@ function sniff_format(raw_content) {
 					return { format: 'singbox_json', parsed: parsed };
 				if (type(parsed.inbounds) == 'array' || type(parsed.route) == 'object')
 					return { format: 'singbox_json', parsed: parsed };
+				if (type(parsed.type) == 'string' && (type(parsed.server) == 'string' || type(parsed.server_port) == 'int' || type(parsed.port) == 'int' || type(parsed.tag) == 'string'))
+					return { format: 'singbox_json', parsed: [ parsed ] };
 			} else if (type(parsed) == 'array') {
 				let has_outbounds = false;
 				for (let item in parsed) {

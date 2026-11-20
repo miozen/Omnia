@@ -72,6 +72,18 @@ function parse_form_node(raw) {
 			password = raw.password;
 	}
 
+	let raw_tls = type(raw.tls) == 'object' && raw.tls != null ? raw.tls : null;
+	let has_reality = (type(raw.reality) == 'object' && raw.reality != null && raw.reality.enabled == true) ||
+	                  (raw_tls != null && type(raw_tls.reality) == 'object' && raw_tls.reality != null && raw_tls.reality.enabled == true);
+	let has_tls = raw.tls == true || raw.tls == 'tls' || raw.tls == 1 || (raw_tls != null && raw_tls.enabled != false) || has_reality;
+	let sni = type(raw.sni) == 'string' ? raw.sni : (type(raw.server_name) == 'string' ? raw.server_name : (raw_tls != null && type(raw_tls.server_name) == 'string' ? raw_tls.server_name : ''));
+	let reality = type(raw.reality) == 'object' && raw.reality != null ? raw.reality : (raw_tls != null && type(raw_tls.reality) == 'object' && raw_tls.reality != null ? raw_tls.reality : null);
+	let raw_tr = type(raw.transport) == 'object' && raw.transport != null ? raw.transport : null;
+	let network = type(raw.network) == 'string' ? raw.network : (type(raw.transport) == 'string' ? raw.transport : (raw_tr != null && type(raw_tr.type) == 'string' ? raw_tr.type : 'tcp'));
+	let ws_opts = type(raw.ws_opts) == 'object' && raw.ws_opts != null ? raw.ws_opts : (type(raw['ws-opts']) == 'object' ? raw['ws-opts'] : (raw_tr != null && raw_tr.type == 'ws' ? raw_tr : null));
+	let grpc_opts = type(raw.grpc_opts) == 'object' && raw.grpc_opts != null ? raw.grpc_opts : (type(raw['grpc-opts']) == 'object' ? raw['grpc-opts'] : (raw_tr != null && raw_tr.type == 'grpc' ? raw_tr : null));
+	let http_opts = type(raw.http_opts) == 'object' && raw.http_opts != null ? raw.http_opts : (type(raw['http-opts']) == 'object' ? raw['http-opts'] : (raw_tr != null && (raw_tr.type == 'http' || raw_tr.type == 'h2') ? raw_tr : null));
+
 	let ir_data = {
 		name: name,
 		type: proto,
@@ -82,22 +94,23 @@ function parse_form_node(raw) {
 		cipher: cipher,
 		security: security,
 		alterId: int(raw.alterId || raw.alter_id || 0),
-		network: type(raw.network) == 'string' ? raw.network : (type(raw.transport) == 'string' ? raw.transport : 'tcp'),
-		tls: raw.tls == true || raw.tls == 'tls' || raw.tls == 1 || (type(raw.reality) == 'object' && raw.reality != null && raw.reality.enabled == true),
-		sni: type(raw.sni) == 'string' ? raw.sni : (type(raw.server_name) == 'string' ? raw.server_name : ''),
-		alpn: type(raw.alpn) == 'array' ? raw.alpn : [],
-		skip_cert_verify: raw.skip_cert_verify == true || raw['skip-cert-verify'] == true || raw.insecure == true,
+		network: network,
+		tls: has_tls,
+		sni: sni,
+		alpn: type(raw.alpn) == 'array' ? raw.alpn : (raw_tls != null && type(raw_tls.alpn) == 'array' ? raw_tls.alpn : []),
+		skip_cert_verify: raw.skip_cert_verify == true || raw['skip-cert-verify'] == true || raw.insecure == true || (raw_tls != null && (raw_tls.insecure == true || raw_tls.skip_cert_verify == true)),
 		flow: type(raw.flow) == 'string' ? raw.flow : '',
-		reality: type(raw.reality) == 'object' && raw.reality != null ? raw.reality : null,
-		ws_opts: type(raw.ws_opts) == 'object' && raw.ws_opts != null ? raw.ws_opts : (type(raw['ws-opts']) == 'object' ? raw['ws-opts'] : null),
-		grpc_opts: type(raw.grpc_opts) == 'object' && raw.grpc_opts != null ? raw.grpc_opts : (type(raw['grpc-opts']) == 'object' ? raw['grpc-opts'] : null),
-		http_opts: type(raw.http_opts) == 'object' && raw.http_opts != null ? raw.http_opts : (type(raw['http-opts']) == 'object' ? raw['http-opts'] : null),
+		reality: reality,
+		ws_opts: ws_opts,
+		grpc_opts: grpc_opts,
+		http_opts: http_opts,
 		up_mbps: int(raw.up_mbps || raw.up || 0),
 		down_mbps: int(raw.down_mbps || raw.down || 0),
 		congestion_control: type(raw.congestion_control) == 'string' ? raw.congestion_control : (type(raw.congestion_controller) == 'string' ? raw.congestion_controller : ''),
 		obfs: type(raw.obfs) == 'string' ? raw.obfs : '',
 		obfs_password: type(raw.obfs_password) == 'string' ? raw.obfs_password : '',
-		udp: raw.udp == true
+		udp: raw.udp == true,
+		_raw_outbound: raw
 	};
 
 	let ir = create_ir_node(ir_data);

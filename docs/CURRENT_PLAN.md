@@ -175,6 +175,13 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
       - [x] Dual-view switcher: List Card View (showing protocol badge, server:port, TLS/Reality tags, Transport tags, and expandable individual outbound JSON) and Raw JSON View (showing full sing-box formatted outbounds with 1-click clipboard copy).
       - [x] ESC key and backdrop click dismissal.
     - [x] Integrated preview triggers: per-source "预览" button in matrix, "👁️ 节点预览" in editor, and "👁️ 预览快照节点" in page header.
+  - [x] Real-Hardware Field Issues & UI Ergonomics Refinement:
+    - [x] Auto-clear subscription error messages on page reload (removed stale `item.error` fallback from source matrix, displaying errors only during active refresh execution).
+    - [x] Local source node statistics preservation: calculated parsed node count even when local source is disabled (`source.enabled == false`), displaying true node counts in matrix.
+    - [x] Enhanced VLESS and sing-box JSON parsing (`form.uc`, `sniffer.uc`, `singbox.uc`): supported single sing-box outbound objects, nested TLS `reality`, `sni`, `alpn`, `skip_cert_verify`, and transport layers (`ws`, `grpc`, `http`).
+    - [x] Custom region keyword delete button alignment (`subscriptions.js`): moved delete button to the end of the input field with standard `cbi-button-remove` styling.
+    - [x] Subscription matrix layout optimization (`subscriptions.js`): added `white-space: nowrap; min-width: 3.5rem;` to `启用` and `节点` headers to prevent wrapping; separated custom DNS and operators into a dedicated second line below the URL.
+    - [x] System root main selector card styling (`selectors.js`): replaced low-contrast `#f8fafc` text on slate background with high-contrast `#eff6ff` card, `#1e3a8a` title, `#1d4ed8` preview button, and `#475569` description.
 
 ## Remaining
 

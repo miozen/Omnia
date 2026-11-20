@@ -68,6 +68,8 @@ function parse_singbox_outbounds(parsed_json) {
 	} else if (type(parsed_json) == 'object' && parsed_json != null) {
 		if (type(parsed_json.outbounds) == 'array')
 			raw_outbounds = parsed_json.outbounds;
+		else if (type(parsed_json.type) == 'string')
+			raw_outbounds = [ parsed_json ];
 	} else {
 		return {
 			nodes: [],
@@ -140,7 +142,7 @@ function parse_singbox_outbounds(parsed_json) {
 			uuid: type(outbound.uuid) == 'string' ? outbound.uuid : '',
 			password: type(outbound.password) == 'string' ? outbound.password : '',
 			security: type(outbound.security) == 'string' ? outbound.security : '',
-			cipher: type(outbound.method) == 'string' ? outbound.method : '',
+			cipher: type(outbound.method) == 'string' ? outbound.method : (type(outbound.cipher) == 'string' ? outbound.cipher : ''),
 			alterId: int(outbound.alter_id || 0),
 			network: type(outbound.transport) == 'object' && outbound.transport != null ? outbound.transport.type : 'tcp',
 			tls: type(outbound.tls) == 'object' && outbound.tls != null && outbound.tls.enabled == true,

@@ -141,15 +141,16 @@ function source_arg(req, key) {
 }
 
 function preserve_unselected_source(source, strategy, old_snapshot, require_existing) {
+	let old_outbounds = old_outbounds_for_source(old_snapshot, source.id);
+	let old_source = old_source_for_id(old_snapshot, source.id);
+	let old_count = length(old_outbounds);
+
 	if (source.enabled == false) {
 		return {
-			source: source_result_object(source, strategy, "disabled_removed", true, 0, ""),
+			source: source_result_object(source, strategy, "disabled_removed", true, old_count, ""),
 			outbounds: []
 		};
 	}
-
-	let old_outbounds = old_outbounds_for_source(old_snapshot, source.id);
-	let old_source = old_source_for_id(old_snapshot, source.id);
 
 	if (require_existing == true && !old_snapshot.available)
 		die("Single-source refresh requires existing snapshot");
@@ -292,31 +293,39 @@ function subscriptions_get(trace_id, req) {
 }
 
 function compile_local_source(trace_id, source) {
+	let outbounds = [];
+	try {
+		if (type(source.nodes) == "array" || type(source.payload) == "array") {
+			let raw_nodes = type(source.nodes) == "array" ? source.nodes : source.payload;
+			let conv = convert_form_nodes(raw_nodes, { operators: source.operators });
+			if (conv.ok)
+				outbounds = conv.outbounds;
+		} else {
+			let payload_str = type(source.payload) == "string" ? source.payload : "";
+			if (payload_str != "") {
+				let parse_res = parse_subscription_safely(trace_id, payload_str, { operators: source.operators });
+				outbounds = parse_res.outbounds;
+			}
+		}
+
+		outbounds = sanitize_and_validate_outbounds(outbounds);
+		validate_outbounds(outbounds);
+	} catch (e) {
+		/* Parse failure in disabled state shouldn't crash */
+	}
+
+	let total_count = length(outbounds);
+
 	if (source.enabled == false) {
 		return {
-			source: source_result_object(source, "direct", "disabled_removed", true, 0, "disabled"),
+			source: source_result_object(source, "direct", "disabled_removed", true, total_count, "disabled"),
 			outbounds: []
 		};
 	}
 
-	let outbounds = [];
-	if (type(source.nodes) == "array" || type(source.payload) == "array") {
-		let raw_nodes = type(source.nodes) == "array" ? source.nodes : source.payload;
-		let conv = convert_form_nodes(raw_nodes, { operators: source.operators });
-		if (!conv.ok)
-			die("Local form nodes conversion failed: " + conv.error);
-		outbounds = conv.outbounds;
-	} else {
-		let payload_str = type(source.payload) == "string" ? source.payload : "";
-		let parse_res = parse_subscription_safely(trace_id, payload_str, { operators: source.operators });
-		outbounds = parse_res.outbounds;
-	}
-
-	outbounds = sanitize_and_validate_outbounds(outbounds);
-	validate_outbounds(outbounds);
 	preserve_source_attribution(outbounds, source.id, source.name);
 	return {
-		source: source_result_object(source, "direct", "success", true, length(outbounds), ""),
+		source: source_result_object(source, "direct", "success", true, total_count, ""),
 		outbounds: outbounds
 	};
 }

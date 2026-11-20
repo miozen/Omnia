@@ -760,14 +760,14 @@ function sourceMatrix(policy, summary) {
 				E('thead', {}, [
 					E('tr', {}, [
 						E('th', {}, _('名称')),
-						E('th', { 'style': 'text-align: center;' }, _('启用'))
+						E('th', { 'style': 'text-align: center; white-space: nowrap; min-width: 3.5rem;' }, _('启用'))
 					].concat(keys.map(function(region) {
 						let meta = getCountryMetadata(region);
 						let flagLabel = (meta.flag ? meta.flag + ' ' : '') + region;
 						return E('th', { 'style': 'text-align: center; white-space: nowrap;' }, flagLabel);
 					})).concat([
-						E('th', { 'style': 'text-align: right;' }, _('节点')),
-						E('th', { 'style': 'text-align: right;' }, _('操作'))
+						E('th', { 'style': 'text-align: right; white-space: nowrap; min-width: 3.5rem;' }, _('节点')),
+						E('th', { 'style': 'text-align: right; white-space: nowrap;' }, _('操作'))
 					]))
 				]),
 				E('tbody', {}, sources.map(function(source, index) {
@@ -776,13 +776,15 @@ function sourceMatrix(policy, summary) {
 					return E('tr', {}, [
 						E('td', {}, [
 							E('div', { 'style': 'font-weight: 700; overflow-wrap: anywhere;' }, source.name || _('未命名订阅源')),
-							E('div', { 'style': 'font-size: 12px; color: #667; overflow-wrap: anywhere; display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;' }, [
-								source.type === 'local' ? E('span', { 'style': 'background: #3b82f6; color: #fff; padding: 1px 5px; border-radius: 4px;' }, _('本地节点')) : E('span', {}, shortUrl(source.url)),
-								source.dns && source.dns.server ? E('span', { 'style': 'color: #059669;' }, 'DNS: ' + source.dns.server) : '',
-								source.operators && source.operators.length ? E('span', { 'style': 'color: #d97706;' }, source.operators.length + _(' 操作符')) : ''
+							E('div', { 'style': 'font-size: 12px; color: #667; overflow-wrap: anywhere;' }, [
+								source.type === 'local' ? E('span', { 'style': 'background: #3b82f6; color: #fff; padding: 1px 5px; border-radius: 4px;' }, _('本地节点')) : E('span', {}, shortUrl(source.url))
 							]),
+							(source.dns && source.dns.server || (source.operators && source.operators.length)) ? E('div', { 'style': 'font-size: 11px; margin-top: 2px; display: flex; gap: .5rem; flex-wrap: wrap;' }, [
+								source.dns && source.dns.server ? E('span', { 'style': 'color: #059669;' }, '🌐 DNS: ' + source.dns.server) : '',
+								source.operators && source.operators.length ? E('span', { 'style': 'color: #d97706;' }, '⚙️ ' + source.operators.length + _(' 操作符')) : ''
+							]) : '',
 							(formatTrafficBadge(source.userinfo || item.userinfo) || ''),
-							refresh ? E('div', { 'style': 'font-size: 12px; color: %s; overflow-wrap: anywhere; margin-top: .25rem;'.format(refresh.ok || refresh.status === 'running' ? '#2563eb' : '#991b1b') }, refreshResultText(refresh)) : item.error ? E('div', { 'style': 'font-size: 12px; color: #991b1b; overflow-wrap: anywhere; margin-top: .25rem;' }, item.error) : E('div')
+							refresh ? E('div', { 'style': 'font-size: 12px; color: %s; overflow-wrap: anywhere; margin-top: .25rem;'.format(refresh.ok || refresh.status === 'running' ? '#2563eb' : '#991b1b') }, refreshResultText(refresh)) : E('div')
 						]),
 						E('td', { 'style': 'text-align: center;' }, omniaUi.checkboxInput({
 							'id': matrixId(index, 'enabled'),
@@ -1092,28 +1094,27 @@ function policySettings(policy) {
 		let meta = getCountryMetadata(region);
 		let titleLabel = (meta.flag ? meta.flag + ' ' : '') + (meta.name && meta.name !== region ? meta.name + ' (' + region + ')' : region);
 		return E('div', { 'class': 'cbi-value', 'style': 'margin-bottom: .6rem;' }, [
-			E('label', { 'class': 'cbi-value-title', 'style': 'display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-weight: 500;' }, [
-				E('span', {}, titleLabel),
+			E('label', { 'class': 'cbi-value-title', 'style': 'margin-bottom: 3px; font-weight: 500;' }, [
+				E('span', {}, titleLabel)
+			]),
+			E('div', { 'class': 'cbi-value-field', 'style': 'display: flex; gap: .5rem; align-items: center;' }, [
+				E('input', {
+					'id': 'omnia-region-keywords-' + region,
+					'class': 'cbi-input-text',
+					'style': 'flex: 1;',
+					'value': (policy.region_keywords[region] || []).join(', ')
+				}),
 				E('button', {
 					'type': 'button',
-					'class': 'btn cbi-button cbi-button-remove',
+					'class': omniaMotion.buttonClass('btn cbi-button cbi-button-remove'),
 					'title': _('删除此区域'),
-					'style': 'padding: 1px 6px; font-size: 11px; line-height: 1.2; color: #ef4444; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05); cursor: pointer;',
 					'click': function(ev) {
 						ev.preventDefault();
 						if (window.confirm && !window.confirm(_('确定要删除区域 “%s” 吗？\n删除后将自动从各订阅源及过滤规则中清理该区域。').format(titleLabel)))
 							return;
 						deleteRegion(region, policy);
 					}
-				}, [ '✕ ', _('删除') ])
-			]),
-			E('div', { 'class': 'cbi-value-field' }, [
-				E('input', {
-					'id': 'omnia-region-keywords-' + region,
-					'class': 'cbi-input-text',
-					'style': 'width: 100%;',
-					'value': (policy.region_keywords[region] || []).join(', ')
-				})
+				}, _('删除'))
 			])
 		]);
 	});

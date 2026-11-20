@@ -484,7 +484,7 @@ function updateMainSelectorView() {
 		'style': 'display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap;'
 	}, [
 		E('div', { 'style': 'display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;' }, [
-			E('label', { 'style': 'font-size: 13px; font-weight: 600; color: #f8fafc;' }, _('🎯 选择系统根主池:')),
+			E('label', { 'style': 'font-size: 13px; font-weight: 600; color: #1e3a8a;' }, _('🎯 选择系统根主池:')),
 			E('select', {
 				'id': 'omnia-main-selector-select',
 				'class': 'cbi-input-select',
@@ -496,7 +496,7 @@ function updateMainSelectorView() {
 			E('button', {
 				'type': 'button',
 				'title': _('点击弹窗预览根主池生成出站 JSON'),
-				'style': 'cursor: pointer; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 6px; padding: 3px 8px; font-size: 12px; color: #93c5fd; display: inline-flex; align-items: center; gap: 4px;',
+				'style': 'cursor: pointer; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; padding: 3px 8px; font-size: 12px; color: #1d4ed8; font-weight: 500; display: inline-flex; align-items: center; gap: 4px;',
 				'click': function(ev) { ev.preventDefault(); openPreviewModal(mainItem); }
 			}, [ '🔍 ' + _('预览主池出站') ])
 		]),
@@ -504,7 +504,7 @@ function updateMainSelectorView() {
 	]);
 
 	const descRow = E('div', {
-		'style': 'margin-top: .5rem; font-size: 12px; color: #94a3b8; line-height: 1.5;'
+		'style': 'margin-top: .5rem; font-size: 12px; color: #475569; line-height: 1.5;'
 	}, _('系统自动聚合所有订阅的测速组与未匹配节点至此主池中。作为全局网络流量默认出口与规则兜底，其成员由引擎全自动维护。'));
 
 	container.appendChild(pickerRow);
@@ -535,7 +535,7 @@ function updateSelectorCardsView() {
 function selectorAllocatorSection() {
 	const mainCard = E('div', {
 		'id': 'omnia-main-selector-container',
-		'style': 'padding: .85rem 1rem; border-radius: 10px; background: rgba(51, 65, 85, 0.2); border: 1px solid #3b82f6; margin-bottom: 1rem;'
+		'style': 'padding: .85rem 1rem; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; margin-bottom: 1rem;'
 	});
 
 	const cardsContainer = E('div', {

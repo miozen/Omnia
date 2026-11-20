@@ -119,65 +119,13 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - Imported `stat` from `fs` in `runtime.uc`, eliminating runtime status observation failure on Overview page.
     - Moved `profile_source_key()` before `template_selectors_get()` in `profile_selectors.uc` to satisfy ucode `'use strict'` declaration-before-call ordering, and added defensive fallback around node snapshot / group generation to ensure business selectors load reliably.
     - Added user-facing error reporting in `profile.js` when `selectorsResult` fails.
-  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc` (including word boundary, infinite loop, and template_selectors_get / runtime_status integration tests). Validated 100% passing.
-
-## In Progress
-
-- [x] System Audit Slice 1: Underlying communication & status fidelity (wget `-S`, native gRPC secret probe, traffic & expiry badges).
-- [x] System Audit Slice 2: Subscriptions source modal in-place atomic persistence (eliminate double-save friction & lost drafts).
-- [x] System Audit Slice 3: Overview page "⚡ 一键生成并应用" (One-Click Apply) 4-stage streaming pipeline with precise failure diagnostics and preserved granular debugging tools.
-- [x] System Audit Slice 4: Contextual CTA actions ("⚡ 立即生成并应用到运行时") in Subscriptions, Rulesets, and Profile editors.
-- [x] System Audit Slice 5: Panel test concurrency boost (1 -> 5) and search filter, ruleset list status tabs/search.
-- [x] Overview Page Redesign (Slice 1): Backend telemetry enhancement (singbox_version probe, process uptime probe in overview_status).
-- [x] Overview Page Redesign (Slice 2): Header & Realtime traffic metrics with native SVG area sparklines, Page Visibility auto-throttling.
-- [ ] Overview Page Redesign (Slice 3): Active connection distribution breakdown (Source IP / Outbound Node / Group) & Latency/Network info cards.
-- [ ] Overview Page Redesign (Slice 4): Compressed 3-column configuration resource bar & action row dropdown fold.
-  - [x] Step 1: Subscriptions UI model enhancement (`subscriptions.js` -> `normalizePolicy` & `collectPolicyFromPage`) preserving native conversion fields (type, subtype, payload, nodes, user_agent, operators, dns, userinfo).
-  - [x] Step 2: Source editor modal upgrade (`subscriptions.js` -> `sourceEditor`), supporting source type toggle (Remote vs Local), UA configuration, payload/form entry, dedicated DNS options, and operator pipeline with quick templates.
-  - [x] Step 3: Instant test and node preview (`subscriptions.js` -> `testEditorSource`, `subscription.uc` -> `subscription_test_source`, `omnia.uc` -> rpcd args schema) allowing real-time node preview before saving.
-  - [x] Step 4: Source matrix visual indicators (local node badge, dedicated DNS tag, operator count).
-  - [x] Step 5: Cleaned up legacy Sub-Store text across LuCI frontend.
-  - [x] Step 6: Verified static checks (`ci-static.sh`), UI tests (`subscription-ui.cjs`), convert suite (13 tests), and subscription integration tests.
-
-- [x] Completed Selector Outbounds Dynamic Allocation & Resource Tab Reorder:
-  - [x] Swapped LuCI Resource Management menu tab order (`resources.js`): `[ 订阅 (Subscriptions) ]` placed before `[ 模板 (Template & Selectors) ]`, with `subscriptions` set as default active tab.
-  - [x] Implemented dedicated core selector allocation module `profile_selectors.uc` with persistent storage at `/etc/omnia/selectors.json`.
-  - [x] Implemented 4-tier member resolution priority in `generator_selectors.uc`:
-    - Priority 1: Omnia user configuration (100% priority override, no merge with template rules).
-    - Priority 2: Template `x_rule` (`region:...`, `region+direct:...`, `all_regions`, `keep`).
-    - Priority 3: Template native `outbounds`.
-    - Priority 4: Fallback to root node pool (`🗽 节点选择`) when selected regions contain no valid nodes.
-  - [x] Main system root pool (`🗽 节点选择`, `x_rule: "main"`) remains 100% protected as global aggregator and fallback, excluded from business selector overrides.
-  - [x] Manual selector isolation (`generator_manual_selector.uc`): customized selectors skip automatic manual selector appending unless explicitly selected.
-  - [x] Automatic template selector synchronization (`sync_template_selectors` in `profile.uc`): syncs on profile save, remote sync, restore default, and rollback with tag inheritance, orphan purging, and strict template order preservation.
-  - [x] Registered RPC methods `template_selectors_get` and `template_selectors_save` in `omnia.uc` and ACL permissions in `luci-app-omnia.json`.
-  - [x] LuCI Frontend card allocator in `profile.js`:
-    - Clean selector card layout with tag name, status pills, and member chip management (with remove `✕`).
-    - Candidate quick-add buttons for 5 regions (`HK`, `TW`, `SG`, `JP`, `US`), `⚡ 全选地区` shortcut, and core system targets (`main`, `direct`, `manual`).
-    - Single selector outbound JSON preview modal with magnifying glass (`🔍`) button and 1-click clipboard copy.
-    - Save and reset buttons.
-  - [x] Comprehensive test suites:
-    - Added `tests/profile-selectors.uc` to `tests/run-all-convert-tests.sh` (all 14 ucode test suites passing).
-    - Updated `tests/profile-ui.cjs` covering member addition, removal, quick all regions, save, reset, and modal preview (all 10 tests passing).
-    - Static checks `tests/ci-static.sh` passing.
-- [x] Completed Dynamic Custom Region Groups & Expanded Global Flag Support:
-  - [x] Redefined 5 preset regions (`HK`, `TW`, `SG`, `JP`, `US`) as factory default templates, fully deletable with `✕` in LuCI UI.
-  - [x] Expanded national flags and country dictionary (`flags.uc`) from 20 to 70+ regions (Nigeria `NG`, Ukraine `UA`, Egypt `EG`, Pakistan `PK`, Turkey `TR`, Argentina `AR`, and all common streaming/niche regions).
-  - [x] Implemented Unicode Regional Indicator symbol offset algorithm (`iso_to_flag_emoji`) covering all 250+ 2-letter ISO country codes automatically.
-  - [x] Backend Schema (`subscription_policy_schema.uc`) updated to preserve custom regions without forcing preset injection and defensively filter deleted regions from `allowed_regions` and `rate_filter.matched_regions`.
-  - [x] Generator groups and selector tags (`generator_groups.uc`, `profile_selectors.uc`) dynamically format speedtest group tags and candidate pools with country flags and Chinese names.
-  - [x] Subscription frontend (`subscriptions.js`):
-    - Added `[ ➕ 添加自定义区域 ]` modal with live country code lookup, automatic flag/Chinese badge display, and keyword prefilling.
-    - Added `[ ↺ 恢复出厂五区 ]` button with confirmation dialog.
-    - Added `[ ✕ 删除 ]` button for each region row with cascading cleanup of source `allowed_regions` and `rate_filter.matched_regions`.
-    - Dynamic column rendering for Subscription Matrix and source editor checkboxes with flag badges.
-  - [x] Profile selector allocation preview (`profile.js`): dynamic formatting `${candidateLabel(m)} 测速组`.
-  - [x] Fixed keyword matching infinite loop in `generator_util.uc` (`tag_contains_keyword`): replaced unsupported 3-argument `index(str, needle, offset)` with `substr` window slicing, eliminating rpcd CPU spinlock and Resources page hang on real hardware.
-  - [x] Fixed undeclared variable exceptions in `runtime.uc` and `profile_selectors.uc`:
-    - Imported `stat` from `fs` in `runtime.uc`, eliminating runtime status observation failure on Overview page.
-    - Moved `profile_source_key()` before `template_selectors_get()` in `profile_selectors.uc` to satisfy ucode `'use strict'` declaration-before-call ordering, and added defensive fallback around node snapshot / group generation to ensure business selectors load reliably.
-    - Added user-facing error reporting in `profile.js` when `selectorsResult` fails.
-  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc` (including word boundary, infinite loop, and template_selectors_get / runtime_status integration tests). Validated 100% passing.
+  - [x] Template Validation Relaxation & Selector Policy Decoupling:
+    - [x] Relaxed strict `x_rule: "main"` validation in `profile.uc` and `generator_validate.uc`: templates now require `selector_count >= 1` instead of strictly requiring `main_selector_count == 1`, allowing clean sing-box templates without custom extensions.
+    - [x] Implemented multi-tier Root Main Pool resolution (`configured_main_tag > x_rule: "main" > common tags ("🗽 节点选择", "节点选择", "Proxy", "auto") > first selector`).
+    - [x] Supported user-selectable system root main selector (`main_selector` persisted in `/etc/omnia/selectors.json`).
+    - [x] Decoupled selector outbound allocation into dedicated tab `[ 分流 (selectors) ]` (`view/omnia/selectors.js`), featuring interactive root main selector dropdown, root main pool aggregated outbounds card, business selector cards, and 1-click "保存并立即应用".
+    - [x] In `profile.js`: moved "在线模板与拉取设置" accordion to above the template editor, greatly enhancing page hierarchy and usability.
+    - [x] Created `tests/selectors-ui.cjs`, updated `tests/profile-ui.cjs`, `tests/profile-selectors.uc`, `tests/ci-static.sh`, and `tests/run-all-convert-tests.sh`. All suites passing 100%.
 
 ## In Progress
 

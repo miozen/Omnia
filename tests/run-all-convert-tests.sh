@@ -7,7 +7,7 @@ echo "=== Running M1 & M2 Pure-Function & Integration Tests ==="
 
 docker run --rm -v "${ROOT_DIR}:/work" openwrt/rootfs:latest sh -c '
 set -e
-mkdir -p /var/run/omnia /tmp/run
+mkdir -p /etc/omnia /var/run/omnia /tmp/run
 
 echo "1. Step 1 base & IR..."
 ucode -L /work/luci-app-omnia/root/usr/share/ucode /work/tests/convert-step1.uc

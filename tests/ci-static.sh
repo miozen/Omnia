@@ -65,6 +65,7 @@ done < <(find luci-app-omnia/htdocs -type f -name '*.js' -print0)
 
 node tests/panel-behavior.cjs
 node tests/subscription-ui.cjs
+node tests/selectors-ui.cjs
 node tests/profile-ui.cjs
 node tests/diagnostics-ui.cjs
 node tests/overview-ui.cjs

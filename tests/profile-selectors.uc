@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { resolve_selector_members, sync_template_selectors, get_main_selector_tag, get_direct_outbound_tag, region_flag_str, region_name_str, get_selector_candidate_pool, template_selectors_get } from 'omnia.profile_selectors';
+import { resolve_selector_members, sync_template_selectors, get_main_selector_tag, get_direct_outbound_tag, region_flag_str, region_name_str, get_selector_candidate_pool, template_selectors_get, template_selectors_save, save_selectors_config, read_main_selector_config } from 'omnia.profile_selectors';
 import { inject_selectors } from 'omnia.generator_selectors';
 import { restore_manual_selector_references, MANUAL_SELECTOR_TAG } from 'omnia.generator_manual_selector';
 import { tag_contains_keyword, upper_text } from 'omnia.generator_util';
@@ -128,11 +128,34 @@ assert(index(netflix.outbounds, MANUAL_SELECTOR_TAG) == -1, "Customized Netflix 
 assert(index(youtube.outbounds, MANUAL_SELECTOR_TAG) != -1, "Uncustomized YouTube receives auto manual selector");
 
 // -----------------------------------------------------------------------------
-// 4. get_main_selector_tag & get_direct_outbound_tag
+// 4. get_main_selector_tag & get_direct_outbound_tag & validated_main_selector_tag
 // -----------------------------------------------------------------------------
-print("Testing tag helpers...\n");
+print("Testing tag helpers and multi-tier main selector resolution...\n");
 assert(get_main_selector_tag(test_profile) == "🗽 节点选择", "Main selector tag correctly identified");
 assert(get_direct_outbound_tag(test_profile) == "🎯 全球直连", "Direct outbound tag correctly identified");
+
+// Profile without x_rule: "main", matching common tag "Proxy"
+let profile_no_xrule = {
+	outbounds: [
+		{ type: "direct", tag: "direct" },
+		{ type: "selector", tag: "Proxy", outbounds: [] },
+		{ type: "selector", tag: "Domestic", outbounds: [] }
+	]
+};
+assert(get_main_selector_tag(profile_no_xrule) == "Proxy", "Resolves common tag Proxy when x_rule is absent");
+
+// Profile without common tag or x_rule -> falls back to first selector
+let profile_arbitrary = {
+	outbounds: [
+		{ type: "direct", tag: "direct" },
+		{ type: "selector", tag: "Custom-Gateway-1", outbounds: [] },
+		{ type: "selector", tag: "Custom-Gateway-2", outbounds: [] }
+	]
+};
+assert(get_main_selector_tag(profile_arbitrary) == "Custom-Gateway-1", "Resolves first selector tag when neither x_rule nor common tag exists");
+
+// Profile with explicit user-configured main selector override
+assert(get_main_selector_tag(profile_arbitrary, "Custom-Gateway-2") == "Custom-Gateway-2", "Explicitly configured main selector overrides inference");
 
 // -----------------------------------------------------------------------------
 // 5. region_flag_str, region_name_str & expanded country flags dictionary
@@ -164,6 +187,10 @@ let mock_subscriptions = {
 	}
 };
 let pool = get_selector_candidate_pool(test_profile, mock_groups, mock_subscriptions, "main");
+assert(pool.main_selector == "🗽 节点选择", "Pool correctly reports main_selector");
+assert(type(pool.all_selectors) == "array" && length(pool.all_selectors) == 5, "Pool lists all 5 selector candidates");
+assert(pool.all_selectors[0].tag == "🗽 节点选择" && pool.all_selectors[0].is_main == true, "First selector candidate is main");
+assert(pool.all_selectors[1].tag == "📺️ Netflix" && pool.all_selectors[1].is_main == false, "Second selector candidate is not main");
 assert(length(pool.regions) == 3, "Candidate pool extracted 3 custom regions");
 assert(pool.regions[0].id == "NG", "Pool region 0 is NG");
 assert(index(pool.regions[0].label, "🇳🇬") >= 0, "Pool region 0 contains NG flag");
@@ -204,6 +231,16 @@ let t_res = template_selectors_get("test-trace", {});
 assert(t_res.ok == true, "template_selectors_get executed successfully without undeclared variable errors");
 assert(type(t_res.data) == "object", "data object returned");
 assert(type(t_res.data.selectors) == "array", "selectors array returned");
+
+system("mkdir -p /etc/omnia");
+let s_res = template_selectors_save("test-trace", {
+	selectors: {
+		"📺️ Netflix": [ "HK" ]
+	},
+	main_selector: "🗽 节点选择"
+});
+assert(s_res.ok == true, "template_selectors_save succeeded with main_selector payload");
+assert(read_main_selector_config("default") == "🗽 节点选择", "read_main_selector_config reads persisted main selector");
 
 let rt_res = runtime_status("test-trace", {});
 assert(rt_res.ok == true, "runtime_status executed successfully without undeclared variable stat error");

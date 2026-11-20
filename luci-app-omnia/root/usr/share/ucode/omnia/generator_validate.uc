@@ -78,24 +78,46 @@ function validate_omnia_runtime_contract(profile) {
 		runtime_contract_fail("tun-in interface_name must be set");
 }
 
-function validated_main_selector_tag(profile) {
-	let count = 0;
-	let tag = "";
+function validated_main_selector_tag(profile, configured_main_tag) {
+	let explicit_tag = "";
+	let matched_configured = false;
+	let common_tag = "";
+	let first_selector_tag = "";
 
 	for (let outbound in profile.outbounds) {
-		if (type(outbound) != "object" || outbound == null || outbound.type != "selector" || outbound.x_rule != "main")
+		if (type(outbound) != "object" || outbound == null || outbound.type != "selector")
 			continue;
 
-		count = count + 1;
-		if (type(outbound.tag) != "string" || outbound.tag == "")
-			die("Profile main selector must have a non-empty tag");
-		tag = outbound.tag;
+		let tag = outbound.tag;
+		if (type(tag) != "string" || tag == "")
+			continue;
+
+		if (first_selector_tag == "")
+			first_selector_tag = tag;
+
+		if (type(configured_main_tag) == "string" && configured_main_tag != "" && tag == configured_main_tag)
+			matched_configured = true;
+
+		if (outbound.x_rule == "main") {
+			if (explicit_tag != "")
+				die("Profile contains multiple selector outbounds with x_rule main");
+			explicit_tag = tag;
+		}
+
+		if (common_tag == "" && (tag == "🗽 节点选择" || tag == "节点选择" || tag == "Proxy" || tag == "PROXY" || tag == "proxy" || tag == "auto" || tag == "Auto"))
+			common_tag = tag;
 	}
 
-	if (count != 1)
-		die("Profile must contain exactly one selector outbound with x_rule main");
+	if (matched_configured)
+		return configured_main_tag;
+	if (explicit_tag != "")
+		return explicit_tag;
+	if (common_tag != "")
+		return common_tag;
+	if (first_selector_tag != "")
+		return first_selector_tag;
 
-	return tag;
+	die("Profile must contain at least one selector outbound");
 }
 
 function validate_extension_on_object(obj) {

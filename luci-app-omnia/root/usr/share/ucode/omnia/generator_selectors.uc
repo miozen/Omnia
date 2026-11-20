@@ -18,13 +18,17 @@ function direct_outbound_tag(profile) {
 	return "";
 }
 
-function main_selector_option_count(profile) {
+function main_selector_option_count(profile, configured_main_tag) {
+	let main_tag = "";
+	try { main_tag = validated_main_selector_tag(profile, configured_main_tag); } catch (e) {}
 	for (let outbound in profile.outbounds) {
-		if (type(outbound) != "object" || outbound == null || outbound.type != "selector" || outbound.x_rule != "main")
+		if (type(outbound) != "object" || outbound == null || outbound.type != "selector")
 			continue;
-		if (type(outbound.outbounds) != "array")
-			return 0;
-		return length(outbound.outbounds);
+		if (outbound.tag == main_tag || outbound.x_rule == "main") {
+			if (type(outbound.outbounds) != "array")
+				return 0;
+			return length(outbound.outbounds);
+		}
 	}
 	return 0;
 }
@@ -44,19 +48,19 @@ function set_selector_outbounds(outbound, next) {
 	return true;
 }
 
-function inject_selectors(profile, nodes, groups, selector_configs) {
+function inject_selectors(profile, nodes, groups, selector_configs, configured_main_tag) {
 	let all_groups = group_tag_list(groups);
 	let matched_nodes = grouped_node_tags(groups);
 	let unmatched_nodes = unmatched_node_tag_list(nodes, matched_nodes);
 	let direct_tag = direct_outbound_tag(profile);
-	let main_tag = validated_main_selector_tag(profile);
+	let main_tag = validated_main_selector_tag(profile, configured_main_tag);
 	let injected = 0;
 
 	for (let outbound in profile.outbounds) {
 		if (type(outbound) != "object" || outbound == null || outbound.type != "selector")
 			continue;
 
-		if (outbound.x_rule == "main") {
+		if (outbound.tag == main_tag || outbound.x_rule == "main") {
 			let next = [];
 			for (let tag in all_groups)
 				append_unique(next, tag);

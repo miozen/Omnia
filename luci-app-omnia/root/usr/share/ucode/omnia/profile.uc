@@ -29,18 +29,24 @@ function validate_profile_object(profile) {
 	if (!has_tun)
 		die("Profile must contain a tun inbound");
 
+	let selector_count = 0;
 	let main_selector_count = 0;
 	let has_direct = false;
 	for (let outbound in profile.outbounds) {
 		if (type(outbound) != "object")
 			continue;
-		if (outbound.type == "selector" && outbound.x_rule == "main")
-			main_selector_count = main_selector_count + 1;
+		if (outbound.type == "selector") {
+			selector_count = selector_count + 1;
+			if (outbound.x_rule == "main")
+				main_selector_count = main_selector_count + 1;
+		}
 		if (outbound.type == "direct")
 			has_direct = true;
 	}
-	if (main_selector_count != 1)
-		die("Profile must contain exactly one selector outbound with x_rule main");
+	if (selector_count < 1)
+		die("Profile must contain at least one selector outbound");
+	if (main_selector_count > 1)
+		die("Profile contains multiple selector outbounds with x_rule main");
 	if (!has_direct)
 		die("Profile must contain a direct outbound");
 }

@@ -59,9 +59,12 @@ function tag_contains_keyword(tag_upper, keyword) {
 	let start_pos = 0;
 
 	while (start_pos <= tag_len - kw_len) {
-		let found_idx = index(tag_upper, kw_upper, start_pos);
-		if (found_idx < 0)
+		let sub = substr(tag_upper, start_pos);
+		let rel_idx = index(sub, kw_upper);
+		if (rel_idx < 0)
 			return false;
+
+		let found_idx = start_pos + rel_idx;
 
 		let prev_ok = true;
 		if (found_idx > 0) {

@@ -114,7 +114,8 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - Added `[ ✕ 删除 ]` button for each region row with cascading cleanup of source `allowed_regions` and `rate_filter.matched_regions`.
     - Dynamic column rendering for Subscription Matrix and source editor checkboxes with flag badges.
   - [x] Profile selector allocation preview (`profile.js`): dynamic formatting `${candidateLabel(m)} 测速组`.
-  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc`. Validated 100% passing.
+  - [x] Fixed keyword matching infinite loop in `generator_util.uc` (`tag_contains_keyword`): replaced unsupported 3-argument `index(str, needle, offset)` with `substr` window slicing, eliminating rpcd CPU spinlock and Resources page hang on real hardware.
+  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc` (including word boundary and infinite loop regression tests). Validated 100% passing.
 
 ## In Progress
 
@@ -167,7 +168,8 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - Added `[ ✕ 删除 ]` button for each region row with cascading cleanup of source `allowed_regions` and `rate_filter.matched_regions`.
     - Dynamic column rendering for Subscription Matrix and source editor checkboxes with flag badges.
   - [x] Profile selector allocation preview (`profile.js`): dynamic formatting `${candidateLabel(m)} 测速组`.
-  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc`. Validated 100% passing.
+  - [x] Fixed keyword matching infinite loop in `generator_util.uc` (`tag_contains_keyword`): replaced unsupported 3-argument `index(str, needle, offset)` with `substr` window slicing, eliminating rpcd CPU spinlock and Resources page hang on real hardware.
+  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc` (including word boundary and infinite loop regression tests). Validated 100% passing.
 
 ## In Progress
 

@@ -8,6 +8,7 @@
 import { resolve_selector_members, sync_template_selectors, get_main_selector_tag, get_direct_outbound_tag, region_flag_str, region_name_str, get_selector_candidate_pool } from 'omnia.profile_selectors';
 import { inject_selectors } from 'omnia.generator_selectors';
 import { restore_manual_selector_references, MANUAL_SELECTOR_TAG } from 'omnia.generator_manual_selector';
+import { tag_contains_keyword, upper_text } from 'omnia.generator_util';
 
 function assert(condition, message) {
 	if (!condition)
@@ -168,5 +169,30 @@ assert(index(pool.regions[0].label, "🇳🇬") >= 0, "Pool region 0 contains NG
 assert(index(pool.regions[0].label, "尼日利亚") >= 0, "Pool region 0 contains Chinese name");
 assert(pool.regions[1].id == "UA", "Pool region 1 is UA");
 assert(index(pool.regions[1].label, "🇺🇦") >= 0, "Pool region 1 contains UA flag");
+
+// -----------------------------------------------------------------------------
+// 6. tag_contains_keyword word boundary & anti-infinite-loop tests
+// -----------------------------------------------------------------------------
+print("Testing tag_contains_keyword word boundaries and infinite loop prevention...\n");
+
+// Embedded keywords should NOT match (would infinite-loop with buggy index implementation)
+assert(!tag_contains_keyword(upper_text("IEPL-NETWORK-01"), "TW"), "NETWORK does not match TW");
+assert(!tag_contains_keyword(upper_text("BGP-PLUS-VIP"), "US"), "PLUS does not match US");
+assert(!tag_contains_keyword(upper_text("Anycast-STAR-01"), "AR"), "STAR does not match AR");
+assert(!tag_contains_keyword(upper_text("Global-DESIGN-Node"), "SG"), "DESIGN does not match SG");
+assert(!tag_contains_keyword(upper_text("RUSSIA-FAST"), "US"), "RUSSIA does not match US");
+assert(!tag_contains_keyword(upper_text("BUSINESS-LINE"), "US"), "BUSINESS does not match US");
+assert(!tag_contains_keyword(upper_text("BETWEEN-NODES"), "TW"), "BETWEEN does not match TW");
+
+// Isolated / boundary-separated keywords SHOULD match
+assert(tag_contains_keyword(upper_text("IEPL-TW-01"), "TW"), "IEPL-TW-01 matches TW");
+assert(tag_contains_keyword(upper_text("US-VIP-01"), "US"), "US-VIP-01 matches US");
+assert(tag_contains_keyword(upper_text("01 US Node"), "US"), "01 US Node matches US");
+assert(tag_contains_keyword(upper_text("SG_01"), "SG"), "SG_01 matches SG");
+assert(tag_contains_keyword(upper_text("🇹🇼 台湾 01"), "台湾"), "台湾 matches 台湾");
+assert(tag_contains_keyword(upper_text("HK"), "HK"), "Exact HK matches HK");
+
+// Mixed: contains both embedded rejected word and valid isolated keyword
+assert(tag_contains_keyword(upper_text("NETWORK-TW-01"), "TW"), "NETWORK-TW-01 correctly finds isolated TW after rejected NETWORK");
 
 print("ALL profile_selectors unit tests passed successfully!\n");

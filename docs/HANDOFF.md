@@ -2,55 +2,42 @@
 
 ## Last Updated
 
-2026-11-20T15:25+08:00
+2026-11-20T19:00+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `0dd790e` (committed and pushed)
+- **HEAD:** `ad56f87` (committed and pushed)
 - **Working Tree:** CLEAN
 - **Remote Sync:** Branch `dev` synchronized with remote origin/dev
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Stabilization — Dynamic Custom Region Groups & Expanded Flags
-- **Current Task:** Custom Regions Implementation & Flags Expansion
+- **Current Phase:** Post-v0.1.0 Stabilization — rpcd CPU Spinlock Fix & Custom Regions
+- **Current Task:** Fix tag_contains_keyword infinite loop in generator_util.uc
 - **Last Completed:**
-  1. National Flags & ISO Algorithmic Fallback Engine (`flags.uc`):
-     - Expanded `COUNTRY_FLAGS` dictionary from 20 to 70+ countries (including Nigeria `NG`, Ukraine `UA`, Egypt `EG`, Pakistan `PK`, Turkey `TR`, Argentina `AR`, and all common streaming/niche regions).
-     - Implemented `iso_to_flag_emoji` based on UTF-8 Regional Indicator symbols (`0x1F1E6 ~ 0x1F1FF`) for 100% universal 2-letter ISO flag generation.
-     - Implemented and exported `get_country_info(code)` and `iso_to_flag_emoji(code)`.
-  2. Backend Schema Normalization & Defensive Cleanup (`subscription_policy_schema.uc`):
-     - Updated `normalize_region_keywords`: preset 5 regions only populate as initial defaults if `raw` is missing/null; strictly respects user's custom dictionary without re-injecting deleted presets.
-     - Updated `normalize_allowed_regions` and `normalize_rate_filter`: quietly filters out deleted regions without throwing exceptions (`die`).
-  3. Generator & Selector Pool Integration (`generator_groups.uc`, `profile_selectors.uc`):
-     - Enhanced `region_order` in `generator_groups.uc` to recognize `config.region_keywords` keys.
-     - Formatted speedtest group tags and selector candidate pools dynamically with country flags and Chinese names.
-     - Exported `region_flag_str` and `region_name_str`.
-  4. LuCI Frontend Dynamic Custom Regions (`subscriptions.js`):
-     - Added `KNOWN_COUNTRIES`, `isoToFlagEmoji`, and `getCountryMetadata` dictionary and helpers.
-     - Updated `regionKeys(policy)` to dynamically read `Object.keys(policy.region_keywords || {})`.
-     - Rendered flag and delete `✕` button for every region row (including the 5 presets) with confirmation dialog.
-     - Added `[ ➕ 添加自定义区域 ]` modal with instant ISO code lookup, country name/flag badge display, and keyword prefilling.
-     - Added `[ ↺ 恢复出厂五区 ]` button with reset confirmation dialog.
-     - Implemented automatic cascading cleanup when deleting a region (`s.allowed_regions` and `rate_filter.matched_regions`).
-     - Displayed country flags in matrix table headers, rate filter checkboxes, and source editor checkboxes.
-  5. Selector Preview Adaptation (`profile.js`):
-     - Dynamically formatted preview outbound labels `${candidateLabel(m)} 测速组`.
-  6. Automated Test Coverage:
-     - Updated `tests/subscription-ui.cjs` asserting flag conversions, metadata lookup, normalization, deletion, cascading cleanup, custom addition, and default reset.
-     - Updated `tests/profile-selectors.uc` asserting expanded country flags and dynamic candidate pool resolution.
-     - Verified static checks `tests/ci-static.sh` passing.
-     - Verified test runner `tests/run-all-convert-tests.sh` passing (14 suites + module compilation).
+  1. Keyword Matching & Anti-Infinite-Loop Fix (`generator_util.uc`):
+     - Identified root cause of 100% CPU lockup and Resources page freeze on real hardware: ucode's string `index()` ignores the 3rd `offset` argument, causing `index(tag_upper, kw_upper, start_pos)` to repeatedly match at offset 0 and deadlock in `while` loop whenever a node name contained an embedded keyword substring (e.g., `NETWORK` matching `TW`, `PLUS` matching `US`, `STAR` matching `AR`).
+     - Replaced with windowed substring slice `substr(tag_upper, start_pos)` and standard 2-argument `index(sub, kw_upper)`.
+     - Strictly guaranteed monotonic advancement of `start_pos`, ensuring complete termination within `tag_len` iterations.
+  2. Regression Test Suite (`tests/profile-selectors.uc`):
+     - Added test section asserting rejection of embedded keywords (`NETWORK` for `TW`, `PLUS` for `US`, `STAR` for `AR`, `DESIGN` for `SG`, `RUSSIA` for `US`, `BUSINESS` for `US`, `BETWEEN` for `TW`).
+     - Added assertions verifying proper matching of isolated / boundary-separated keywords (`IEPL-TW-01`, `US-VIP-01`, `01 US Node`, `SG_01`, `🇹🇼 台湾 01`, `HK`).
+     - Added mixed test verifying proper match after a rejected prefix (`NETWORK-TW-01`).
+  3. Validation:
+     - `bash tests/ci-static.sh`: PASS.
+     - `bash tests/run-all-convert-tests.sh`: PASS (all 14 suites + module compilation).
+     - `node tests/profile-ui.cjs`, `subscription-ui.cjs`, `overview-ui.cjs`: PASS.
 
 ## Validation Performed
 
 - `bash tests/ci-static.sh`: PASS (All UI, static, and workflow suites passed)
 - `bash tests/run-all-convert-tests.sh`: PASS (All 14 pure-function, integration, and module compilation suites passed)
+- `node tests/profile-ui.cjs; node tests/subscription-ui.cjs; node tests/overview-ui.cjs`: PASS
 
 ## Exact Next Action
 
-Ready for testing and device deployment on OpenWrt 25.12+ / real hardware before merging dev into master.
+Deploy on OpenWrt 25.12+ real hardware and verify that opening the Resources page is instantaneous and CPU usage remains normal.
 
 ## Cross-machine Ready
 

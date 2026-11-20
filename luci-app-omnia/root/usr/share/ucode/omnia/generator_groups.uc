@@ -6,14 +6,19 @@
 
 import { append_unique, upper_text, tag_contains_keyword } from 'omnia.generator_util';
 import { rate_filter_excludes_from_urltest } from 'omnia.generator_nodes';
+import { get_country_info, iso_to_flag_emoji } from 'omnia.convert.operators.flags';
 
 function default_region_order() {
 	return [ "HK", "TW", "SG", "JP", "US" ];
 }
 
 function region_order(config) {
-	if (type(config) == "object" && config != null && type(config.region_keys) == "array")
-		return config.region_keys;
+	if (type(config) == "object" && config != null) {
+		if (type(config.region_keys) == "array")
+			return config.region_keys;
+		if (type(config.region_keywords) == "object")
+			return keys(config.region_keywords);
+	}
 	return default_region_order();
 }
 
@@ -70,16 +75,12 @@ function node_matches_region(node, keywords) {
 }
 
 function region_flag(region) {
-	if (region == "HK")
-		return "🇭🇰";
-	if (region == "TW")
-		return "🇹🇼";
-	if (region == "SG")
-		return "🇸🇬";
-	if (region == "JP")
-		return "🇯🇵";
-	if (region == "US")
-		return "🇺🇸";
+	let info = get_country_info(region);
+	if (info != null && type(info.flag) == "string")
+		return info.flag;
+	let dynamic = iso_to_flag_emoji(region);
+	if (dynamic != "")
+		return dynamic;
 	return "";
 }
 

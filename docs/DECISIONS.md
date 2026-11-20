@@ -96,3 +96,17 @@ For immutable contracts (release, access, compatibility), the authoritative sour
 - **Content:** Omnia uses `omnia` for all identifiers. No automatic migration of predecessor project configuration.
 - **Rationale:** Clean break; avoids compatibility burden with unknown legacy states.
 - **Reference:** `README.md` line 6
+
+### D-014: Selector Outbounds Dynamic Allocation & 4-Tier Resolution
+
+- **Status:** Accepted
+- **Content:** Selectors in Profile template support dynamic outbound allocation stored in `/etc/omnia/selectors.json`. Resolution enforces 4-tier priority: Priority 1 (Omnia custom allocation, overrides template), Priority 2 (Template `x_rule`), Priority 3 (Template native `outbounds`), Priority 4 (Automatic fallback to `🗽 节点选择` root pool). Root aggregator `main` (`x_rule: "main"`) is protected and immutable.
+- **Rationale:** Separates user group membership choices from raw JSON templates while ensuring zero dangling outbounds.
+- **Reference:** `profile_selectors.uc`, `generator_selectors.uc`
+
+### D-015: Dynamic Custom Region Groups & Global Flag Emojis
+
+- **Status:** Accepted
+- **Content:** The 5 preset regions (`HK`, `TW`, `SG`, `JP`, `US`) serve as factory default templates rather than hardcoded locks. Users can freely delete any preset region and add custom regions (e.g., `NG`, `UA`, `EG`, `PK`). Deletions automatically cascade-clean `allowed_regions` and `rate_filter.matched_regions`. Region flag support combines a 70+ high-frequency/niche country dictionary with an algorithmic Unicode fallback for any 2-letter ISO code.
+- **Rationale:** Eliminates hardcoded region restrictions, catering to global low-cost streaming areas and niche airports without breaking configuration validity.
+- **Reference:** `flags.uc`, `subscription_policy_schema.uc`, `subscriptions.js`

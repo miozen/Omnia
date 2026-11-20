@@ -47,7 +47,7 @@ const context = vm.createContext({
 });
 vm.runInContext("String.prototype.format = function() { let args = arguments, i = 0; return this.replace(/%[sd]/g, () => args[i++]); };", context);
 const source = fs.readFileSync('luci-app-omnia/htdocs/luci-static/resources/view/omnia/subscriptions.js', 'utf8');
-vm.runInContext('(function(){' + source.replace('return view.extend({', 'globalThis.refreshTest = { refreshResultText, refreshFinishedText, formatTrafficBytes, formatTrafficExpire, formatTrafficBadge, saveSourceEditor, removeSource, setStatus: (msg, ok) => { currentStatus = { msg, ok }; } }; return view.extend({') + '\n})()', context);
+vm.runInContext('(function(){' + source.replace('return view.extend({', 'globalThis.refreshTest = { refreshResultText, refreshFinishedText, formatTrafficBytes, formatTrafficExpire, formatTrafficBadge, saveSourceEditor, removeSource, addRegion, deleteRegion, restoreDefaultRegions, getCountryMetadata, isoToFlagEmoji, normalizePolicy, regionKeys, setStatus: (msg, ok) => { currentStatus = { msg, ok }; } }; return view.extend({') + '\n})()', context);
 context.window.omniaSubscriptionRefresh = { task: { status: 'running' } };
 assert.match(context.refreshTest.refreshResultText({ ok: true, node_count: 14 }), /正在保存/);
 context.window.omniaSubscriptionRefresh.task.status = 'failed';
@@ -117,6 +117,96 @@ savePromise.then(() => {
 			assert.equal(parsedLocal.sources[0].type, 'local');
 			assert.equal(parsedLocal.sources[0].enabled, true);
 			console.log('subscription local source save OK');
+
+			// 6. National flags and ISO algorithmic fallback tests
+			assert.equal(context.refreshTest.isoToFlagEmoji('NG'), '🇳🇬');
+			assert.equal(context.refreshTest.isoToFlagEmoji('UA'), '🇺🇦');
+			assert.equal(context.refreshTest.isoToFlagEmoji('EG'), '🇪🇬');
+			assert.equal(context.refreshTest.isoToFlagEmoji('PK'), '🇵🇰');
+			assert.equal(context.refreshTest.isoToFlagEmoji('TR'), '🇹🇷');
+			assert.equal(context.refreshTest.isoToFlagEmoji('AR'), '🇦🇷');
+			assert.equal(context.refreshTest.isoToFlagEmoji('DE'), '🇩🇪');
+			assert.equal(context.refreshTest.isoToFlagEmoji('FR'), '🇫🇷');
+			assert.equal(context.refreshTest.isoToFlagEmoji('INVALID'), '');
+
+			const ngMeta = context.refreshTest.getCountryMetadata('NG');
+			assert.equal(ngMeta.flag, '🇳🇬');
+			assert.equal(ngMeta.name, '尼日利亚');
+			assert.ok(ngMeta.keywords.includes('Nigeria'));
+			assert.ok(ngMeta.keywords.includes('拉各斯'));
+
+			const uaMeta = context.refreshTest.getCountryMetadata('UA');
+			assert.equal(uaMeta.flag, '🇺🇦');
+			assert.equal(uaMeta.name, '乌克兰');
+			assert.ok(uaMeta.keywords.includes('Ukraine'));
+			assert.ok(uaMeta.keywords.includes('基辅'));
+
+			const egMeta = context.refreshTest.getCountryMetadata('EG');
+			assert.equal(egMeta.flag, '🇪🇬');
+			assert.equal(egMeta.name, '埃及');
+			assert.ok(egMeta.keywords.includes('Egypt'));
+
+			const pkMeta = context.refreshTest.getCountryMetadata('PK');
+			assert.equal(pkMeta.flag, '🇵🇰');
+			assert.equal(pkMeta.name, '巴基斯坦');
+			assert.ok(pkMeta.keywords.includes('Pakistan'));
+
+			const customMeta = context.refreshTest.getCountryMetadata('ZZ');
+			assert.equal(customMeta.code, 'ZZ');
+			assert.equal(customMeta.flag, context.refreshTest.isoToFlagEmoji('ZZ'));
+			console.log('national flags & metadata OK');
+
+			// 7. Dynamic regions policy normalization & deletion/addition tests
+			// 7a. Normalization strictly respects user custom dictionary without force-injecting deleted presets
+			const customPolicy = context.refreshTest.normalizePolicy({
+				region_keywords: {
+					JP: [ 'Japan', '日本' ],
+					US: [ 'USA', '美国' ],
+					NG: [ 'Nigeria', '尼日利亚' ]
+				},
+				sources: [
+					{ name: 'S1', allowed_regions: [ 'HK', 'JP', 'NG' ] }
+				],
+				rate_filter: {
+					matched_regions: [ 'HK', 'US', 'NG' ]
+				}
+			});
+			const keys = context.refreshTest.regionKeys(customPolicy);
+			assert.equal(keys.sort().join(','), 'JP,NG,US', 'HK, TW, SG should not be re-injected');
+			assert.equal(customPolicy.sources[0].allowed_regions.join(','), 'JP,NG', 'Deleted HK filtered from allowed_regions');
+			assert.equal(customPolicy.rate_filter.matched_regions.join(','), 'US,NG', 'Deleted HK filtered from rate_filter');
+
+			// 7b. deleteRegion removes region and cascades to sources and rate_filter
+			let testPol = {
+				region_keywords: {
+					HK: [ 'Hong Kong' ],
+					US: [ 'USA' ],
+					NG: [ 'Nigeria' ]
+				},
+				sources: [
+					{ name: 'S1', allowed_regions: [ 'HK', 'US', 'NG' ] }
+				],
+				rate_filter: {
+					matched_regions: [ 'HK', 'US', 'NG' ]
+				}
+			};
+			testPol = context.refreshTest.deleteRegion('HK', testPol);
+			assert.equal(testPol.region_keywords.HK, undefined, 'HK removed from region_keywords');
+			assert.equal(testPol.sources[0].allowed_regions.join(','), 'US,NG', 'HK cascaded from sources allowed_regions');
+			assert.equal(testPol.rate_filter.matched_regions.join(','), 'US,NG', 'HK cascaded from rate_filter matched_regions');
+
+			// 7c. addRegion adds custom region with auto-prefilled keywords and rate_filter update
+			testPol = context.refreshTest.addRegion('UA', null, testPol);
+			assert.ok(testPol.region_keywords.UA != null, 'UA added to region_keywords');
+			assert.ok(testPol.region_keywords.UA.includes('乌克兰'), 'UA has prefilled keywords');
+			assert.ok(testPol.rate_filter.matched_regions.includes('UA'), 'UA added to rate_filter matched_regions');
+
+			// 7d. restoreDefaultRegions resets to factory 5 regions
+			testPol = context.refreshTest.restoreDefaultRegions(testPol);
+			const restoredKeys = context.refreshTest.regionKeys(testPol).sort();
+			assert.equal(restoredKeys.join(','), 'HK,JP,SG,TW,US', 'Default 5 regions restored');
+			assert.equal(testPol.rate_filter.matched_regions.sort().join(','), 'HK,JP,SG,TW,US', 'Default rate_filter matched regions restored');
+			console.log('custom regions addition, deletion & restore OK');
 		});
 	});
 }).catch(e => {

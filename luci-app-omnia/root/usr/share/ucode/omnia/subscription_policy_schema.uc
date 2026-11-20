@@ -254,31 +254,20 @@ function merge_pipe_text(defaults, value) {
 }
 
 function normalize_region_keywords(raw) {
-	let defaults = default_region_keywords();
-	let result = {};
-	let count = 0;
-
-	for (let region in defaults) {
-		result[region] = clone_string_array(defaults[region], "region_keywords." + region);
-		count = count + 1;
+	if (type(raw) != "object" || raw == null || type(raw) == "array") {
+		let defaults = default_region_keywords();
+		let result = {};
+		for (let region in defaults)
+			result[region] = clone_string_array(defaults[region], "region_keywords." + region);
+		return result;
 	}
 
-	if (type(raw) != "object" || raw == null || type(raw) == "array")
-		return result;
-
+	let result = {};
 	for (let region in raw) {
 		if (type(region) != "string" || region == "")
 			die("region keyword key must be a non-empty string");
-		if (defaults[region])
-			result[region] = merge_string_array(defaults[region], raw[region], "region_keywords." + region);
-		else
-			result[region] = clone_string_array(raw[region], "region_keywords." + region);
-		if (!defaults[region])
-			count = count + 1;
+		result[region] = clone_string_array(raw[region], "region_keywords." + region);
 	}
-
-	if (count == 0)
-		die("region_keywords must not be empty");
 
 	return result;
 }
@@ -314,7 +303,7 @@ function normalize_allowed_regions(source, regions) {
 	if (type(source.allowed_regions) == "array") {
 		for (let region in source.allowed_regions) {
 			if (!has_region(regions, region))
-				die("Unsupported subscription source region: " + region);
+				continue;
 			append_unique(allowed, region);
 		}
 		return allowed;
@@ -430,10 +419,12 @@ function normalize_rate_filter(raw, regions) {
 	validate_rate_filter_unmatched_action(result.unmatched_action);
 	validate_rate_filter_high_rate_action(result.matched_high_rate_action);
 
+	let clean_matched = [];
 	for (let region in result.matched_regions) {
-		if (!has_region(regions, region))
-			die("Unsupported rate_filter matched region: " + region);
+		if (has_region(regions, region))
+			push(clean_matched, region);
 	}
+	result.matched_regions = clean_matched;
 
 	for (let pattern in result.patterns)
 		validate_rate_filter_pattern(pattern);

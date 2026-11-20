@@ -102,6 +102,19 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - Added `tests/profile-selectors.uc` to `tests/run-all-convert-tests.sh` (all 14 ucode test suites passing).
     - Updated `tests/profile-ui.cjs` covering member addition, removal, quick all regions, save, reset, and modal preview (all 10 tests passing).
     - Static checks `tests/ci-static.sh` passing.
+- [x] Completed Dynamic Custom Region Groups & Expanded Global Flag Support:
+  - [x] Redefined 5 preset regions (`HK`, `TW`, `SG`, `JP`, `US`) as factory default templates, fully deletable with `✕` in LuCI UI.
+  - [x] Expanded national flags and country dictionary (`flags.uc`) from 20 to 70+ regions (Nigeria `NG`, Ukraine `UA`, Egypt `EG`, Pakistan `PK`, Turkey `TR`, Argentina `AR`, and all common streaming/niche regions).
+  - [x] Implemented Unicode Regional Indicator symbol offset algorithm (`iso_to_flag_emoji`) covering all 250+ 2-letter ISO country codes automatically.
+  - [x] Backend Schema (`subscription_policy_schema.uc`) updated to preserve custom regions without forcing preset injection and defensively filter deleted regions from `allowed_regions` and `rate_filter.matched_regions`.
+  - [x] Generator groups and selector tags (`generator_groups.uc`, `profile_selectors.uc`) dynamically format speedtest group tags and candidate pools with country flags and Chinese names.
+  - [x] Subscription frontend (`subscriptions.js`):
+    - Added `[ ➕ 添加自定义区域 ]` modal with live country code lookup, automatic flag/Chinese badge display, and keyword prefilling.
+    - Added `[ ↺ 恢复出厂五区 ]` button with confirmation dialog.
+    - Added `[ ✕ 删除 ]` button for each region row with cascading cleanup of source `allowed_regions` and `rate_filter.matched_regions`.
+    - Dynamic column rendering for Subscription Matrix and source editor checkboxes with flag badges.
+  - [x] Profile selector allocation preview (`profile.js`): dynamic formatting `${candidateLabel(m)} 测速组`.
+  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc`. Validated 100% passing.
 
 ## In Progress
 
@@ -142,6 +155,19 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - Added `tests/profile-selectors.uc` to `tests/run-all-convert-tests.sh` (all 14 ucode test suites passing).
     - Updated `tests/profile-ui.cjs` covering member addition, removal, quick all regions, save, reset, and modal preview (all 10 tests passing).
     - Static checks `tests/ci-static.sh` passing.
+- [x] Completed Dynamic Custom Region Groups & Expanded Global Flag Support:
+  - [x] Redefined 5 preset regions (`HK`, `TW`, `SG`, `JP`, `US`) as factory default templates, fully deletable with `✕` in LuCI UI.
+  - [x] Expanded national flags and country dictionary (`flags.uc`) from 20 to 70+ regions (Nigeria `NG`, Ukraine `UA`, Egypt `EG`, Pakistan `PK`, Turkey `TR`, Argentina `AR`, and all common streaming/niche regions).
+  - [x] Implemented Unicode Regional Indicator symbol offset algorithm (`iso_to_flag_emoji`) covering all 250+ 2-letter ISO country codes automatically.
+  - [x] Backend Schema (`subscription_policy_schema.uc`) updated to preserve custom regions without forcing preset injection and defensively filter deleted regions from `allowed_regions` and `rate_filter.matched_regions`.
+  - [x] Generator groups and selector tags (`generator_groups.uc`, `profile_selectors.uc`) dynamically format speedtest group tags and candidate pools with country flags and Chinese names.
+  - [x] Subscription frontend (`subscriptions.js`):
+    - Added `[ ➕ 添加自定义区域 ]` modal with live country code lookup, automatic flag/Chinese badge display, and keyword prefilling.
+    - Added `[ ↺ 恢复出厂五区 ]` button with confirmation dialog.
+    - Added `[ ✕ 删除 ]` button for each region row with cascading cleanup of source `allowed_regions` and `rate_filter.matched_regions`.
+    - Dynamic column rendering for Subscription Matrix and source editor checkboxes with flag badges.
+  - [x] Profile selector allocation preview (`profile.js`): dynamic formatting `${candidateLabel(m)} 测速组`.
+  - [x] Added automated unit tests in `tests/subscription-ui.cjs` and `tests/profile-selectors.uc`. Validated 100% passing.
 
 ## In Progress
 

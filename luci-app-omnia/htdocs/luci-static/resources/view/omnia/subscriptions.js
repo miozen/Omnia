@@ -161,6 +161,136 @@ const DEFAULT_REGION_KEYWORDS = {
 };
 const DEFAULT_REGION_KEYS = [ 'HK', 'TW', 'SG', 'JP', 'US' ];
 
+const KNOWN_COUNTRIES = {
+	// 亚太地区
+	HK: { name: '香港', flag: '🇭🇰', keywords: [ 'HK', 'Hong Kong', 'HongKong', '香港' ] },
+	TW: { name: '台湾', flag: '🇹🇼', keywords: [ 'TW', 'Taiwan', '台湾', '台灣' ] },
+	SG: { name: '新加坡', flag: '🇸🇬', keywords: [ 'SG', 'Singapore', '新加坡', '狮城', '獅城' ] },
+	JP: { name: '日本', flag: '🇯🇵', keywords: [ 'JP', 'Japan', '日本', '东京', '大阪' ] },
+	KR: { name: '韩国', flag: '🇰🇷', keywords: [ 'KR', 'Korea', '韩国', '首尔' ] },
+	IN: { name: '印度', flag: '🇮🇳', keywords: [ 'IN', 'India', '印度', '孟买' ] },
+	MY: { name: '马来西亚', flag: '🇲🇾', keywords: [ 'MY', 'Malaysia', '马来西亚', '吉隆坡' ] },
+	TH: { name: '泰国', flag: '🇹🇭', keywords: [ 'TH', 'Thailand', '泰国', '曼谷' ] },
+	VN: { name: '越南', flag: '🇻🇳', keywords: [ 'VN', 'Vietnam', '越南', '河内', '胡志明' ] },
+	PH: { name: '菲律宾', flag: '🇵🇭', keywords: [ 'PH', 'Philippines', '菲律宾', '马尼拉' ] },
+	ID: { name: '印度尼西亚', flag: '🇮🇩', keywords: [ 'ID', 'Indonesia', '印度尼西亚', '印尼', '雅加达' ] },
+	AU: { name: '澳大利亚', flag: '🇦🇺', keywords: [ 'AU', 'Australia', '澳大利亚', '悉尼', '墨尔本' ] },
+	NZ: { name: '新西兰', flag: '🇳🇿', keywords: [ 'NZ', 'New Zealand', '新西兰', '奥克兰' ] },
+	MO: { name: '澳门', flag: '🇲🇴', keywords: [ 'MO', 'Macau', '澳门', '澳門' ] },
+	KH: { name: '柬埔寨', flag: '🇰🇭', keywords: [ 'KH', 'Cambodia', '柬埔寨', '金边' ] },
+	BD: { name: '孟加拉国', flag: '🇧🇩', keywords: [ 'BD', 'Bangladesh', '孟加拉', '达卡' ] },
+	PK: { name: '巴基斯坦', flag: '🇵🇰', keywords: [ 'PK', 'Pakistan', '巴基斯坦', '卡拉奇', '伊斯兰堡' ] },
+	LK: { name: '斯里兰卡', flag: '🇱🇰', keywords: [ 'LK', 'Sri Lanka', '斯里兰卡', '科伦坡' ] },
+	NP: { name: '尼泊尔', flag: '🇳🇵', keywords: [ 'NP', 'Nepal', '尼泊尔', '加德满都' ] },
+	MM: { name: '缅甸', flag: '🇲🇲', keywords: [ 'MM', 'Myanmar', '缅甸', '仰光' ] },
+	MN: { name: '蒙古', flag: '🇲🇳', keywords: [ 'MN', 'Mongolia', '蒙古', '乌兰巴托' ] },
+
+	// 美洲地区
+	US: { name: '美国', flag: '🇺🇸', keywords: [ 'US', 'USA', 'United States', '美国', '美國' ] },
+	CA: { name: '加拿大', flag: '🇨🇦', keywords: [ 'CA', 'Canada', '加拿大', '多伦多', '温哥华' ] },
+	MX: { name: '墨西哥', flag: '🇲🇽', keywords: [ 'MX', 'Mexico', '墨西哥' ] },
+	BR: { name: '巴西', flag: '🇧🇷', keywords: [ 'BR', 'Brazil', '巴西', '圣保罗' ] },
+	AR: { name: '阿根廷', flag: '🇦🇷', keywords: [ 'AR', 'Argentina', '阿根廷', '布宜诺斯艾利斯' ] },
+	CL: { name: '智利', flag: '🇨🇱', keywords: [ 'CL', 'Chile', '智利', '圣地亚哥' ] },
+	CO: { name: '哥伦比亚', flag: '🇨🇴', keywords: [ 'CO', 'Colombia', '哥伦比亚', '波哥大' ] },
+	PE: { name: '秘鲁', flag: '🇵🇪', keywords: [ 'PE', 'Peru', '秘鲁', '利马' ] },
+	UY: { name: '乌拉圭', flag: '🇺🇾', keywords: [ 'UY', 'Uruguay', '乌拉圭' ] },
+	EC: { name: '厄瓜多尔', flag: '🇪🇨', keywords: [ 'EC', 'Ecuador', '厄瓜多尔' ] },
+	PA: { name: '巴拿马', flag: '🇵🇦', keywords: [ 'PA', 'Panama', '巴拿马' ] },
+	CR: { name: '哥斯达黎加', flag: '🇨🇷', keywords: [ 'CR', 'Costa Rica', '哥斯达黎加' ] },
+
+	// 欧洲地区
+	UK: { name: '英国', flag: '🇬🇧', keywords: [ 'UK', 'GB', 'Britain', 'United Kingdom', '英国', '伦敦' ] },
+	GB: { name: '英国', flag: '🇬🇧', keywords: [ 'GB', 'UK', 'Britain', 'United Kingdom', '英国', '伦敦' ] },
+	DE: { name: '德国', flag: '🇩🇪', keywords: [ 'DE', 'Germany', '德国', '法兰克福', '柏林' ] },
+	FR: { name: '法国', flag: '🇫🇷', keywords: [ 'FR', 'France', '法国', '巴黎' ] },
+	NL: { name: '荷兰', flag: '🇳🇱', keywords: [ 'NL', 'Netherlands', '荷兰', '阿姆斯特丹' ] },
+	RU: { name: '俄罗斯', flag: '🇷🇺', keywords: [ 'RU', 'Russia', '俄罗斯', '莫斯科', '圣彼得堡' ] },
+	UA: { name: '乌克兰', flag: '🇺🇦', keywords: [ 'UA', 'Ukraine', '乌克兰', '基辅' ] },
+	PL: { name: '波兰', flag: '🇵🇱', keywords: [ 'PL', 'Poland', '波兰', '华沙' ] },
+	IT: { name: '意大利', flag: '🇮🇹', keywords: [ 'IT', 'Italy', '意大利', '米兰', '罗马' ] },
+	ES: { name: '西班牙', flag: '🇪🇸', keywords: [ 'ES', 'Spain', '西班牙', '马德里' ] },
+	CH: { name: '瑞士', flag: '🇨🇭', keywords: [ 'CH', 'Switzerland', '瑞士', '苏黎世', '日内瓦' ] },
+	SE: { name: '瑞典', flag: '🇸🇪', keywords: [ 'SE', 'Sweden', '瑞典', '斯德哥尔摩' ] },
+	NO: { name: '挪威', flag: '🇳🇴', keywords: [ 'NO', 'Norway', '挪威', '奥斯陆' ] },
+	FI: { name: '芬兰', flag: '🇫🇮', keywords: [ 'FI', 'Finland', '芬兰', '赫尔辛基' ] },
+	DK: { name: '丹麦', flag: '🇩🇰', keywords: [ 'DK', 'Denmark', '丹麦', '哥本哈根' ] },
+	IE: { name: '爱尔兰', flag: '🇮🇪', keywords: [ 'IE', 'Ireland', '爱尔兰', '都柏林' ] },
+	AT: { name: '奥地利', flag: '🇦🇹', keywords: [ 'AT', 'Austria', '奥地利', '维也纳' ] },
+	PT: { name: '葡萄牙', flag: '🇵🇹', keywords: [ 'PT', 'Portugal', '葡萄牙', '里斯本' ] },
+	BE: { name: '比利时', flag: '🇧🇪', keywords: [ 'BE', 'Belgium', '比利时', '布鲁塞尔' ] },
+	CZ: { name: '捷克', flag: '🇨🇿', keywords: [ 'CZ', 'Czech', '捷克', '布拉格' ] },
+	RO: { name: '罗马尼亚', flag: '🇷🇴', keywords: [ 'RO', 'Romania', '罗马尼亚', '布加勒斯特' ] },
+	HU: { name: '匈牙利', flag: '🇭🇺', keywords: [ 'HU', 'Hungary', '匈牙利', '布达佩斯' ] },
+	GR: { name: '希腊', flag: '🇬🇷', keywords: [ 'GR', 'Greece', '希腊', '雅典' ] },
+	BG: { name: '保加利亚', flag: '🇧🇬', keywords: [ 'BG', 'Bulgaria', '保加利亚', '索菲亚' ] },
+	RS: { name: '塞尔维亚', flag: '🇷🇸', keywords: [ 'RS', 'Serbia', '塞尔维亚', '贝尔格莱德' ] },
+	IS: { name: '冰岛', flag: '🇮🇸', keywords: [ 'IS', 'Iceland', '冰岛' ] },
+	LU: { name: '卢森堡', flag: '🇱🇺', keywords: [ 'LU', 'Luxembourg', '卢森堡' ] },
+	HR: { name: '克罗地亚', flag: '🇭🇷', keywords: [ 'HR', 'Croatia', '克罗地亚' ] },
+	SK: { name: '斯洛伐克', flag: '🇸🇰', keywords: [ 'SK', 'Slovakia', '斯洛伐克' ] },
+	EE: { name: '爱沙尼亚', flag: '🇪🇪', keywords: [ 'EE', 'Estonia', '爱沙尼亚' ] },
+	LV: { name: '拉脱维亚', flag: '🇱🇻', keywords: [ 'LV', 'Latvia', '拉脱维亚' ] },
+	LT: { name: '立陶宛', flag: '🇱🇹', keywords: [ 'LT', 'Lithuania', '立陶宛' ] },
+	MD: { name: '摩尔多瓦', flag: '🇲🇩', keywords: [ 'MD', 'Moldova', '摩尔多瓦' ] },
+	GE: { name: '格鲁吉亚', flag: '🇬🇪', keywords: [ 'GE', 'Georgia', '格鲁吉亚' ] },
+	AM: { name: '亚美尼亚', flag: '🇦🇲', keywords: [ 'AM', 'Armenia', '亚美尼亚' ] },
+	AZ: { name: '阿塞拜疆', flag: '🇦🇿', keywords: [ 'AZ', 'Azerbaijan', '阿塞拜疆' ] },
+	KZ: { name: '哈萨克斯坦', flag: '🇰🇿', keywords: [ 'KZ', 'Kazakhstan', '哈萨克斯坦', '阿拉木图' ] },
+	UZ: { name: '乌兹别克斯坦', flag: 'UZ', flag: '🇺🇿', keywords: [ 'UZ', 'Uzbekistan', '乌兹别克斯坦' ] },
+	CY: { name: '塞浦路斯', flag: '🇨🇾', keywords: [ 'CY', 'Cyprus', '塞浦路斯' ] },
+
+	// 非洲与中东
+	NG: { name: '尼日利亚', flag: '🇳🇬', keywords: [ 'NG', 'Nigeria', '尼日利亚', '拉各斯', '阿布贾' ] },
+	EG: { name: '埃及', flag: '🇪🇬', keywords: [ 'EG', 'Egypt', '埃及', '开罗' ] },
+	ZA: { name: '南非', flag: '🇿🇦', keywords: [ 'ZA', 'South Africa', '南非', '约翰内斯堡', '开普敦' ] },
+	AE: { name: '阿联酋', flag: '🇦🇪', keywords: [ 'AE', 'UAE', '阿联酋', '迪拜', '阿布扎比' ] },
+	SA: { name: '沙特阿拉伯', flag: '🇸🇦', keywords: [ 'SA', 'Saudi Arabia', '沙特阿拉伯', '沙特', '利雅得' ] },
+	IL: { name: '以色列', flag: '🇮🇱', keywords: [ 'IL', 'Israel', '以色列', '特拉维夫' ] },
+	TR: { name: '土耳其', flag: '🇹🇷', keywords: [ 'TR', 'Turkey', '土耳其', '伊斯坦布尔' ] },
+	MA: { name: '摩洛哥', flag: '🇲🇦', keywords: [ 'MA', 'Morocco', '摩洛哥', '卡萨布兰卡' ] },
+	KE: { name: '肯尼亚', flag: '🇰🇪', keywords: [ 'KE', 'Kenya', '肯尼亚', '内罗毕' ] },
+	GH: { name: '加纳', flag: '🇬🇭', keywords: [ 'GH', 'Ghana', '加纳' ] },
+	DZ: { name: '阿尔及利亚', flag: '🇩🇿', keywords: [ 'DZ', 'Algeria', '阿尔及利亚' ] },
+	QA: { name: '卡塔尔', flag: '🇶🇦', keywords: [ 'QA', 'Qatar', '卡塔尔', '多哈' ] },
+	KW: { name: '科威特', flag: '🇰🇼', keywords: [ 'KW', 'Kuwait', '科威特' ] },
+	OM: { name: '阿曼', flag: '🇴🇲', keywords: [ 'OM', 'Oman', '阿曼' ] }
+};
+
+function isoToFlagEmoji(code) {
+	if (typeof code !== 'string' || code.length !== 2)
+		return '';
+	let u = code.toUpperCase();
+	let c1 = u.charCodeAt(0);
+	let c2 = u.charCodeAt(1);
+	if (c1 >= 65 && c1 <= 90 && c2 >= 65 && c2 <= 90) {
+		return String.fromCodePoint(0x1F1E6 + (c1 - 65), 0x1F1E6 + (c2 - 65));
+	}
+	return '';
+}
+
+function getCountryMetadata(code) {
+	if (!code || typeof code !== 'string')
+		return { code: '', flag: '', name: '', keywords: [] };
+	let u = code.trim().toUpperCase();
+	if (KNOWN_COUNTRIES[u]) {
+		let item = KNOWN_COUNTRIES[u];
+		return {
+			code: u,
+			flag: item.flag || isoToFlagEmoji(u),
+			name: item.name || u,
+			keywords: item.keywords ? item.keywords.slice() : [ u ]
+		};
+	}
+	let flag = isoToFlagEmoji(u);
+	return {
+		code: u,
+		flag: flag || '🌐',
+		name: u,
+		keywords: [ u ]
+	};
+}
+
 const DEFAULT_BANNED_KEYWORDS = 'expire|expired|traffic|invalid|remaining|过期|到期|失效|无效|剩余|流量|重置|订阅|套餐|官网|用量';
 const DEFAULT_URLTEST_PARAMS = {
 	url: 'https://www.gstatic.com/generate_204',
@@ -231,7 +361,9 @@ function normalizeUrltestUrl(value) {
 }
 
 function regionKeys(policy) {
-	return DEFAULT_REGION_KEYS.slice();
+	if (!policy || !policy.region_keywords || typeof policy.region_keywords !== 'object' || Array.isArray(policy.region_keywords))
+		return DEFAULT_REGION_KEYS.slice();
+	return Object.keys(policy.region_keywords);
 }
 
 function normalizeStringChoice(value, choices, fallback) {
@@ -248,7 +380,7 @@ function normalizeRateFilter(raw, keys) {
 
 	let matchedRegions = Array.isArray(raw.matched_regions) ? raw.matched_regions.filter(function(region) {
 		return keys.indexOf(region) >= 0;
-	}) : DEFAULT_RATE_FILTER.matched_regions.slice();
+	}) : keys.slice();
 
 	let patterns = Array.isArray(raw.patterns) ? raw.patterns.filter(function(pattern) {
 		return [ 'number_x', 'number_times_cn' ].indexOf(pattern) >= 0;
@@ -270,22 +402,26 @@ function normalizeRateFilter(raw, keys) {
 function normalizePolicy(raw) {
 	let policy = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
 	let regionKeywords = {};
-	let inputKeywords = policy.region_keywords && typeof policy.region_keywords === 'object' && !Array.isArray(policy.region_keywords) ? policy.region_keywords : DEFAULT_REGION_KEYWORDS;
+	let hasExplicitKeywords = policy.region_keywords && typeof policy.region_keywords === 'object' && !Array.isArray(policy.region_keywords);
+	let inputKeywords = hasExplicitKeywords ? policy.region_keywords : DEFAULT_REGION_KEYWORDS;
 
-	DEFAULT_REGION_KEYS.forEach(function(region) {
+	let keys = Object.keys(inputKeywords);
+	keys.forEach(function(region) {
 		let values = Array.isArray(inputKeywords[region]) ? inputKeywords[region] : [];
 		values = values.filter(function(value) {
-			return typeof value === 'string' && value !== '';
+			return typeof value === 'string' && value.trim() !== '';
+		}).map(function(value) {
+			return value.trim();
 		});
-		regionKeywords[region] = mergeKeywordList(DEFAULT_REGION_KEYWORDS[region], values);
+		regionKeywords[region] = cloneArray(values);
 	});
 
-	let keys = Object.keys(regionKeywords);
+	let rKeys = Object.keys(regionKeywords);
 	let sources = Array.isArray(policy.sources) ? policy.sources.map(function(source) {
 		source = source || {};
 		let allowed = Array.isArray(source.allowed_regions) ? cloneArray(source.allowed_regions).filter(function(region) {
-			return keys.indexOf(region) >= 0;
-		}) : keys.slice();
+			return rKeys.indexOf(region) >= 0;
+		}) : rKeys.slice();
 		let norm = {
 			id: source.id || '',
 			name: source.name || '',
@@ -330,7 +466,7 @@ function normalizePolicy(raw) {
 			interval: policy.dns_urltest && policy.dns_urltest.interval || DEFAULT_DNS_URLTEST.interval,
 			tolerance: policy.dns_urltest && policy.dns_urltest.tolerance != null ? Number(policy.dns_urltest.tolerance) : DEFAULT_DNS_URLTEST.tolerance
 		},
-		rate_filter: normalizeRateFilter(policy.rate_filter, keys),
+		rate_filter: normalizeRateFilter(policy.rate_filter, rKeys),
 		subscription_update: normalizeSubscriptionUpdate(policy.subscription_update),
 		sources: sources
 	};
@@ -626,7 +762,9 @@ function sourceMatrix(policy, summary) {
 						E('th', {}, _('名称')),
 						E('th', { 'style': 'text-align: center;' }, _('启用'))
 					].concat(keys.map(function(region) {
-						return E('th', { 'style': 'text-align: center;' }, region);
+						let meta = getCountryMetadata(region);
+						let flagLabel = (meta.flag ? meta.flag + ' ' : '') + region;
+						return E('th', { 'style': 'text-align: center; white-space: nowrap;' }, flagLabel);
 					})).concat([
 						E('th', { 'style': 'text-align: right;' }, _('节点')),
 						E('th', { 'style': 'text-align: right;' }, _('操作'))
@@ -714,20 +852,304 @@ function sourceMatrix(policy, summary) {
 	]);
 }
 
+function deleteRegion(targetRegion, policy) {
+	if (!policy)
+		policy = collectPolicyFromPage();
+	if (!targetRegion || !policy.region_keywords || !policy.region_keywords[targetRegion])
+		return policy;
+
+	delete policy.region_keywords[targetRegion];
+
+	// Cascading cleanup: sources allowed_regions
+	if (Array.isArray(policy.sources)) {
+		policy.sources.forEach(function(s) {
+			if (Array.isArray(s.allowed_regions)) {
+				s.allowed_regions = s.allowed_regions.filter(function(r) { return r !== targetRegion; });
+			}
+		});
+	}
+
+	// Cascading cleanup: rate_filter matched_regions
+	if (policy.rate_filter && Array.isArray(policy.rate_filter.matched_regions)) {
+		policy.rate_filter.matched_regions = policy.rate_filter.matched_regions.filter(function(r) { return r !== targetRegion; });
+	}
+
+	setDraft(policy);
+	updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
+	return policy;
+}
+
+function addRegion(code, keywords, policy) {
+	if (!policy)
+		policy = collectPolicyFromPage();
+	if (!code || typeof code !== 'string')
+		return policy;
+
+	let cleanCode = code.trim().toUpperCase();
+	if (!cleanCode.match(/^[A-Z0-9_-]{2,8}$/)) {
+		if (typeof window !== 'undefined' && window.alert)
+			window.alert(_('区域代码格式不正确，仅支持 2-8 位字母、数字、下划线或连字符'));
+		return policy;
+	}
+
+	if ([ 'MAIN', 'DIRECT', 'MANUAL', 'DNS-OUT', 'BLOCK' ].indexOf(cleanCode) >= 0) {
+		if (typeof window !== 'undefined' && window.alert)
+			window.alert(_('区域代码不能使用系统保留字：%s').format(cleanCode));
+		return policy;
+	}
+
+	if (!policy.region_keywords)
+		policy.region_keywords = {};
+	if (policy.region_keywords[cleanCode]) {
+		if (typeof window !== 'undefined' && window.alert)
+			window.alert(_('区域代码 “%s” 已存在').format(cleanCode));
+		return policy;
+	}
+
+	let kwList = [];
+	if (Array.isArray(keywords)) {
+		kwList = keywords.map(function(k) { return String(k).trim(); }).filter(Boolean);
+	} else if (typeof keywords === 'string' && keywords.trim() !== '') {
+		kwList = keywords.split(',').map(function(k) { return k.trim(); }).filter(Boolean);
+	}
+	if (kwList.length === 0) {
+		let meta = getCountryMetadata(cleanCode);
+		kwList = meta.keywords && meta.keywords.length ? meta.keywords : [ cleanCode ];
+	}
+
+	policy.region_keywords[cleanCode] = kwList;
+
+	// Automatically add to rate_filter.matched_regions if rate_filter matched_regions exists
+	if (policy.rate_filter && Array.isArray(policy.rate_filter.matched_regions)) {
+		if (policy.rate_filter.matched_regions.indexOf(cleanCode) < 0) {
+			policy.rate_filter.matched_regions.push(cleanCode);
+		}
+	}
+
+	setDraft(policy);
+	updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
+	return policy;
+}
+
+function restoreDefaultRegions(policy) {
+	if (!policy)
+		policy = collectPolicyFromPage();
+	policy.region_keywords = {};
+	DEFAULT_REGION_KEYS.forEach(function(k) {
+		policy.region_keywords[k] = cloneArray(DEFAULT_REGION_KEYWORDS[k]);
+	});
+
+	if (policy.rate_filter && Array.isArray(policy.rate_filter.matched_regions)) {
+		policy.rate_filter.matched_regions = DEFAULT_REGION_KEYS.slice();
+	}
+
+	setDraft(policy);
+	updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
+	return policy;
+}
+
+function openAddRegionModal(policy) {
+	if (!policy)
+		policy = collectPolicyFromPage();
+
+	let existing = document.getElementById('omnia-add-region-modal-overlay');
+	if (existing && existing.parentNode)
+		existing.parentNode.removeChild(existing);
+
+	let overlay = E('div', {
+		'id': 'omnia-add-region-modal-overlay',
+		'style': 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 1.25rem; box-sizing: border-box;'
+	});
+
+	let modal = E('div', {
+		'class': 'cbi-section',
+		'style': 'width: 480px; max-width: 95vw; margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); border: 1px solid var(--cbi-section-border, #cbd5e1); background: var(--cbi-section-background, #fff);'
+	});
+
+	function closeModal() {
+		document.removeEventListener('keydown', handleKey);
+		if (overlay.parentNode)
+			overlay.parentNode.removeChild(overlay);
+	}
+
+	function handleKey(ev) {
+		if (ev.key === 'Escape' || ev.keyCode === 27)
+			closeModal();
+	}
+	document.addEventListener('keydown', handleKey);
+
+	overlay.addEventListener('click', function(ev) {
+		if (ev.target === overlay)
+			closeModal();
+	});
+
+	let header = E('div', {
+		'style': 'display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--cbi-section-border, #e2e8f0);'
+	}, [
+		E('div', { 'style': 'display: flex; align-items: center; gap: .5rem;' }, [
+			E('span', { 'style': 'font-size: 1.15rem;' }, '🌐'),
+			E('h3', { 'style': 'margin: 0; font-size: 1.05rem; font-weight: 700;' }, _('添加自定义区域'))
+		]),
+		E('button', {
+			'type': 'button',
+			'class': 'btn cbi-button',
+			'style': 'padding: 2px 8px; font-size: 1.1rem; line-height: 1; border: none; background: transparent; cursor: pointer;',
+			'click': closeModal
+		}, '✕')
+	]);
+
+	let badgeSpan = E('span', { 'style': 'font-weight: 600; color: #2563eb; display: inline-flex; align-items: center; gap: 4px;' }, '');
+
+	let keywordsInput = E('textarea', {
+		'id': 'omnia-add-region-kw-input',
+		'class': 'cbi-input-textarea',
+		'style': 'width: 100%; height: 64px; resize: vertical; font: inherit;',
+		'placeholder': _('例如: NG, Nigeria, 尼日利亚, 拉各斯')
+	});
+
+	let kwAutoFilled = false;
+
+	let codeInput = E('input', {
+		'id': 'omnia-add-region-code-input',
+		'class': 'cbi-input-text',
+		'style': 'width: 100%; text-transform: uppercase;',
+		'placeholder': _('例如: NG, UA, EG, PK, TR, AR 等'),
+		'input': function(ev) {
+			let val = (codeInput.value || '').trim().toUpperCase();
+			codeInput.value = val;
+			if (val) {
+				let meta = getCountryMetadata(val);
+				badgeSpan.textContent = (meta.flag ? meta.flag + ' ' : '') + meta.name + (meta.name !== val ? ' (' + val + ')' : '');
+				if (!kwAutoFilled || keywordsInput.value.trim() === '') {
+					keywordsInput.value = meta.keywords.join(', ');
+				}
+			} else {
+				badgeSpan.textContent = '';
+			}
+		}
+	});
+
+	keywordsInput.addEventListener('input', function() {
+		kwAutoFilled = true;
+	});
+
+	let body = E('div', { 'style': 'padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;' }, [
+		E('div', {}, [
+			E('label', { 'class': 'cbi-value-title', 'style': 'font-weight: 600; margin-bottom: 4px; display: flex; justify-content: space-between;' }, [
+				E('span', {}, _('区域代码 (ISO 2-8 位字母或标识)')),
+				badgeSpan
+			]),
+			codeInput
+		]),
+		E('div', {}, [
+			E('label', { 'class': 'cbi-value-title', 'style': 'font-weight: 600; margin-bottom: 4px; display: block;' }, _('匹配关键字 (逗号分隔)')),
+			keywordsInput
+		]),
+		E('div', { 'style': 'color: #64748b; font-size: 0.85rem; line-height: 1.4;' }, _('输入国家/地区代码（如 NG、UA、EG 等），系统将自动识别国旗与中文名称并预填推荐关键词。'))
+	]);
+
+	let footer = E('div', {
+		'style': 'display: flex; justify-content: flex-end; gap: .75rem; padding: .85rem 1.25rem; border-top: 1px solid var(--cbi-section-border, #e2e8f0); background: var(--cbi-section-footer, #f8fafc);'
+	}, [
+		E('button', {
+			'type': 'button',
+			'class': 'btn cbi-button',
+			'click': closeModal
+		}, _('取消')),
+		E('button', {
+			'type': 'button',
+			'class': 'btn cbi-button cbi-button-action',
+			'click': function(ev) {
+				ev.preventDefault();
+				let code = (codeInput.value || '').trim().toUpperCase();
+				let kws = (keywordsInput.value || '').trim();
+				if (!code) {
+					if (typeof window !== 'undefined' && window.alert) window.alert(_('请输入区域代码'));
+					return;
+				}
+				addRegion(code, kws, policy);
+				closeModal();
+			}
+		}, [ '➕ ', _('确认添加') ])
+	]);
+
+	modal.appendChild(header);
+	modal.appendChild(body);
+	modal.appendChild(footer);
+	overlay.appendChild(modal);
+	if (typeof document !== 'undefined' && document.body) {
+		document.body.appendChild(overlay);
+		setTimeout(function() {
+			codeInput.focus();
+		}, 100);
+	}
+}
+
 function policySettings(policy) {
 	let keys = regionKeys(policy);
 
-	return E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: .75rem;' }, [
-		E('div', { 'style': sectionStyle() }, [
-			sectionTitle(_('区域关键字')),
-			E('div', {}, keys.map(function(region) {
-				return field(region, E('input', {
+	let regionItems = keys.map(function(region) {
+		let meta = getCountryMetadata(region);
+		let titleLabel = (meta.flag ? meta.flag + ' ' : '') + (meta.name && meta.name !== region ? meta.name + ' (' + region + ')' : region);
+		return E('div', { 'class': 'cbi-value', 'style': 'margin-bottom: .6rem;' }, [
+			E('label', { 'class': 'cbi-value-title', 'style': 'display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-weight: 500;' }, [
+				E('span', {}, titleLabel),
+				E('button', {
+					'type': 'button',
+					'class': 'btn cbi-button cbi-button-remove',
+					'title': _('删除此区域'),
+					'style': 'padding: 1px 6px; font-size: 11px; line-height: 1.2; color: #ef4444; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05); cursor: pointer;',
+					'click': function(ev) {
+						ev.preventDefault();
+						if (window.confirm && !window.confirm(_('确定要删除区域 “%s” 吗？\n删除后将自动从各订阅源及过滤规则中清理该区域。').format(titleLabel)))
+							return;
+						deleteRegion(region, policy);
+					}
+				}, [ '✕ ', _('删除') ])
+			]),
+			E('div', { 'class': 'cbi-value-field' }, [
+				E('input', {
 					'id': 'omnia-region-keywords-' + region,
 					'class': 'cbi-input-text',
 					'style': 'width: 100%;',
 					'value': (policy.region_keywords[region] || []).join(', ')
-				}));
-			})),
+				})
+			])
+		]);
+	});
+
+	if (keys.length === 0) {
+		regionItems.push(E('div', { 'style': 'color: #94a3b8; font-size: 0.9em; font-style: italic; margin-bottom: 0.75rem;' }, _('当前未配置任何区域分组（所有节点将直接并入 🗽 节点选择 全局池）')));
+	}
+
+	let regionActions = E('div', { 'style': 'display: flex; gap: 0.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;' }, [
+		E('button', {
+			'type': 'button',
+			'class': omniaMotion.buttonClass('btn cbi-button cbi-button-action'),
+			'style': 'padding: 3px 10px; font-size: 12px;',
+			'click': function(ev) {
+				ev.preventDefault();
+				openAddRegionModal(policy);
+			}
+		}, [ '➕ ', _('添加自定义区域') ]),
+		E('button', {
+			'type': 'button',
+			'class': omniaMotion.buttonClass('btn cbi-button cbi-button-neutral'),
+			'style': 'padding: 3px 10px; font-size: 12px;',
+			'click': function(ev) {
+				ev.preventDefault();
+				if (window.confirm && !window.confirm(_('确定要恢复出厂预设的 5 大核心区域（HK, TW, SG, JP, US）吗？当前自定义区域关键字将被替换。')))
+					return;
+				restoreDefaultRegions(policy);
+			}
+		}, [ '↺ ', _('恢复出厂五区') ])
+	]);
+
+	return E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: .75rem;' }, [
+		E('div', { 'style': sectionStyle() }, [
+			sectionTitle(_('区域关键字')),
+			E('div', {}, regionItems),
+			regionActions,
 			sectionTitle(_('DNS 专用出站组'), '1rem'),
 			field(_('启用'), omniaUi.checkboxInput({
 				'id': 'omnia-dns-urltest-enabled',
@@ -820,12 +1242,14 @@ function policySettings(policy) {
 				E('option', { 'value': 'none', 'selected': policy.rate_filter.scope === 'none' ? 'selected' : null }, _('停用'))
 			])),
 			field(_('匹配区域'), E('div', {}, keys.map(function(region) {
+				let meta = getCountryMetadata(region);
+				let regLabel = (meta.flag ? meta.flag + ' ' : '') + region;
 				return E('label', { 'style': 'display: inline-flex; align-items: center; gap: .25rem; margin: 0 .75rem .35rem 0;' }, [
 					omniaUi.checkboxInput({
 						'id': 'omnia-rate-filter-region-' + region,
 						'checked': policy.rate_filter.matched_regions.indexOf(region) >= 0 ? 'checked' : null
 					}),
-					E('span', {}, region)
+					E('span', {}, regLabel)
 				]);
 			}))),
 			field(_('匹配区域动作'), E('select', { 'id': 'omnia-rate-filter-high-action', 'class': 'cbi-input-select', 'style': 'width: 100%;' }, [
@@ -1451,7 +1875,7 @@ function sourceEditor(policy, index) {
 						'value': region,
 						'checked': source.allowed_regions.indexOf(region) >= 0 ? 'checked' : null
 					}),
-					E('span', {}, region)
+					E('span', {}, (getCountryMetadata(region).flag ? getCountryMetadata(region).flag + ' ' : '') + region)
 				]);
 			}))),
 			E('div', { 'style': 'margin-top: .75rem; border: 1px solid #e2e8f0; border-radius: 8px; padding: .65rem; background: #f8fafc;' }, [
@@ -1681,14 +2105,28 @@ function collectPolicyFromPage() {
 	let policy = draftPolicy();
 	let keys = regionKeys(policy);
 
+	let pageKeys = keys.slice();
+	let inputs = (typeof document !== 'undefined' && document.querySelectorAll) ? document.querySelectorAll('input[id^="omnia-region-keywords-"]') : [];
+	for (let i = 0; i < inputs.length; i++) {
+		let rCode = inputs[i].id.substring('omnia-region-keywords-'.length);
+		if (rCode && pageKeys.indexOf(rCode) < 0) {
+			pageKeys.push(rCode);
+		}
+	}
+
 	policy.refresh_strategy = getValue('omnia-refresh-strategy') === 'proxy' ? 'proxy' : 'direct';
 	policy.region_keywords = {};
-	keys.forEach(function(region) {
-		policy.region_keywords[region] = getValue('omnia-region-keywords-' + region).split(',').map(function(value) {
-			return value.trim();
-		}).filter(function(value) {
-			return value !== '';
-		});
+	pageKeys.forEach(function(region) {
+		let el = document.getElementById('omnia-region-keywords-' + region);
+		if (el && el.value !== undefined) {
+			policy.region_keywords[region] = String(el.value).split(',').map(function(value) {
+				return value.trim();
+			}).filter(function(value) {
+				return value !== '';
+			});
+		} else if (draftPolicy().region_keywords && draftPolicy().region_keywords[region]) {
+			policy.region_keywords[region] = cloneArray(draftPolicy().region_keywords[region]);
+		}
 	});
 	policy.manual_selector = {
 		keywords: getValue('omnia-manual-selector-keywords').split(/[\n,]+/).map(function(value) {
@@ -1715,7 +2153,7 @@ function collectPolicyFromPage() {
 		tolerance: Number(getValue('omnia-dns-urltest-tolerance') || DEFAULT_DNS_URLTEST.tolerance)
 	};
 	let rateRegions = [];
-	keys.forEach(function(region) {
+	pageKeys.forEach(function(region) {
 		if (checked('omnia-rate-filter-region-' + region))
 			rateRegions.push(region);
 	});
@@ -1734,7 +2172,7 @@ function collectPolicyFromPage() {
 		matched_high_rate_action: getValue('omnia-rate-filter-high-action') || DEFAULT_RATE_FILTER.matched_high_rate_action,
 		patterns: ratePatterns,
 		include_integer_one: checked('omnia-rate-filter-include-one')
-	}, keys);
+	}, pageKeys);
 	delete policy.fetch_bypass;
 	policy.subscription_update = normalizeSubscriptionUpdate({
 		auto_update: checked('omnia-subscription-auto-update'),
@@ -1744,7 +2182,7 @@ function collectPolicyFromPage() {
 	});
 	policy.sources = policy.sources.map(function(source, index) {
 		let allowed = [];
-		keys.forEach(function(region) {
+		pageKeys.forEach(function(region) {
 			if (checked(matrixId(index, 'region', region)))
 				allowed.push(region);
 		});

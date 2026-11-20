@@ -938,12 +938,14 @@ function generateSelectorPreview(item) {
 			if (m === 'main') outbounds.push('🗽 节点选择');
 			else if (m === 'direct') outbounds.push('🎯 全球直连');
 			else if (m === 'manual') outbounds.push('🍭 手动选择');
-			else if (m === 'HK') outbounds.push('🇭🇰 香港测速组');
-			else if (m === 'TW') outbounds.push('🇹🇼 台湾测速组');
-			else if (m === 'SG') outbounds.push('🇸🇬 新加坡测速组');
-			else if (m === 'JP') outbounds.push('🇯🇵 日本测速组');
-			else if (m === 'US') outbounds.push('🇺🇸 美国测速组');
-			else outbounds.push(m);
+			else {
+				let label = candidateLabel(m);
+				if (label && label !== m) {
+					outbounds.push(label + '测速组');
+				} else {
+					outbounds.push(m);
+				}
+			}
 		}
 		if (outbounds.length === 0)
 			outbounds.push('🗽 节点选择');

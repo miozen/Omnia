@@ -12,6 +12,7 @@ import { group_tags_for_regions, region_order, generate_region_groups } from 'om
 import { MANUAL_SELECTOR_TAG } from 'omnia.generator_manual_selector';
 import { parse_profile, parse_node_snapshot, parse_subscriptions_policy } from 'omnia.generator_input';
 import { collect_profile_tags, normalized_nodes, collect_node_tags } from 'omnia.generator_nodes';
+import { get_country_info, iso_to_flag_emoji } from 'omnia.convert.operators.flags';
 
 function now_utc() {
 	let result = ExecResult("profile_selectors", [ "date", "-u", "+%Y-%m-%dT%H:%M:%SZ" ]);
@@ -131,20 +132,19 @@ function sync_template_selectors(template_key, profile) {
 }
 
 function region_flag_str(region) {
-	if (region == "HK") return "\ud83c\udded\ud83c\uddf0";
-	if (region == "TW") return "\ud83c\uddf9\ud83c\uddfc";
-	if (region == "SG") return "\ud83c\uddf8\ud83c\uddec";
-	if (region == "JP") return "\ud83c\uddef\ud83c\uddf5";
-	if (region == "US") return "\ud83c\uddfa\ud83c\uddf8";
+	let info = get_country_info(region);
+	if (info != null && type(info.flag) == "string")
+		return info.flag;
+	let dynamic = iso_to_flag_emoji(region);
+	if (dynamic != "")
+		return dynamic;
 	return "";
 }
 
 function region_name_str(region) {
-	if (region == "HK") return "香港";
-	if (region == "TW") return "台湾";
-	if (region == "SG") return "新加坡";
-	if (region == "JP") return "日本";
-	if (region == "US") return "美国";
+	let info = get_country_info(region);
+	if (info != null && type(info.name) == "string")
+		return info.name;
 	return region;
 }
 
@@ -301,6 +301,8 @@ export {
 	get_selector_candidate_pool,
 	get_direct_outbound_tag,
 	get_main_selector_tag,
+	region_flag_str,
+	region_name_str,
 	template_selectors_get,
 	template_selectors_save
 };

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { resolve_selector_members, sync_template_selectors, get_main_selector_tag, get_direct_outbound_tag } from 'omnia.profile_selectors';
+import { resolve_selector_members, sync_template_selectors, get_main_selector_tag, get_direct_outbound_tag, region_flag_str, region_name_str, get_selector_candidate_pool } from 'omnia.profile_selectors';
 import { inject_selectors } from 'omnia.generator_selectors';
 import { restore_manual_selector_references, MANUAL_SELECTOR_TAG } from 'omnia.generator_manual_selector';
 
@@ -131,5 +131,42 @@ assert(index(youtube.outbounds, MANUAL_SELECTOR_TAG) != -1, "Uncustomized YouTub
 print("Testing tag helpers...\n");
 assert(get_main_selector_tag(test_profile) == "🗽 节点选择", "Main selector tag correctly identified");
 assert(get_direct_outbound_tag(test_profile) == "🎯 全球直连", "Direct outbound tag correctly identified");
+
+// -----------------------------------------------------------------------------
+// 5. region_flag_str, region_name_str & expanded country flags dictionary
+// -----------------------------------------------------------------------------
+print("Testing expanded national flags & candidate pool...\n");
+assert(region_flag_str("NG") == "🇳🇬", "Nigeria flag matches");
+assert(region_name_str("NG") == "尼日利亚", "Nigeria name matches");
+assert(region_flag_str("UA") == "🇺🇦", "Ukraine flag matches");
+assert(region_name_str("UA") == "乌克兰", "Ukraine name matches");
+assert(region_flag_str("EG") == "🇪🇬", "Egypt flag matches");
+assert(region_name_str("EG") == "埃及", "Egypt name matches");
+assert(region_flag_str("PK") == "🇵🇰", "Pakistan flag matches");
+assert(region_name_str("PK") == "巴基斯坦", "Pakistan name matches");
+assert(region_flag_str("TR") == "🇹🇷", "Turkey flag matches");
+assert(region_name_str("TR") == "土耳其", "Turkey name matches");
+assert(region_flag_str("AR") == "🇦🇷", "Argentina flag matches");
+assert(region_name_str("AR") == "阿根廷", "Argentina name matches");
+
+// ISO 2-letter algorithmic fallback
+assert(length(region_flag_str("ZZ")) > 0, "Algorithmic flag generated for ZZ");
+assert(region_name_str("ZZ") == "ZZ", "Name falls back to code for ZZ");
+
+// Candidate pool resolution with dynamic regions
+let mock_subscriptions = {
+	region_keywords: {
+		NG: [ "Nigeria" ],
+		UA: [ "Ukraine" ],
+		US: [ "USA" ]
+	}
+};
+let pool = get_selector_candidate_pool(test_profile, mock_groups, mock_subscriptions, "main");
+assert(length(pool.regions) == 3, "Candidate pool extracted 3 custom regions");
+assert(pool.regions[0].id == "NG", "Pool region 0 is NG");
+assert(index(pool.regions[0].label, "🇳🇬") >= 0, "Pool region 0 contains NG flag");
+assert(index(pool.regions[0].label, "尼日利亚") >= 0, "Pool region 0 contains Chinese name");
+assert(pool.regions[1].id == "UA", "Pool region 1 is UA");
+assert(index(pool.regions[1].label, "🇺🇦") >= 0, "Pool region 1 contains UA flag");
 
 print("ALL profile_selectors unit tests passed successfully!\n");

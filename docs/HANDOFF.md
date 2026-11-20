@@ -2,50 +2,51 @@
 
 ## Last Updated
 
-2026-11-19T17:15+08:00
+2026-11-20T15:25+08:00
 
 ## Repository State
 
 - **Current Branch:** `dev`
-- **HEAD:** `021e890` (committed and pushed)
+- **HEAD:** `0dd790e` (committed and pushed)
 - **Working Tree:** CLEAN
 - **Remote Sync:** Branch `dev` synchronized with remote origin/dev
 
 ## Development State
 
-- **Current Phase:** Post-v0.1.0 Stabilization — Feature Refinement & Selector Allocation
-- **Current Task:** Selector Outbounds Dynamic Allocation & Resource Tab Reorder
+- **Current Phase:** Post-v0.1.0 Stabilization — Dynamic Custom Region Groups & Expanded Flags
+- **Current Task:** Custom Regions Implementation & Flags Expansion
 - **Last Completed:**
-  1. Resource Management Tab Order Swap:
-     - Reordered tabs in `resources.js` placing `[ 订阅 (Subscriptions) ]` before `[ 模板 (Template & Selectors) ]`.
-     - Set default active tab to `'subscriptions'`.
-  2. Selector Outbounds Dynamic Allocation Core Engine:
-     - Added `PATH.SELECTORS` to `core/constants.uc` (`/etc/omnia/selectors.json`).
-     - Implemented `profile_selectors.uc` with storage persistence, candidate pool resolution (`get_selector_candidate_pool`), member resolution (`resolve_selector_members`) with automatic fallback to `main`, and synchronization (`sync_template_selectors`).
-     - Updated `generator_selectors.uc` (`inject_selectors`) supporting 4-tier source priority (Priority 1: Omnia user config; Priority 2: template `x_rule`; Priority 3: template native outbounds; Priority 4: automatic fallback to `main`).
-     - Preserved system root `main` (`🗽 节点选择`, `x_rule: "main"`) as immutable global aggregator and fallback.
-     - Updated `generator_manual_selector.uc` to isolate custom-configured selectors from automatic manual selector injection.
-     - Wired selector configuration into `generator.uc` (`generate_candidate`).
-     - Integrated `sync_template_selectors` into `profile.uc` on save, remote sync, restore default, and rollback.
-  3. RPC & ACL Integration:
-     - Exposed `template_selectors_get` and `template_selectors_save` in `omnia.uc`.
-     - Added `template_selectors_get` to read ACL and `template_selectors_save` to write ACL in `luci-app-omnia.json`.
-  4. LuCI Frontend Card Allocator in `profile.js`:
-     - Rendered Selector Outbounds Allocation cards section above the raw JSON editor.
-     - Provided member chips with removal `✕`, candidate quick-add buttons for 5 regions (`HK`, `TW`, `SG`, `JP`, `US`), `⚡ 全选地区` shortcut, and core system targets (`main`, `direct`, `manual`).
-     - Implemented single-selector preview modal dialog triggered by magnifying glass (`🔍`) button next to each selector tag, featuring formatted sing-box outbound JSON and 1-click clipboard copy.
-     - Added save and reset action buttons.
-  5. Automated Testing:
-     - Created `tests/profile-selectors.uc` testing member resolution, priority 1 override, fallback, manual selector isolation, and tag helpers.
-     - Added test 14 to `tests/run-all-convert-tests.sh` (all 14 ucode test suites passing).
-     - Updated `tests/profile-ui.cjs` asserting member addition, removal, quick all regions, save, reset, and modal preview (all 10 UI tests passing).
+  1. National Flags & ISO Algorithmic Fallback Engine (`flags.uc`):
+     - Expanded `COUNTRY_FLAGS` dictionary from 20 to 70+ countries (including Nigeria `NG`, Ukraine `UA`, Egypt `EG`, Pakistan `PK`, Turkey `TR`, Argentina `AR`, and all common streaming/niche regions).
+     - Implemented `iso_to_flag_emoji` based on UTF-8 Regional Indicator symbols (`0x1F1E6 ~ 0x1F1FF`) for 100% universal 2-letter ISO flag generation.
+     - Implemented and exported `get_country_info(code)` and `iso_to_flag_emoji(code)`.
+  2. Backend Schema Normalization & Defensive Cleanup (`subscription_policy_schema.uc`):
+     - Updated `normalize_region_keywords`: preset 5 regions only populate as initial defaults if `raw` is missing/null; strictly respects user's custom dictionary without re-injecting deleted presets.
+     - Updated `normalize_allowed_regions` and `normalize_rate_filter`: quietly filters out deleted regions without throwing exceptions (`die`).
+  3. Generator & Selector Pool Integration (`generator_groups.uc`, `profile_selectors.uc`):
+     - Enhanced `region_order` in `generator_groups.uc` to recognize `config.region_keywords` keys.
+     - Formatted speedtest group tags and selector candidate pools dynamically with country flags and Chinese names.
+     - Exported `region_flag_str` and `region_name_str`.
+  4. LuCI Frontend Dynamic Custom Regions (`subscriptions.js`):
+     - Added `KNOWN_COUNTRIES`, `isoToFlagEmoji`, and `getCountryMetadata` dictionary and helpers.
+     - Updated `regionKeys(policy)` to dynamically read `Object.keys(policy.region_keywords || {})`.
+     - Rendered flag and delete `✕` button for every region row (including the 5 presets) with confirmation dialog.
+     - Added `[ ➕ 添加自定义区域 ]` modal with instant ISO code lookup, country name/flag badge display, and keyword prefilling.
+     - Added `[ ↺ 恢复出厂五区 ]` button with reset confirmation dialog.
+     - Implemented automatic cascading cleanup when deleting a region (`s.allowed_regions` and `rate_filter.matched_regions`).
+     - Displayed country flags in matrix table headers, rate filter checkboxes, and source editor checkboxes.
+  5. Selector Preview Adaptation (`profile.js`):
+     - Dynamically formatted preview outbound labels `${candidateLabel(m)} 测速组`.
+  6. Automated Test Coverage:
+     - Updated `tests/subscription-ui.cjs` asserting flag conversions, metadata lookup, normalization, deletion, cascading cleanup, custom addition, and default reset.
+     - Updated `tests/profile-selectors.uc` asserting expanded country flags and dynamic candidate pool resolution.
      - Verified static checks `tests/ci-static.sh` passing.
+     - Verified test runner `tests/run-all-convert-tests.sh` passing (14 suites + module compilation).
 
 ## Validation Performed
 
 - `bash tests/ci-static.sh`: PASS (All UI, static, and workflow suites passed)
 - `bash tests/run-all-convert-tests.sh`: PASS (All 14 pure-function, integration, and module compilation suites passed)
-- `docker run ... control-encoding.uc && grpc-proto.uc`: PASS
 
 ## Exact Next Action
 

@@ -392,8 +392,8 @@ function clash_dict_to_ir(p) {
 	let obfs_password = '';
 	if (proto == 'hysteria2') {
 		let raw_obfs = type(p.obfs) == 'string' ? lc(trim(p.obfs)) : '';
-		if (raw_obfs == 'salamander') {
-			obfs = 'salamander';
+		if (raw_obfs == 'salamander' || raw_obfs == 'gecko') {
+			obfs = raw_obfs;
 			obfs_password = type(p['obfs-password']) == 'string' ? p['obfs-password'] : '';
 		}
 	}

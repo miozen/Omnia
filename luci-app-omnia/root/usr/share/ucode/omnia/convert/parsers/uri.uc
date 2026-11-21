@@ -186,6 +186,19 @@ function parse_ss(uri) {
 		} else {
 			plugin = raw_plugin;
 		}
+		if (plugin == 'v2ray-plugin' && plugin_opts == '') {
+			let opts_list = [];
+			if (parsed.query.tls == '1' || parsed.query.tls == 'tls' || parsed.query.security == 'tls')
+				push(opts_list, 'tls');
+			if (parsed.query.host != null && parsed.query.host != '')
+				push(opts_list, 'host=' + parsed.query.host);
+			if (parsed.query.path != null && parsed.query.path != '')
+				push(opts_list, 'path=' + parsed.query.path);
+			if (parsed.query.mode != null && parsed.query.mode != '')
+				push(opts_list, 'mode=' + parsed.query.mode);
+			if (length(opts_list) > 0)
+				plugin_opts = join(';', opts_list);
+		}
 		if (lc(plugin) == 'none') {
 			plugin = '';
 			plugin_opts = '';
@@ -251,7 +264,9 @@ function parse_vmess(uri) {
 					network: network,
 					tls: tls,
 					sni: sni,
-					alpn: type(j.alpn) == 'string' && j.alpn != '' ? split(j.alpn, ',') : [],
+					alpn: type(j.alpn) == 'string' && j.alpn != '' ? split(j.alpn, ',') : (type(j.alpn) == 'array' ? j.alpn : []),
+					fingerprint: j.fp || '',
+					packet_encoding: j.packetEncoding || j.packet_encoding || '',
 					ws_opts: ws_opts,
 					grpc_opts: grpc_opts,
 					http_opts: http_opts
@@ -269,6 +284,11 @@ function parse_vmess(uri) {
 	let network = q.type || q.net || 'tcp';
 	let tls = q.security == 'tls' || q.tls == '1' || q.tls == 'true';
 	let sni = q.sni || q.host || '';
+	let packet_encoding = q.packetEncoding || q.packet_encoding || '';
+	let fp = q.fp || q.fingerprint || '';
+	let alpn = [];
+	if (q.alpn != '')
+		alpn = split(q.alpn, ',');
 
 	let ws_opts = null;
 	let grpc_opts = null;
@@ -296,6 +316,9 @@ function parse_vmess(uri) {
 		network: network,
 		tls: tls,
 		sni: sni,
+		alpn: alpn,
+		fingerprint: fp,
+		packet_encoding: packet_encoding,
 		ws_opts: ws_opts,
 		grpc_opts: grpc_opts
 	});
@@ -319,6 +342,8 @@ function parse_vless(uri) {
 	let has_reality = q.pbk != '' || security == 'reality' || q.xtls == '2';
 	let tls = q.tls == '1' || q.tls == 'tls' || q.tls == 'true' || security == 'tls' || has_reality;
 	let sni = q.sni || q.peer || q.host || '';
+	let fp = q.fp || q.fingerprint || '';
+	let packet_encoding = q.packetEncoding || q.packet_encoding || '';
 
 	let reality = null;
 	if (has_reality && q.pbk != '') {
@@ -331,6 +356,7 @@ function parse_vless(uri) {
 
 	let ws_opts = null;
 	let grpc_opts = null;
+	let httpupgrade_opts = null;
 	if (network == 'ws' || network == 'websocket') {
 		network = 'ws';
 		ws_opts = {
@@ -340,6 +366,12 @@ function parse_vless(uri) {
 	} else if (network == 'grpc') {
 		grpc_opts = {
 			service_name: q.serviceName || q.service_name || q.path || ''
+		};
+	} else if (network == 'httpupgrade' || network == 'xhttp') {
+		network = 'httpupgrade';
+		httpupgrade_opts = {
+			path: q.path || '/',
+			host: q.host || q.sni || ''
 		};
 	}
 
@@ -358,10 +390,13 @@ function parse_vless(uri) {
 		tls: tls,
 		sni: sni,
 		alpn: alpn,
+		fingerprint: fp,
+		packet_encoding: packet_encoding,
 		skip_cert_verify: q.allowInsecure == '1' || q.insecure == '1',
 		reality: reality,
 		ws_opts: ws_opts,
-		grpc_opts: grpc_opts
+		grpc_opts: grpc_opts,
+		httpupgrade_opts: httpupgrade_opts
 	});
 }
 
@@ -376,6 +411,7 @@ function parse_trojan(uri) {
 
 	let ws_opts = null;
 	let grpc_opts = null;
+	let httpupgrade_opts = null;
 	if (network == 'ws' || network == 'websocket') {
 		network = 'ws';
 		ws_opts = {
@@ -385,6 +421,12 @@ function parse_trojan(uri) {
 	} else if (network == 'grpc') {
 		grpc_opts = {
 			service_name: q.serviceName || q.service_name || q.path || ''
+		};
+	} else if (network == 'httpupgrade' || network == 'xhttp') {
+		network = 'httpupgrade';
+		httpupgrade_opts = {
+			path: q.path || '/',
+			host: q.host || q.sni || ''
 		};
 	}
 
@@ -404,9 +446,11 @@ function parse_trojan(uri) {
 		tls: true,
 		sni: sni,
 		alpn: alpn,
+		fingerprint: q.fp || q.fingerprint || '',
 		skip_cert_verify: q.allowInsecure == '1' || q.insecure == '1',
 		ws_opts: ws_opts,
-		grpc_opts: grpc_opts
+		grpc_opts: grpc_opts,
+		httpupgrade_opts: httpupgrade_opts
 	});
 }
 
@@ -420,9 +464,11 @@ function parse_hysteria2(uri) {
 	let raw_obfs = lc(q.obfs || '');
 	let obfs_type = '';
 	let obfs_password = '';
-	if (raw_obfs == 'salamander') {
-		obfs_type = 'salamander';
-		obfs_password = q['obfs-password'] || '';
+	let min_packet_size = int(q['obfs-min-packet-size'] || q.obfs_min_packet_size || q.min_packet_size || 0);
+	let max_packet_size = int(q['obfs-max-packet-size'] || q.obfs_max_packet_size || q.max_packet_size || 0);
+	if (raw_obfs == 'salamander' || raw_obfs == 'gecko') {
+		obfs_type = raw_obfs;
+		obfs_password = q['obfs-password'] || q.obfs_password || '';
 	}
 
 	let alpn = [];
@@ -440,9 +486,12 @@ function parse_hysteria2(uri) {
 		tls: true,
 		sni: sni,
 		alpn: alpn,
+		fingerprint: q.fp || q.fingerprint || '',
 		skip_cert_verify: q.insecure == '1' || q.allowInsecure == '1',
 		obfs: obfs_type,
 		obfs_password: obfs_password,
+		obfs_min_packet_size: min_packet_size,
+		obfs_max_packet_size: max_packet_size,
 		up_mbps: int(q.upmbps || 0),
 		down_mbps: int(q.downmbps || 0)
 	});

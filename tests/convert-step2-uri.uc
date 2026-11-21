@@ -30,6 +30,13 @@ assert(ss_plugin_node != null, "ss_plugin_node parsed null");
 assert(ss_plugin_node.plugin == "obfs-local", "ss plugin mismatch: " + ss_plugin_node.plugin);
 assert(ss_plugin_node.plugin_opts == "obfs=http;obfs-host=example.com", "ss plugin_opts mismatch: " + ss_plugin_node.plugin_opts);
 
+// 1.2 Shadowsocks SIP002 with v2ray-plugin query parameters
+let ss_v2ray_uri = "ss://YWVzLTEyOC1nY206cGFzc3dvcmQ=@ss.example.com:8388/?plugin=v2ray-plugin&tls=1&host=v2ray.example.com&path=%2Fws#SS%20V2Ray";
+let ss_v2ray_node = parse_single_uri(ss_v2ray_uri);
+assert(ss_v2ray_node != null, "ss_v2ray_node parsed null");
+assert(ss_v2ray_node.plugin == "v2ray-plugin", "ss v2ray plugin mismatch: " + ss_v2ray_node.plugin);
+assert(ss_v2ray_node.plugin_opts == "tls;host=v2ray.example.com;path=/ws", "ss v2ray plugin_opts mismatch: " + ss_v2ray_node.plugin_opts);
+
 // 2. VMess v2rayN Base64 JSON
 // {"v":"2","ps":"VMess Test","add":"vmess.example.com","port":"443","id":"a0000000-0000-0000-0000-000000000001","aid":"0","scy":"auto","net":"ws","host":"cdn.example.com","path":"/ws","tls":"tls","sni":"sni.example.com"}
 let vmess_b64 = "vmess://eyJ2IjoiMiIsInBzIjoiVk1lc3MgVGVzdCIsImFkZCI6InZtZXNzLmV4YW1wbGUuY29tIiwicG9ydCI6IjQ0MyIsImlkIjoiYTAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiYWlkIjoiMCIsInNjeSI6ImF1dG8iLCJuZXQiOiJ3cyIsImhvc3QiOiJjZG4uZXhhbXBsZS5jb20iLCJwYXRoIjoiL3dzIiwidGxzIjoidGxzIiwic25pIjoic25pLmV4YW1wbGUuY29tIn0=";
@@ -44,6 +51,13 @@ assert(vmess_node.sni == "sni.example.com", "vmess sni mismatch");
 assert(vmess_node.network == "ws", "vmess network mismatch");
 assert(vmess_node.ws_opts.path == "/ws", "vmess ws path mismatch");
 assert(vmess_node.ws_opts.headers.Host == "cdn.example.com", "vmess ws host header mismatch");
+
+// 2.1 VMess with packetEncoding and fp
+let vmess_b64_packetaddr = "vmess://eyJ2IjoiMiIsInBzIjoiVk1lc3MgUGFja2V0QWRkciIsImFkZCI6InZtZXNzMi5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6ImEwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMiIsImFpZCI6IjAiLCJzY3kiOiJhdXRvIiwibmV0IjoidGNwIiwidGxzIjoidGxzIiwic25pIjoic25pMi5leGFtcGxlLmNvbSIsImZwIjoiY2hyb21lIiwicGFja2V0RW5jb2RpbmciOiJwYWNrZXRhZGRyIn0=";
+let vmess_node2 = parse_single_uri(vmess_b64_packetaddr);
+assert(vmess_node2 != null, "vmess_node2 parsed null");
+assert(vmess_node2.packet_encoding == "packetaddr", "vmess packet_encoding mismatch: " + vmess_node2.packet_encoding);
+assert(vmess_node2.fingerprint == "chrome", "vmess fingerprint mismatch: " + vmess_node2.fingerprint);
 
 // 3. VLESS Reality
 let vless_reality = "vless://b0000000-0000-0000-0000-000000000002@vless.example.com:443?security=reality&sni=mask.com&pbk=1111222233334444555566667777888899990000111=&sid=1234abcd&type=tcp#VLESS%20Reality";
@@ -90,6 +104,18 @@ assert(vless_node2.grpc_opts.service_name == "grpc", "vless_node2 grpc service_n
 assert(vless_node2.reality != null, "vless_node2 reality null");
 assert(vless_node2.reality.public_key == "YakB6CsDniRFXcc4AbgMm8v98RileSRiDB5kPazACkt", "vless_node2 pbk mismatch");
 
+// 3.3 VLESS xhttp with packetEncoding and fingerprint
+let vless_xhttp = "vless://c0000000-0000-0000-0000-000000000003@vless.example.com:443?type=xhttp&path=/xhttp-path&host=vless.example.com&security=tls&fp=chrome&packetEncoding=packetaddr#VLESS%20XHTTP";
+let vless_node3 = parse_single_uri(vless_xhttp);
+assert(vless_node3 != null, "vless_node3 parsed null");
+assert(vless_node3.type == "vless", "vless_node3 type mismatch");
+assert(vless_node3.network == "httpupgrade", "vless_node3 network mismatch: " + vless_node3.network);
+assert(vless_node3.fingerprint == "chrome", "vless_node3 fingerprint mismatch: " + vless_node3.fingerprint);
+assert(vless_node3.packet_encoding == "packetaddr", "vless_node3 packet_encoding mismatch: " + vless_node3.packet_encoding);
+assert(vless_node3.httpupgrade_opts != null, "vless_node3 httpupgrade_opts null");
+assert(vless_node3.httpupgrade_opts.path == "/xhttp-path", "vless_node3 path mismatch: " + vless_node3.httpupgrade_opts.path);
+assert(vless_node3.httpupgrade_opts.host == "vless.example.com", "vless_node3 host mismatch: " + vless_node3.httpupgrade_opts.host);
+
 // 4. Trojan gRPC
 let trojan_grpc = "trojan://secret-pwd@trojan.example.com:443?type=grpc&serviceName=my-grpc&sni=tr.example.com#Trojan%20gRPC";
 let trojan_node = parse_single_uri(trojan_grpc);
@@ -111,6 +137,16 @@ assert(hy2_node.sni == "peer.example.com", "hy2 sni mismatch");
 assert(hy2_node.obfs == "salamander", "hy2 obfs mismatch");
 assert(hy2_node.obfs_password == "maskpwd", "hy2 obfs-password mismatch");
 assert(hy2_node.skip_cert_verify == true, "hy2 skip_cert_verify mismatch");
+
+// 5.1 Hysteria2 gecko obfs with packet size & fp
+let hy2_gecko_uri = "hy2://hy2-secret@hy2.example.com:8443?sni=peer.example.com&obfs=gecko&obfs-password=geckopwd&obfs-min-packet-size=50&obfs-max-packet-size=1400&insecure=1&fp=firefox#Hy2%20Gecko";
+let hy2_gecko_node = parse_single_uri(hy2_gecko_uri);
+assert(hy2_gecko_node != null, "hy2_gecko_node parsed null");
+assert(hy2_gecko_node.obfs == "gecko", "hy2 gecko obfs mismatch: " + hy2_gecko_node.obfs);
+assert(hy2_gecko_node.obfs_password == "geckopwd", "hy2 gecko obfs_password mismatch");
+assert(hy2_gecko_node.obfs_min_packet_size == 50, "hy2 obfs_min_packet_size mismatch: " + hy2_gecko_node.obfs_min_packet_size);
+assert(hy2_gecko_node.obfs_max_packet_size == 1400, "hy2 obfs_max_packet_size mismatch: " + hy2_gecko_node.obfs_max_packet_size);
+assert(hy2_gecko_node.fingerprint == "firefox", "hy2 fingerprint mismatch: " + hy2_gecko_node.fingerprint);
 
 // 6. TUIC
 let tuic_uri = "tuic://user-uuid:user-pwd@tuic.example.com:8443?congestion_control=bbr&alpn=h3#TUIC%20Node";

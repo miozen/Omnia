@@ -135,7 +135,12 @@ const mockOmniaUi = {
 			if (text != null) node.textContent = text;
 			node.className = 'pill-' + (type || 'neutral');
 		}
-	}
+	},
+	formatDiagnosticError: (stage, title, detail, hint) => createElement('div', {}, [
+		createElement('span', {}, '❌ 第 ' + stage + ' 阶段失败：' + title),
+		detail ? createElement('div', {}, detail) : '',
+		hint ? createElement('div', {}, hint) : ''
+	])
 };
 
 const mockOmniaMotion = {

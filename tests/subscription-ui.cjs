@@ -27,7 +27,18 @@ const context = vm.createContext({
 		querySelectorAll: () => []
 	},
 	_: value => value,
-	omniaUi: { paintStatus: () => {} },
+	omniaUi: {
+		paintStatus: (id, msg, tone) => {
+			currentStatus = { msg, ok: tone === 'ok' };
+		},
+		checkboxInput: (attrs) => ({ tag: 'input', attrs: Object.assign({ type: 'checkbox' }, attrs) })
+	},
+	omniaMotion: {
+		inject: () => {},
+		buttonClass: cls => cls,
+		cardClass: () => '',
+		softRowClass: () => ''
+	},
 	rpc: {
 		declare: (cfg) => {
 			if (cfg.method === 'subscriptions_save') {
@@ -47,7 +58,7 @@ const context = vm.createContext({
 });
 vm.runInContext("String.prototype.format = function() { let args = arguments, i = 0; return this.replace(/%[sd]/g, () => args[i++]); };", context);
 const source = fs.readFileSync('luci-app-omnia/htdocs/luci-static/resources/view/omnia/subscriptions.js', 'utf8');
-vm.runInContext('(function(){' + source.replace('return view.extend({', 'globalThis.refreshTest = { refreshResultText, refreshFinishedText, formatTrafficBytes, formatTrafficExpire, formatTrafficBadge, saveSourceEditor, removeSource, addRegion, deleteRegion, restoreDefaultRegions, getCountryMetadata, isoToFlagEmoji, normalizePolicy, regionKeys, setStatus: (msg, ok) => { currentStatus = { msg, ok }; } }; return view.extend({') + '\n})()', context);
+vm.runInContext('(function(){' + source.replace('return view.extend({', 'globalThis.refreshTest = { refreshResultText, refreshFinishedText, formatTrafficBytes, formatTrafficExpire, formatTrafficBadge, saveSourceEditor, removeSource, addRegion, deleteRegion, restoreDefaultRegions, policyDetails, updatePolicyDetails, waitRefresh, getCountryMetadata, isoToFlagEmoji, normalizePolicy, regionKeys, setStatus: (msg, ok) => { currentStatus = { msg, ok }; } }; return view.extend({') + '\n})()', context);
 context.window.omniaSubscriptionRefresh = { task: { status: 'running' } };
 assert.match(context.refreshTest.refreshResultText({ ok: true, node_count: 14 }), /正在保存/);
 context.window.omniaSubscriptionRefresh.task.status = 'failed';
@@ -207,6 +218,38 @@ savePromise.then(() => {
 			assert.equal(restoredKeys.join(','), 'HK,JP,SG,TW,US', 'Default 5 regions restored');
 			assert.equal(testPol.rate_filter.matched_regions.sort().join(','), 'HK,JP,SG,TW,US', 'Default rate_filter matched regions restored');
 			console.log('custom regions addition, deletion & restore OK');
+
+			// 7e. policyDetails DOM linkage & updatePolicyDetails tests
+			let replacedPolicyDetails = null;
+			mockElements['omnia-subscriptions-policy-details'] = {
+				open: true,
+				hasAttribute: (a) => a === 'open',
+				parentNode: {
+					replaceChild: (newEl) => {
+						replacedPolicyDetails = newEl;
+						mockElements['omnia-subscriptions-policy-details'] = newEl;
+					}
+				}
+			};
+
+			testPol = context.refreshTest.normalizePolicy(testPol);
+			const detailsEl = context.refreshTest.policyDetails(testPol, true);
+			assert.equal(detailsEl.tag, 'details');
+			assert.equal(detailsEl.attrs.id, 'omnia-subscriptions-policy-details');
+			assert.equal(detailsEl.attrs.open, 'open');
+
+			// Trigger addRegion to verify updatePolicyDetails replaces the DOM element
+			testPol = context.refreshTest.addRegion('KR', null, testPol);
+			assert.ok(replacedPolicyDetails != null, 'updatePolicyDetails should replace child in DOM');
+			assert.equal(replacedPolicyDetails.attrs.id, 'omnia-subscriptions-policy-details');
+			assert.equal(replacedPolicyDetails.attrs.open, 'open', 'Preserves open accordion state');
+			console.log('policyDetails DOM linkage OK');
+
+			// 7f. waitRefresh timeout check (MAX_REFRESH_POLL_ATTEMPTS = 120)
+			context.refreshTest.waitRefresh('run-test-timeout', 120);
+			assert.equal(currentStatus.ok, false, 'Status should be marked error on poll timeout');
+			assert.match(currentStatus.msg, /轮询超时/, 'Message should indicate polling timeout');
+			console.log('subscription waitRefresh timeout OK');
 		});
 	});
 }).catch(e => {

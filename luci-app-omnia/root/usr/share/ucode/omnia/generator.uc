@@ -66,6 +66,7 @@ function generate_candidate(trace_id, req) {
 			skipped_banned: normalized.skipped_banned,
 			skipped_high_rate: normalized.skipped_high_rate,
 			skipped_inactive_source: normalized.skipped_inactive_source,
+			dropped_fields: normalized.dropped_fields || {},
 			generated_groups: length(groups),
 			dns_urltest_enabled: subscriptions.dns_urltest.enabled,
 			dns_group_nodes: dns_group != null ? length(dns_group.outbounds) : 0,

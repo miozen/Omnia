@@ -138,6 +138,42 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
   - VMess / VLESS protocol alignment: normalized `packet_encoding` ("packetaddr" / "xudp") and sanitized empty flows.
   - Multi-source defensive schema gating: integrated `clean_singbox_outbound` in `producer.uc`, `parsers/singbox.uc` (`sanitize_raw_outbound`), and `subscription_snapshot.uc` (`sanitize_and_validate_outbounds`).
   - Added unit test coverage in `tests/convert-step4-producer.uc` verifying Hysteria 2 `obfs: none` purging, Shadowsocks `plugin: none` purging, rogue non-hysteria obfs purging, multiplex, and reality validation.
+- [x] Comprehensive Architecture Audit & Slice 1 (Core Interaction Defects & DOM Synchronization) (2026-11-21):
+  - [x] Custom Region DOM & State Linkage (`subscriptions.js`): Fixed issue where added custom regions (e.g. `KR`) only appeared in the subscription matrix and were omitted from Region Keywords and Rate Filter matched regions. Added ID support to `collapsible`, updated `policyDetails` with persistent ID `omnia-subscriptions-policy-details` and accordion state preservation, implemented `updatePolicyDetails(policy)` via DOM `replaceChild`, and linked it to `addRegion`, `deleteRegion`, `restoreDefaultRegions`, and `reloadPolicyFromBackend`.
+  - [x] Selector Apply Healthcheck Consistency (`selectors.js`): Added `applyData.health_ready` check in `saveAndApplySelectors`, ensuring that if `health_ready === false`, a clear warning status is displayed and selectors are reloaded instead of misleading the user with false success.
+  - [x] Zero-latency Baseline Fidelity (`overview.js`): Replaced hardcoded fake latency history (`28ms`) with empty initial state `{ Baidu: [], Cloudflare: [], GitHub: [], YouTube: [] }`, aligning with "尚未测试" baseline until explicitly tested.
+  - [x] Unit Test Coverage: Added tests in `tests/subscription-ui.cjs`, `tests/selectors-ui.cjs`, and `tests/overview-ui.cjs`. Verified all 15 ucode suites in Docker and all 6 UI test suites pass 100%.
+- [x] Slice 2 (Observability & Polling Safety) (2026-11-21):
+  - [x] Bounded Polling Loop Limits (P1-5): Added `MAX_POLL_ATTEMPTS = 120` to `rulesets.js` (`pollRulesetSync`, `pollRulesetDownloadOne`) and `subscriptions.js` (`waitRefresh`). Timed-out tasks cleanly disengage, display descriptive timeout errors, and avoid infinite runaway network polling.
+  - [x] Dropped Fields Observability & Node Transparency (P1-3): Implemented `dropped_fields` telemetry in `producer.uc` (`clean_singbox_outbound`), `pipeline.uc`, `generator_nodes.uc`, and `generator.uc`. Outbounds carry `x_omnia_dropped_fields` metadata (stripped before sing-box candidate emission), and generation returns categorized statistics.
+  - [x] Universal Outbound Sanitizer Comments & Invariant Intent (P1-7, P2-9): Updated `clean_singbox_outbound` header comment and documented exact kernel constraints for every field removal (obfs, SS plugin, packet_encoding, flow, reality, transport, multiplex, bandwidth, and environment bindings).
+  - [x] Overview UI Observability Banner (`overview.js`): Integrated `dropped_fields` summary tip into the one-click apply success notification, clearly indicating sanitized parameters (e.g. `obfs: 2, plugin: 1`) while reassuring the user of core route preservation.
+  - [x] Test Coverage: Expanded `tests/convert-step4-producer.uc` with `dropped_stats` assertions, `tests/subscription-ui.cjs` with `waitRefresh` timeout validation, and `tests/overview-ui.cjs` with dropped fields banner assertions. All 15 ucode suites and 6 UI suites pass 100%.
+- [x] Direction B: Protocol Expansion & Schema Enrichment (P0-1 & P0-2) (2026-11-21):
+  - [x] Hysteria 2 gecko Obfuscation (P0-1):
+    - IR schema (`convert/ir.uc`): Added `obfs_min_packet_size` and `obfs_max_packet_size` properties, and marked TLS as inherent for hysteria2, tuic, and anytls.
+    - Outbound producer (`convert/producer.uc`): Supported `gecko` obfs type with `min_packet_size` and `max_packet_size` in `produce_hysteria2`; updated `clean_singbox_outbound` whitelist to preserve gecko alongside salamander with packet size constraints.
+    - Parsers: Added gecko obfs and min/max packet size parsing in URI parser (`convert/parsers/uri.uc`), Clash parser (`convert/parsers/clash.uc`), and Form parser (`convert/parsers/form.uc`).
+  - [x] Airport Node Advanced Parameters (P0-2):
+    - Shadowsocks: In `convert/parsers/uri.uc`, synthesized `plugin_opts` for `v2ray-plugin` from query parameters (`tls`, `host`, `path`, `mode`) if not already formatted as semicolon options.
+    - VMess / VLESS: Extracted `packet_encoding` (`packetaddr`, `xudp`), `alpn`, and `fingerprint` (uTLS) from URI query and v2rayN JSON Base64.
+    - VLESS / Trojan `xhttp` / `httpupgrade`: Extracted transport `path` and `host`, normalized `xhttp` to sing-box `httpupgrade`, produced `transport: { type: 'httpupgrade', path: ..., host: ... }`, and preserved `httpupgrade` in `clean_singbox_outbound`.
+    - uTLS Client Fingerprint: Added `tls.utls: { enabled: true, fingerprint: ... }` generation in `produce_tls` and preserved `tls.utls` in `clean_singbox_outbound`.
+  - [x] Comprehensive Test Coverage:
+    - Expanded `tests/convert-step2-uri.uc` with tests for SS v2ray-plugin options synthesis, VMess packetEncoding/fingerprint, VLESS xhttp/httpupgrade/packetEncoding/fingerprint, and Hysteria 2 gecko obfs packet sizes.
+    - Expanded `tests/convert-step4-producer.uc` with tests for Hysteria 2 gecko outbound synthesis, VLESS xhttp/packet_encoding/uTLS synthesis, and raw outbound fidelity preservation for httpupgrade and utls.
+    - Verified all 15 Docker convert test suites, control-encoding, grpc-proto, and all 6 Node.js UI test suites pass 100%.
+- [x] Slice 3: Documentation & Engineering Hygiene (P1-8, P2-10, P2-11, P2-12) (2026-11-21):
+  - [x] Documentation Alignment (P1-8):
+    - `docs/ARCHITECTURE.md`: Added missing `selectors.js` to Views list (completing all 10 LuCI views); updated testing architecture description to accurately delineate container-based ucode/parser unit & integration tests from real-device kernel TUN/procd acceptance.
+    - `docs/DEVELOPMENT.md`: Clarified full multi-tier testing scope (static/syntax validation, Node.js virtual DOM UI behavior tests, Docker OpenWrt pure-function & converter integration suites, release workflow tests, and device acceptance).
+  - [x] Release Supply Chain Hardening (P2-10):
+    - `scripts/build.sh`: Added explicit warning when building unsigned APK (`WARNING: APK_SIGNING_KEY is not set... requires --allow-untrusted`), and enforced strict abort when `STRICT_SIGNING=1` or `REQUIRE_APK_SIGNING=1`.
+    - `.github/workflows/build-ipk.yml` & `release.yml`: Pinned `ipkg-build` to immutable release tag `v23.05.5` with SHA256 checksum verification (`aaec7d5798f7463d...`), eliminating unverified `master` raw script downloads.
+  - [x] Code Hygiene & Dead Code Purge (P2-12):
+    - Deduplicated `formatDiagnosticError`: Extracted shared diagnostic alert helper into `resources/omnia/ui.js` (`omniaUi.formatDiagnosticError`), and updated `overview.js` and `profile.js` to delegate to it.
+    - Dead Code Removal: Purged unused RPC declaration `callNodeDelayTest` in `overview.js`.
+    - Updated mock definitions in `tests/overview-ui.cjs` and `tests/profile-ui.cjs`. All tests pass 100%.
 
 ## In Progress
 

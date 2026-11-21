@@ -284,6 +284,12 @@ const viewObj = vm.runInContext(wrapped, context);
 	assert.ok(configApplyCalled, 'config_apply called');
 	assert.equal(context.statusOk, true, 'Status marked ok');
 
+	// 9b. Test Save and Apply Flow when health_ready is false
+	responses.config_apply = async () => { configApplyCalled = true; return { ok: true, data: { health_ready: false } }; };
+	await mod.saveAndApplySelectors();
+	assert.equal(context.statusOk, false, 'Status marked false when health_ready is false');
+	assert.ok(context.statusMessage.includes('服务健康检查未就绪'), 'Status message contains health ready warning');
+
 	console.log('All selectors-ui tests passed successfully!');
 })().catch(err => {
 	console.error('Test failed:', err);

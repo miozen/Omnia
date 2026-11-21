@@ -73,6 +73,28 @@ assert(out_vless.type == 'vless', 'vless type mismatch');
 assert(out_vless.server_port == 443 && type(out_vless.server_port) == 'int', 'server_port must be int');
 assert(out_vless.tls.reality.public_key == 'pbk-val', 'reality public_key mismatch');
 
+// 2.1 Test VLESS xhttp synthesis with packet_encoding and uTLS
+let vless_xhttp_ir = create_ir_node({
+	name: 'VLESS-XHTTP-Node',
+	type: 'vless',
+	server: 'vless-xhttp.com',
+	port: 443,
+	uuid: 'my-uuid-xhttp',
+	tls: true,
+	fingerprint: 'chrome',
+	network: 'xhttp',
+	httpupgrade_opts: { path: '/xhttp-path', host: 'vless-xhttp.com' },
+	packet_encoding: 'packetaddr'
+});
+let out_vless_xhttp = produce_singbox_outbound(vless_xhttp_ir);
+assert(out_vless_xhttp.type == 'vless', 'vless xhttp type mismatch');
+assert(out_vless_xhttp.packet_encoding == 'packetaddr', 'vless packet_encoding mismatch');
+assert(out_vless_xhttp.transport.type == 'httpupgrade', 'vless transport type mismatch');
+assert(out_vless_xhttp.transport.path == '/xhttp-path', 'vless transport path mismatch');
+assert(out_vless_xhttp.transport.host == 'vless-xhttp.com', 'vless transport host mismatch');
+assert(out_vless_xhttp.tls.utls.enabled == true, 'vless utls enabled mismatch');
+assert(out_vless_xhttp.tls.utls.fingerprint == 'chrome', 'vless utls fingerprint mismatch');
+
 // 3. Test Hysteria2 synthesis from IR
 let hy2_ir = create_ir_node({
 	name: 'Hy2-Node',
@@ -90,6 +112,27 @@ assert(out_hy2.type == 'hysteria2', 'hy2 type mismatch');
 assert(out_hy2.obfs.type == 'salamander', 'hy2 obfs type mismatch');
 assert(out_hy2.obfs.password == 'mask', 'hy2 obfs password mismatch');
 assert(out_hy2.up_mbps == 50, 'up_mbps mismatch');
+
+// 3.1 Test Hysteria2 gecko obfs synthesis from IR
+let hy2_gecko_ir = create_ir_node({
+	name: 'Hy2-Gecko-Node',
+	type: 'hysteria2',
+	server: 'hy2.com',
+	port: 8443,
+	password: 'pass',
+	obfs: 'gecko',
+	obfs_password: 'geckopassword',
+	obfs_min_packet_size: 64,
+	obfs_max_packet_size: 1350,
+	fingerprint: 'chrome'
+});
+let out_hy2_gecko = produce_singbox_outbound(hy2_gecko_ir);
+assert(out_hy2_gecko.type == 'hysteria2', 'hy2 gecko type mismatch');
+assert(out_hy2_gecko.obfs.type == 'gecko', 'hy2 gecko obfs type mismatch');
+assert(out_hy2_gecko.obfs.password == 'geckopassword', 'hy2 gecko password mismatch');
+assert(out_hy2_gecko.obfs.min_packet_size == 64 && type(out_hy2_gecko.obfs.min_packet_size) == 'int', 'min_packet_size must be int 64');
+assert(out_hy2_gecko.obfs.max_packet_size == 1350 && type(out_hy2_gecko.obfs.max_packet_size) == 'int', 'max_packet_size must be int 1350');
+assert(out_hy2_gecko.tls.utls.enabled == true && out_hy2_gecko.tls.utls.fingerprint == 'chrome', 'tls.utls mismatch');
 
 // 4. Test AnyTLS synthesis from IR
 let anytls_ir = create_ir_node({
@@ -183,5 +226,48 @@ let out_vmess_clean = produce_singbox_outbound(vmess_clean_test);
 assert(out_vmess_clean.packet_encoding == 'packetaddr', 'packet_encoding must be preserved');
 assert(out_vmess_clean.multiplex == null, 'disabled multiplex must be purged');
 assert(out_vmess_clean.tls.reality == null, 'reality with empty public key must be purged');
+
+// 7.1 Test clean_singbox_outbound preserving gecko obfs, utls, and httpupgrade transport
+let preserved_clean_test = create_ir_node({
+	name: 'Preserved-Test',
+	type: 'vless',
+	server: 'vless-preserved.com',
+	port: 443,
+	_raw_outbound: {
+		type: 'vless',
+		tag: 'VLESS-Preserved',
+		server: 'vless-preserved.com',
+		server_port: 443,
+		uuid: '2222-3333',
+		packet_encoding: 'packetaddr',
+		transport: {
+			type: 'httpupgrade',
+			path: '/my-up',
+			host: 'vless-preserved.com'
+		},
+		tls: {
+			enabled: true,
+			server_name: 'vless-preserved.com',
+			utls: {
+				enabled: true,
+				fingerprint: 'chrome'
+			}
+		}
+	}
+});
+let out_preserved_clean = produce_singbox_outbound(preserved_clean_test);
+assert(out_preserved_clean.transport != null, 'transport should be preserved');
+assert(out_preserved_clean.transport.type == 'httpupgrade', 'httpupgrade transport preserved');
+assert(out_preserved_clean.tls.utls != null, 'tls.utls should be preserved');
+assert(out_preserved_clean.tls.utls.fingerprint == 'chrome', 'tls.utls.fingerprint preserved');
+
+// 8. Test dropped_stats tracking and x_omnia_dropped_fields
+let dropped_stats = {};
+let out_tracked = produce_singbox_outbound(ss_rogue_obfs, dropped_stats);
+assert(out_tracked != null, 'out_tracked is null');
+assert(dropped_stats.obfs == 1, 'dropped_stats should record purged obfs');
+assert(dropped_stats.plugin == 1, 'dropped_stats should record purged plugin');
+assert(type(out_tracked.x_omnia_dropped_fields) == 'array', 'x_omnia_dropped_fields should be array');
+assert(length(out_tracked.x_omnia_dropped_fields) == 2, 'x_omnia_dropped_fields should have 2 items');
 
 print('convert step 4 producer tests passed\n');

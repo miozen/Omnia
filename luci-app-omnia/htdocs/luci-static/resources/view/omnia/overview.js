@@ -59,13 +59,6 @@ const callConnectionsList = rpc.declare({
 	expect: { '': {} }
 });
 
-const callNodeDelayTest = rpc.declare({
-	object: 'omnia',
-	method: 'node_delay_test',
-	params: [ 'node' ],
-	expect: { '': {} }
-});
-
 let pageResults = {};
 let actionStatus = '';
 let actionStatusOk = true;
@@ -235,10 +228,10 @@ function recordConnectionDelta(item) {
 let latencyInterval = '5m';
 let latencyTimer = null;
 let latencyHistory = {
-	Baidu: [28, 30, 26, 28, 29, 27, 28],
-	Cloudflare: [130, 128, 125, 124, 122, 126, 124],
-	GitHub: [220, 215, 225, 218, 216, 219, 218],
-	YouTube: [198, 202, 195, 196, 194, 197, 196]
+	Baidu: [],
+	Cloudflare: [],
+	GitHub: [],
+	YouTube: []
 };
 let latencyLastTime = '';
 let latencyTesting = false;
@@ -503,20 +496,9 @@ function pageLoadError() {
 let pipelineRunning = false;
 
 function formatDiagnosticError(stage, title, detail, hint) {
-	return E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
-		E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .4rem; display: flex; align-items: center; gap: .35rem;' }, [
-			E('span', {}, '❌ ' + _('第 %d 阶段失败：%s').format(stage, title))
-		]),
-		detail ? E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: .4rem; overflow-wrap: anywhere; white-space: pre-wrap;' }, detail) : '',
-		E('div', { 'style': 'font-size: 12px; margin-bottom: .2rem;' }, [
-			E('strong', {}, _('【运行安全】')),
-			_('已自动熔断终止应用。当前运行配置保持不变，网络连接未被破坏。')
-		]),
-		hint ? E('div', { 'style': 'font-size: 12px; color: #b45309;' }, [
-			E('strong', {}, _('【排查建议】')),
-			hint
-		]) : ''
-	]);
+	if (omniaUi && typeof omniaUi.formatDiagnosticError === 'function')
+		return omniaUi.formatDiagnosticError(stage, title, detail, hint);
+	return E('div', {}, '❌ ' + (title || 'Error'));
 }
 
 function runOneClickApply() {
@@ -575,10 +557,27 @@ function runOneClickApply() {
 					return refreshPage();
 				}
 
-				let successMsg = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+				let droppedSummary = genData.dropped_fields || {};
+				let droppedKeys = Object.keys(droppedSummary);
+				let droppedCount = 0;
+				for (let i = 0; i < droppedKeys.length; i++) {
+					droppedCount += (droppedSummary[droppedKeys[i]] || 0);
+				}
+
+				let successChildren = [
 					E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .25rem;' }, '✓ ' + _('一键生成并应用成功！')),
 					E('div', { 'style': 'font-size: 12px; color: #15803d;' }, _('已成功加载 %d 个出站节点、%d 个策略组。sing-box 运行时健康，网络代理正常服务中。').format(nodeCount, groupCount))
-				]);
+				];
+
+				if (droppedCount > 0) {
+					let dropDetails = droppedKeys.map(function(k) { return k + ': ' + droppedSummary[k]; }).join(', ');
+					successChildren.push(
+						E('div', { 'style': 'font-size: 11px; color: #b45309; margin-top: .25rem;' },
+							_('ℹ 节点参数已按内核规范规约：%d 处参数规约（%s）。已保护核心代理通道正常启动。').format(droppedCount, dropDetails))
+					);
+				}
+
+				let successMsg = E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, successChildren);
 				setActionStatus(successMsg, true);
 				return refreshPage();
 			});

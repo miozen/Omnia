@@ -86,13 +86,23 @@ function parse_form_node(raw) {
 
 	let obfs_type = '';
 	let obfs_password = '';
+	let min_packet_size = 0;
+	let max_packet_size = 0;
 	if (proto == 'hysteria2') {
-		if (type(raw.obfs) == 'string' && lc(trim(raw.obfs)) == 'salamander') {
-			obfs_type = 'salamander';
+		let o_str = type(raw.obfs) == 'string' ? lc(trim(raw.obfs)) : '';
+		if (o_str == 'salamander' || o_str == 'gecko') {
+			obfs_type = o_str;
 			obfs_password = type(raw.obfs_password) == 'string' ? raw.obfs_password : '';
-		} else if (type(raw.obfs) == 'object' && raw.obfs != null && lc(raw.obfs.type || '') == 'salamander') {
-			obfs_type = 'salamander';
-			obfs_password = type(raw.obfs.password) == 'string' ? raw.obfs.password : (type(raw.obfs_password) == 'string' ? raw.obfs_password : '');
+			min_packet_size = int(raw.obfs_min_packet_size || 0);
+			max_packet_size = int(raw.obfs_max_packet_size || 0);
+		} else if (type(raw.obfs) == 'object' && raw.obfs != null) {
+			let ot = lc(raw.obfs.type || '');
+			if (ot == 'salamander' || ot == 'gecko') {
+				obfs_type = ot;
+				obfs_password = type(raw.obfs.password) == 'string' ? raw.obfs.password : (type(raw.obfs_password) == 'string' ? raw.obfs_password : '');
+				min_packet_size = int(raw.obfs.min_packet_size || raw.obfs_min_packet_size || 0);
+				max_packet_size = int(raw.obfs.max_packet_size || raw.obfs_max_packet_size || 0);
+			}
 		}
 	}
 
@@ -131,6 +141,10 @@ function parse_form_node(raw) {
 		congestion_control: type(raw.congestion_control) == 'string' ? raw.congestion_control : (type(raw.congestion_controller) == 'string' ? raw.congestion_controller : ''),
 		obfs: obfs_type,
 		obfs_password: obfs_password,
+		obfs_min_packet_size: min_packet_size,
+		obfs_max_packet_size: max_packet_size,
+		fingerprint: type(raw.fingerprint) == 'string' ? raw.fingerprint : (type(raw.fp) == 'string' ? raw.fp : (raw_tls != null && type(raw_tls.utls) == 'object' && raw_tls.utls != null ? raw_tls.utls.fingerprint : '')),
+		packet_encoding: type(raw.packet_encoding) == 'string' ? raw.packet_encoding : (type(raw.packetEncoding) == 'string' ? raw.packetEncoding : ''),
 		plugin: plugin,
 		plugin_opts: plugin_opts,
 		udp: raw.udp == true,

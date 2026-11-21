@@ -254,6 +254,23 @@ function defer(fn) {
 	window.setTimeout(fn, 0);
 }
 
+function formatDiagnosticError(stage, title, detail, hint) {
+	return E('div', { 'style': 'font-size: 13px; line-height: 1.5;' }, [
+		E('div', { 'style': 'font-weight: 700; font-size: 14px; margin-bottom: .4rem; display: flex; align-items: center; gap: .35rem;' }, [
+			E('span', {}, '❌ ' + _('第 %d 阶段失败：%s').format(stage, title))
+		]),
+		detail ? E('div', { 'style': 'background: rgba(0,0,0,0.06); padding: .4rem .6rem; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: .4rem; overflow-wrap: anywhere; white-space: pre-wrap;' }, detail) : '',
+		E('div', { 'style': 'font-size: 12px; margin-bottom: .2rem;' }, [
+			E('strong', {}, _('【运行安全】')),
+			_('已自动熔断终止应用。当前运行配置保持不变，网络连接未被破坏。')
+		]),
+		hint ? E('div', { 'style': 'font-size: 12px; color: #b45309;' }, [
+			E('strong', {}, _('【排查建议】')),
+			hint
+		]) : ''
+	]);
+}
+
 return baseclass.extend({
 	dataOf: dataOf,
 	valueText: valueText,
@@ -275,5 +292,6 @@ return baseclass.extend({
 	paintPill: paintPill,
 	statCard: statCard,
 	checkboxInput: checkboxInput,
+	formatDiagnosticError: formatDiagnosticError,
 	defer: defer
 });

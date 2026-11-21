@@ -755,7 +755,15 @@ function taskStale(task) {
 	return Number.isFinite(updatedAt) && Date.now() - updatedAt > 120000;
 }
 
+const MAX_POLL_ATTEMPTS = 120;
+
 function pollRulesetSync(token, runId, attempt) {
+	if (attempt >= MAX_POLL_ATTEMPTS) {
+		syncingRunId = '';
+		setStatus(_('规则集同步轮询超时，任务可能已在后台中断。请刷新页面或前往【网络诊断】查看日志。'), false);
+		return refreshAll();
+	}
+
 	return callRulesetDownloadRequiredStatus(runId).then(function(statusResult) {
 		if (token !== actionToken)
 			return statusResult;
@@ -808,6 +816,13 @@ function pollRulesetSync(token, runId, attempt) {
 }
 
 function pollRulesetDownloadOne(token, runId, attempt) {
+	if (attempt >= MAX_POLL_ATTEMPTS) {
+		downloadingRunId = '';
+		downloadingTag = '';
+		setStatus(_('单个规则集下载轮询超时，任务可能已在后台中断。请刷新页面或前往【网络诊断】查看日志。'), false);
+		return refreshAll();
+	}
+
 	return callRulesetDownloadOneStatus(runId).then(function(statusResult) {
 		if (token !== actionToken)
 			return statusResult;

@@ -59,7 +59,7 @@ Omnia is a **sing-box TUN transparent proxy management plugin** for **OpenWrt 25
 
 **Shared libraries** (`omnia/`): `ui.js`, `time.js`, `motion.js`
 
-**Views** (`view/omnia/`): `overview.js`, `panel.js`, `panel_settings.js`, `resources.js`, `profile.js`, `subscriptions.js`, `rulesets.js`, `diagnostics.js`, `notify.js`
+**Views** (`view/omnia/`): `overview.js`, `panel.js`, `panel_settings.js`, `resources.js`, `selectors.js`, `profile.js`, `subscriptions.js`, `rulesets.js`, `diagnostics.js`, `notify.js`
 
 **LuCI menu** (4 tabs): 概览 → 面板 → 资源管理 → 网络诊断
 
@@ -114,4 +114,7 @@ Immutable constraints are defined in `docs/DEVELOPMENT.md` — that file is the 
 - **CI verification:** `Verify Omnia on OpenWrt` workflow (PR to master / manual)
 - **Release:** `Release Omnia Packages` workflow (PR merge to master / manual)
 - **Device install:** `apk add` on OpenWrt 25.12+ → `90-omnia` init → procd service enabled
-- **No container-based integration tests** — real device acceptance is required (see `docs/DEVELOPMENT.md`)
+- **Tiered testing hierarchy:**
+  - *Container-based pure-function & parser integration tests:* ucode modules, converters, operators, and schemas run in Docker (`openwrt/rootfs:latest` via `tests/run-all-convert-tests.sh` and `tests/run-subscription-integration.sh`).
+  - *Local Node.js UI behavior & syntax tests:* LuCI views and state interactions run via Node.js (`tests/*-ui.cjs`).
+  - *Device acceptance:* Kernel-level data-plane (TUN device, firewall, routing) and procd life cycle require real device or QEMU VM acceptance (see `docs/DEVELOPMENT.md`).

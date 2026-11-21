@@ -217,6 +217,16 @@ function saveAndApplySelectors() {
 	}).then(function(applyRes) {
 		if (!applyRes || !applyRes.ok)
 			throw new Error(resultError(applyRes, _('配置应用失败')));
+		let applyData = dataOf(applyRes);
+		if (applyData.health_ready === false) {
+			setSelectorStatus(_('分流配置已保存并应用，但服务健康检查未就绪。请前往【网络诊断】检查 sing-box 是否处于崩溃循环或端口被占用。'), false);
+			return callTemplateSelectorsGet().then(function(dataRes) {
+				selectorsResult = dataRes;
+				initSelectorState(dataOf(selectorsResult));
+				updateMainSelectorView();
+				updateSelectorCardsView();
+			});
+		}
 		setSelectorStatus(_('✓ 分流配置已成功保存并立即应用！新节点与策略已生效。'), true);
 		return callTemplateSelectorsGet().then(function(dataRes) {
 			selectorsResult = dataRes;

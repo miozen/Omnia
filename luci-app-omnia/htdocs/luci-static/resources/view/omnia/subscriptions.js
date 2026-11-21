@@ -878,6 +878,7 @@ function deleteRegion(targetRegion, policy) {
 
 	setDraft(policy);
 	updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
+	updatePolicyDetails(policy);
 	return policy;
 }
 
@@ -930,6 +931,7 @@ function addRegion(code, keywords, policy) {
 
 	setDraft(policy);
 	updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
+	updatePolicyDetails(policy);
 	return policy;
 }
 
@@ -947,6 +949,7 @@ function restoreDefaultRegions(policy) {
 
 	setDraft(policy);
 	updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
+	updatePolicyDetails(policy);
 	return policy;
 }
 
@@ -1336,11 +1339,14 @@ function fetchSafetySettings(policy) {
 	]);
 }
 
-function collapsible(title, subtitle, content, open) {
-	return E('details', {
+function collapsible(title, subtitle, content, open, id) {
+	let attrs = {
 		'open': open ? 'open' : null,
 		'style': sectionStyle()
-	}, [
+	};
+	if (id)
+		attrs.id = id;
+	return E('details', attrs, [
 		E('summary', { 'style': 'cursor: pointer; list-style-position: inside;' }, [
 			E('span', { 'style': 'font-weight: 700;' }, title),
 			subtitle ? E('span', { 'style': 'display: block; color: #667; font-size: 12px; margin-top: .25rem;' }, subtitle) : E('span')
@@ -1349,13 +1355,22 @@ function collapsible(title, subtitle, content, open) {
 	]);
 }
 
-function policyDetails(policy) {
+function policyDetails(policy, open) {
 	return collapsible(
 		_('全局策略'),
 		_('区域关键字、清洗关键字，以及生成 URLTest 组时使用的参数。'),
 		policySettings(policy),
-		false
+		open === true,
+		'omnia-subscriptions-policy-details'
 	);
+}
+
+function updatePolicyDetails(policy) {
+	let el = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('omnia-subscriptions-policy-details') : null;
+	if (el && el.parentNode) {
+		let wasOpen = el.open === true || (typeof el.hasAttribute === 'function' && el.hasAttribute('open'));
+		el.parentNode.replaceChild(policyDetails(policy, wasOpen), el);
+	}
 }
 
 function fetchSafetyDetails(policy) {
@@ -2804,7 +2819,16 @@ function redrawRefreshState() {
 	updateRefreshControls();
 }
 
+const MAX_REFRESH_POLL_ATTEMPTS = 120;
+
 function waitRefresh(runId, attempt) {
+	if (attempt >= MAX_REFRESH_POLL_ATTEMPTS) {
+		setActiveRefresh(null);
+		setStatus(_('订阅刷新任务轮询超时，任务可能已在后台中断。请刷新页面或前往【网络诊断】查看日志。'), false);
+		redrawRefreshState();
+		return Promise.resolve();
+	}
+
 	return callSubscriptionsRefreshStatus(runId).then(function(result) {
 		let data = result && result.ok && result.data ? result.data : {};
 		let refresh = activeRefresh();
@@ -3078,6 +3102,7 @@ function reloadPolicyFromBackend() {
 		let policy = parseSubscriptions(subRes.data.content || '{}');
 		setDraft(policy);
 		updateMain(policy, window.omniaNodeSnapshotSummary || {}, null);
+		updatePolicyDetails(policy);
 	});
 }
 

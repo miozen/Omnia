@@ -55,7 +55,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential gettext
-          wget https://raw.githubusercontent.com/openwrt/openwrt/master/scripts/ipkg-build -O /usr/local/bin/ipkg-build
+          wget https://raw.githubusercontent.com/openwrt/openwrt/v23.05.5/scripts/ipkg-build -O /usr/local/bin/ipkg-build
+          echo "aaec7d5798f7463d4f50b91918ae1dc41845633f0e9eb05aa770f3dda5c510ed  /usr/local/bin/ipkg-build" | sha256sum -c -
           chmod +x /usr/local/bin/ipkg-build
 
       - name: Build IPK Package

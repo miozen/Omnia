@@ -268,8 +268,10 @@ build_apk() {
 		need_file "${APK_SIGNING_KEY}"
 		sign_args=(--sign "${APK_SIGNING_KEY}")
 		echo "Signing APK with ${APK_SIGNING_KEY}"
+	elif [ "${STRICT_SIGNING:-0}" = "1" ] || [ "${REQUIRE_APK_SIGNING:-0}" = "1" ]; then
+		fail "APK_SIGNING_KEY is not set but strict signing is required."
 	else
-		echo "APK_SIGNING_KEY is not set; building unsigned APK"
+		echo "WARNING: APK_SIGNING_KEY is not set; building unsigned APK (requires --allow-untrusted on OpenWrt 25.12+)."
 	fi
 
 	apk mkpkg \

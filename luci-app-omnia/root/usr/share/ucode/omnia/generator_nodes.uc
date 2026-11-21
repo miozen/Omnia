@@ -287,6 +287,7 @@ function normalized_nodes(snapshot, profile_tags, policy) {
 	let skipped_banned = 0;
 	let skipped_high_rate = 0;
 	let skipped_inactive_source = 0;
+	let dropped_fields_summary = {};
 	let enabled_sources = enabled_source_id_map(policy);
 
 	for (let outbound in snapshot.outbounds) {
@@ -314,6 +315,11 @@ function normalized_nodes(snapshot, profile_tags, policy) {
 			die("Duplicated Node Snapshot outbound tag: " + outbound.tag);
 
 		node_tags[outbound.tag] = true;
+		if (type(outbound.x_omnia_dropped_fields) == 'array') {
+			for (let f in outbound.x_omnia_dropped_fields) {
+				dropped_fields_summary[f] = (dropped_fields_summary[f] || 0) + 1;
+			}
+		}
 		push(nodes, outbound);
 	}
 
@@ -321,7 +327,8 @@ function normalized_nodes(snapshot, profile_tags, policy) {
 		nodes: nodes,
 		skipped_banned: skipped_banned,
 		skipped_high_rate: skipped_high_rate,
-		skipped_inactive_source: skipped_inactive_source
+		skipped_inactive_source: skipped_inactive_source,
+		dropped_fields: dropped_fields_summary
 	};
 }
 

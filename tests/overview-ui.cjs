@@ -89,7 +89,12 @@ const context = vm.createContext({
 		paintStatus: (id, text, tone) => {
 			lastStatusText = text;
 			lastStatusTone = tone;
-		}
+		},
+		formatDiagnosticError: (stage, title, detail, hint) => domHelpers.tag('div', {}, [
+			domHelpers.tag('span', {}, '❌ 第 ' + stage + ' 阶段失败：' + title),
+			detail ? domHelpers.tag('div', {}, detail) : '',
+			hint ? domHelpers.tag('div', {}, hint) : ''
+		])
 	},
 	omniaMotion: {
 		inject: () => {},
@@ -108,12 +113,15 @@ const overviewSource = fs.readFileSync('luci-app-omnia/htdocs/luci-static/resour
 // Inject test hook
 const hookedSource = overviewSource.replace(
 	'return view.extend({',
-	'globalThis.overviewTest = { runOneClickApply, operationButtons, toggleStepTools, resourceStatusSection, renderSparklineSvg, renderSparkbarsSvg, maskIpAddress, formatBytesPerSec, formatUptimeDuration }; return view.extend({'
+	'globalThis.overviewTest = { runOneClickApply, operationButtons, toggleStepTools, resourceStatusSection, renderSparklineSvg, renderSparkbarsSvg, maskIpAddress, formatBytesPerSec, formatUptimeDuration, latencyHistory }; return view.extend({'
 );
 vm.runInContext('(function(){' + hookedSource + '\n})()', context);
 
 async function runTests() {
-	// Test 0: SVG Sparkline, Sparkbars, Masking & formatting utilities
+	// Test 0: Initial latency history is empty (no fake prefilled data)
+	assert.deepEqual(JSON.parse(JSON.stringify(context.overviewTest.latencyHistory)), { Baidu: [], Cloudflare: [], GitHub: [], YouTube: [] }, 'Latency history should start empty');
+
+	// Test 0b: SVG Sparkline, Sparkbars, Masking & formatting utilities
 	const svg = context.overviewTest.renderSparklineSvg([0, 10, 50, 30, 80], '#2563eb', '#3b82f6');
 	assert.ok(svg.includes('<svg') && svg.includes('path'), 'Sparkline SVG renders valid SVG paths');
 	assert.equal(context.overviewTest.formatBytesPerSec(1024), '1.0 KB/s');
@@ -138,6 +146,15 @@ async function runTests() {
 	assert.match(lastStatusText.textContent, /一键生成并应用成功/);
 	assert.match(lastStatusText.textContent, /42 个出站节点/);
 	console.log('Test 1: Happy path OK');
+
+	// Test 1b: Happy path with dropped_fields observability tip
+	rpcCalls = [];
+	mockRpcResponses.config_generate = { ok: true, data: { node_count: 40, generated_groups: 3, dropped_fields: { obfs: 2, plugin: 1 } } };
+	await context.overviewTest.runOneClickApply();
+	assert.equal(lastStatusTone, 'ok');
+	assert.match(lastStatusText.textContent, /3 处参数规约/);
+	assert.match(lastStatusText.textContent, /obfs: 2, plugin: 1/);
+	console.log('Test 1b: Dropped fields observability tip OK');
 
 	// Test 2: Stage 1 failure (generation error)
 	rpcCalls = [];

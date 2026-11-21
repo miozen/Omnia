@@ -49,11 +49,20 @@ Omnia 以 OpenWrt 25.12 及更高版本为主要目标，发布物以 APK 为主
 
 建议在 GitHub 仓库设置中为 `master` 启用分支保护：要求 Pull Request、要求 **Verify Omnia on OpenWrt** 状态检查通过，并限制直接推送。
 
-## GitHub 自动测试范围
+## 测试与验证体系
 
-手动运行或创建、更新以 `master` 为目标的 Pull Request 时，会执行：
+代码验证采用分层自动化与设备验收结合的模式：
 
-1. JSON、Git diff、GitHub Actions YAML 与 LuCI JavaScript 语法检查。
-2. APK 与 IPK 的构建；APK 是主要交付物。
-
-容器化 OpenWrt 测试不作为门禁：它不能可靠模拟 procd、TUN、路由、防火墙和实际 WAN，维护成本高于收益。每次准备将 `dev` 合并到 `master` 时，改为在真实 OpenWrt 25.12+ 设备安装 CI 生成的 APK，完成一次设备验收。
+1. **静态代码与配置校验：**
+   - JSON Schema、Git diff 空格规范、GitHub Actions YAML 结构校验（`tests/ci-static.sh`）。
+   - LuCI 前端视图 JavaScript 语法检查（`node --check`）。
+2. **前端交互与视图单元测试：**
+   - 基于 Node.js 虚拟 DOM 的页面状态与交互测试（`tests/overview-ui.cjs`、`tests/subscription-ui.cjs`、`tests/selectors-ui.cjs`、`tests/profile-ui.cjs`、`tests/diagnostics-ui.cjs`、`tests/panel-behavior.cjs`）。
+3. **容器化 ucode 纯函数与解析器集成测试：**
+   - 在 Docker `openwrt/rootfs:latest` 容器中自动化验证 ucode 语法编译、转换管线、多协议解析（URI、Clash、sing-box JSON）、算子规则与配置生成（`tests/run-all-convert-tests.sh`、`tests/control-encoding.uc`、`tests/grpc-proto.uc`）。
+4. **版本与发布工作流自动化测试：**
+   - 版本规范校验（`tests/release-version.sh`）、Profile Schema 校验（`tests/validate-profile-schema.py`）及发布工作流触发矩阵测试（`tests/release-workflow.py`）。
+5. **构建验证：**
+   - GitHub Actions CI（`Verify Omnia on OpenWrt`）构建 APK 与 IPK；APK 是主要交付物。
+6. **真实设备验收：**
+   - 容器环境无法完整模拟 Linux 内核 TUN 虚拟网卡、路由表策略、nftables 防火墙以及 procd 服务生命周期。每次准备将 `dev` 合并到 `master` 发布前，必须在真实 OpenWrt 25.12+ 设备（或 QEMU VM）上安装 CI 生成的 APK，确认 LuCI 操作、配置生成并应用、sing-box TUN 运行及 Dashboard 可用。

@@ -95,7 +95,8 @@ function convert_form_nodes(nodes_list, options) {
 		ir_nodes = apply_operators(ir_nodes, options.operators);
 	}
 
-	let raw_outbounds = produce_singbox_outbounds(ir_nodes);
+	let dropped_stats = {};
+	let raw_outbounds = produce_singbox_outbounds(ir_nodes, dropped_stats);
 	let filtered = filter_valid_outbounds(raw_outbounds);
 	let final_outbounds = deduplicate_tags(filtered.outbounds);
 
@@ -108,6 +109,7 @@ function convert_form_nodes(nodes_list, options) {
 			ir_count: length(ir_nodes),
 			outbound_count: length(final_outbounds),
 			skipped_invalid: filtered.skipped_count,
+			dropped_fields: dropped_stats,
 			parse_stats: parse_res.stats
 		}
 	};
@@ -165,7 +167,8 @@ function convert_subscription(trace_id, raw_content, options) {
 	}
 
 	// Produce sing-box outbounds from IR nodes
-	let raw_outbounds = produce_singbox_outbounds(ir_nodes);
+	let dropped_stats = {};
+	let raw_outbounds = produce_singbox_outbounds(ir_nodes, dropped_stats);
 
 	// Filter out invalid items
 	let filtered = filter_valid_outbounds(raw_outbounds);
@@ -182,6 +185,7 @@ function convert_subscription(trace_id, raw_content, options) {
 			ir_count: length(ir_nodes),
 			outbound_count: length(final_outbounds),
 			skipped_invalid: filtered.skipped_count,
+			dropped_fields: dropped_stats,
 			parse_stats: parse_stats
 		}
 	};

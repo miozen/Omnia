@@ -57,6 +57,28 @@ function sanitize_raw_outbound(raw) {
 	delete sanitized.domain_resolver;
 	delete sanitized.domain_strategy;
 
+	// 3. Purge invalid obfs for sing-box (only hysteria2 supports root obfs with type "salamander")
+	if (sanitized.type == 'hysteria2') {
+		if (sanitized.obfs != null) {
+			if (type(sanitized.obfs) != 'object' ||
+			    lc(sanitized.obfs.type || '') != 'salamander' ||
+			    type(sanitized.obfs.password) != 'string' ||
+			    sanitized.obfs.password == '') {
+				delete sanitized.obfs;
+			}
+		}
+	} else {
+		delete sanitized.obfs;
+	}
+
+	// 4. Purge invalid shadowsocks plugin
+	if (sanitized.type == 'shadowsocks' || sanitized.type == 'ss') {
+		if (sanitized.plugin != null && (type(sanitized.plugin) != 'string' || sanitized.plugin == '' || lc(sanitized.plugin) == 'none')) {
+			delete sanitized.plugin;
+			delete sanitized.plugin_opts;
+		}
+	}
+
 	return sanitized;
 }
 

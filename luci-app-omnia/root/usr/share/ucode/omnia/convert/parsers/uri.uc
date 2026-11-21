@@ -137,7 +137,7 @@ function parse_ss(uri) {
 	if (!parsed)
 		return null;
 
-	let name = parsed.fragment != '' ? parsed.fragment : (parsed.host + ':' + parsed.port);
+	let name = parsed.fragment != '' ? parsed.fragment : (parsed.query.remarks || parsed.query.remark || parsed.query.title || (parsed.host + ':' + parsed.port));
 	let cipher = '';
 	let password = '';
 	let server = parsed.host;
@@ -185,6 +185,10 @@ function parse_ss(uri) {
 			plugin_opts = substr(raw_plugin, semi + 1);
 		} else {
 			plugin = raw_plugin;
+		}
+		if (lc(plugin) == 'none') {
+			plugin = '';
+			plugin_opts = '';
 		}
 	}
 
@@ -279,8 +283,10 @@ function parse_vmess(uri) {
 		};
 	}
 
+	let name = parsed.fragment != '' ? parsed.fragment : (q.remarks || q.remark || q.title || (parsed.host + ':' + parsed.port));
+
 	return create_ir_node({
-		name: parsed.fragment != '' ? parsed.fragment : (parsed.host + ':' + parsed.port),
+		name: name,
 		type: 'vmess',
 		server: parsed.host,
 		port: parsed.port,
@@ -411,15 +417,22 @@ function parse_hysteria2(uri) {
 
 	let q = parsed.query;
 	let sni = q.sni || q.peer || '';
-	let obfs_type = q.obfs || '';
-	let obfs_password = q['obfs-password'] || '';
+	let raw_obfs = lc(q.obfs || '');
+	let obfs_type = '';
+	let obfs_password = '';
+	if (raw_obfs == 'salamander') {
+		obfs_type = 'salamander';
+		obfs_password = q['obfs-password'] || '';
+	}
 
 	let alpn = [];
 	if (q.alpn != '')
 		alpn = split(q.alpn, ',');
 
+	let name = parsed.fragment != '' ? parsed.fragment : (q.remarks || q.remark || q.title || (parsed.host + ':' + parsed.port));
+
 	return create_ir_node({
-		name: parsed.fragment != '' ? parsed.fragment : (parsed.host + ':' + parsed.port),
+		name: name,
 		type: 'hysteria2',
 		server: parsed.host,
 		port: parsed.port,
@@ -456,15 +469,17 @@ function parse_tuic(uri) {
 	if (q.alpn != '')
 		alpn = split(q.alpn, ',');
 
+	let name = parsed.fragment != '' ? parsed.fragment : (q.remarks || q.remark || q.title || (parsed.host + ':' + parsed.port));
+
 	return create_ir_node({
-		name: parsed.fragment != '' ? parsed.fragment : (parsed.host + ':' + parsed.port),
+		name: name,
 		type: 'tuic',
 		server: parsed.host,
 		port: parsed.port,
 		uuid: uuid,
 		password: password,
 		tls: true,
-		sni: q.sni || '',
+		sni: q.sni || q.peer || '',
 		alpn: alpn,
 		congestion_control: q.congestion_control || q.cc || 'bbr',
 		skip_cert_verify: q.allow_insecure == '1' || q.insecure == '1',
@@ -495,8 +510,10 @@ function parse_socks_http(uri) {
 		}
 	}
 
+	let name = parsed.fragment != '' ? parsed.fragment : (parsed.query.remarks || parsed.query.remark || parsed.query.title || (parsed.host + ':' + parsed.port));
+
 	return create_ir_node({
-		name: parsed.fragment != '' ? parsed.fragment : (parsed.host + ':' + parsed.port),
+		name: name,
 		type: is_socks ? 'socks' : 'http',
 		server: parsed.host,
 		port: parsed.port,
@@ -516,8 +533,10 @@ function parse_anytls(uri) {
 	if (q.alpn != '')
 		alpn = split(q.alpn, ',');
 
+	let name = parsed.fragment != '' ? parsed.fragment : (q.remarks || q.remark || q.title || (parsed.host + ':' + parsed.port));
+
 	return create_ir_node({
-		name: parsed.fragment != '' ? parsed.fragment : (parsed.host + ':' + parsed.port),
+		name: name,
 		type: 'anytls',
 		server: parsed.host,
 		port: parsed.port,

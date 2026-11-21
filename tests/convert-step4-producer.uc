@@ -105,4 +105,83 @@ let out_anytls = produce_singbox_outbound(anytls_ir);
 assert(out_anytls.type == 'anytls', 'anytls type mismatch');
 assert(out_anytls.tls.server_name == 'any.com', 'anytls server_name mismatch');
 
+// 5. Test clean_singbox_outbound: Hysteria2 obfs "none" purging (Exact bug reproduction & guard)
+let hy2_none_ir = create_ir_node({
+	name: 'Hy2-None',
+	type: 'hysteria2',
+	server: '14.224.40.140',
+	port: 21634,
+	password: 'pass',
+	obfs: 'none',
+	obfs_password: '',
+	_raw_outbound: {
+		type: 'hysteria2',
+		tag: 'Hy2-Raw-None',
+		server: '14.224.40.140',
+		server_port: 21634,
+		password: 'pass',
+		tls: { enabled: true, server_name: 'addons.mozilla.org', insecure: true },
+		obfs: { type: 'none', password: '' },
+		up_mbps: 200,
+		down_mbps: 1000
+	}
+});
+let out_hy2_none = produce_singbox_outbound(hy2_none_ir);
+assert(out_hy2_none != null, 'out_hy2_none is null');
+assert(out_hy2_none.type == 'hysteria2', 'type should be hysteria2');
+assert(out_hy2_none.obfs == null, 'obfs type: "none" MUST be purged from hysteria2 outbound');
+assert(out_hy2_none.up_mbps == 200, 'up_mbps preserved');
+
+// 6. Test clean_singbox_outbound: Non-hysteria2 rogue obfs purging
+let ss_rogue_obfs = create_ir_node({
+	name: 'SS-Rogue',
+	type: 'ss',
+	server: '1.2.3.4',
+	port: 8388,
+	password: 'pass',
+	cipher: 'aes-128-gcm',
+	_raw_outbound: {
+		type: 'shadowsocks',
+		tag: 'SS-Raw-Rogue',
+		server: '1.2.3.4',
+		server_port: 8388,
+		method: 'aes-128-gcm',
+		password: 'pass',
+		obfs: { type: 'websocket' },
+		plugin: 'none'
+	}
+});
+let out_ss_rogue = produce_singbox_outbound(ss_rogue_obfs);
+assert(out_ss_rogue != null, 'out_ss_rogue is null');
+assert(out_ss_rogue.type == 'shadowsocks', 'type should be shadowsocks');
+assert(out_ss_rogue.obfs == null, 'rogue obfs MUST be purged from shadowsocks outbound');
+assert(out_ss_rogue.plugin == null, 'plugin: "none" MUST be purged from shadowsocks outbound');
+
+// 7. Test clean_singbox_outbound: VMess packet_encoding and disabled multiplex
+let vmess_clean_test = create_ir_node({
+	name: 'VMess-Test',
+	type: 'vmess',
+	server: 'vmess.example.com',
+	port: 443,
+	uuid: '1111-2222',
+	packet_encoding: 'packetaddr',
+	_raw_outbound: {
+		type: 'vmess',
+		tag: 'VMess-Raw',
+		server: 'vmess.example.com',
+		server_port: 443,
+		uuid: '1111-2222',
+		packet_encoding: 'packetaddr',
+		multiplex: { enabled: false },
+		tls: {
+			enabled: true,
+			reality: { enabled: true, public_key: '', short_id: '' }
+		}
+	}
+});
+let out_vmess_clean = produce_singbox_outbound(vmess_clean_test);
+assert(out_vmess_clean.packet_encoding == 'packetaddr', 'packet_encoding must be preserved');
+assert(out_vmess_clean.multiplex == null, 'disabled multiplex must be purged');
+assert(out_vmess_clean.tls.reality == null, 'reality with empty public key must be purged');
+
 print('convert step 4 producer tests passed\n');

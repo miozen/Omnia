@@ -388,6 +388,32 @@ function clash_dict_to_ir(p) {
 		};
 	}
 
+	let obfs = '';
+	let obfs_password = '';
+	if (proto == 'hysteria2') {
+		let raw_obfs = type(p.obfs) == 'string' ? lc(trim(p.obfs)) : '';
+		if (raw_obfs == 'salamander') {
+			obfs = 'salamander';
+			obfs_password = type(p['obfs-password']) == 'string' ? p['obfs-password'] : '';
+		}
+	}
+
+	let plugin = '';
+	let plugin_opts = '';
+	if (proto == 'ss') {
+		let raw_plugin = type(p.plugin) == 'string' ? trim(p.plugin) : '';
+		if (raw_plugin != '' && lc(raw_plugin) != 'none') {
+			plugin = raw_plugin;
+			plugin_opts = p['plugin-opts'] != null ? p['plugin-opts'] : '';
+		}
+	}
+
+	let packet_encoding = '';
+	if (proto == 'vmess' || proto == 'vless') {
+		if (type(p['packet-encoding']) == 'string' && trim(p['packet-encoding']) != '')
+			packet_encoding = trim(p['packet-encoding']);
+	}
+
 	return create_ir_node({
 		name: name,
 		tag: name,
@@ -411,10 +437,12 @@ function clash_dict_to_ir(p) {
 		up_mbps: int(p.up || 0),
 		down_mbps: int(p.down || 0),
 		congestion_control: type(p['congestion-controller']) == 'string' ? p['congestion-controller'] : '',
-		obfs: type(p.obfs) == 'string' ? p.obfs : (type(p.plugin) == 'string' ? p.plugin : ''),
-		obfs_password: type(p['obfs-password']) == 'string' ? p['obfs-password'] : '',
+		obfs: obfs,
+		obfs_password: obfs_password,
+		plugin: plugin,
+		plugin_opts: plugin_opts,
 		udp: p.udp == true || p.udp == 1,
-		packet_encoding: type(p['packet-encoding']) == 'string' ? p['packet-encoding'] : ''
+		packet_encoding: packet_encoding
 	});
 }
 

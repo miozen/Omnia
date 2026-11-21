@@ -9,6 +9,7 @@ import { read_optional_text, parse_json_object } from 'omnia.core.utils';
 import { validate_refresh_strategy } from 'omnia.subscription_policy_schema';
 import { is_protocol_supported } from 'omnia.convert.ir';
 import { deduplicate_tags } from 'omnia.convert.pipeline';
+import { clean_singbox_outbound } from 'omnia.convert.producer';
 
 const ENVIRONMENT_FIELDS = [
 	'bind_interface',
@@ -64,6 +65,11 @@ function sanitize_and_validate_outbounds(outbounds) {
 		// Strip DNS fields
 		delete outbound.domain_resolver;
 		delete outbound.domain_strategy;
+
+		// Clean sing-box outbound schema invariants (purges invalid obfs, rogue plugins, etc.)
+		outbound = clean_singbox_outbound(outbound);
+		if (outbound == null)
+			continue;
 
 		push(valid, outbound);
 	}

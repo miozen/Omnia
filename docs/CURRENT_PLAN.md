@@ -127,6 +127,18 @@ Maintain system stability on `dev` branch, eliminate known technical debt (code 
     - [x] In `profile.js`: moved "在线模板与拉取设置" accordion to above the template editor, greatly enhancing page hierarchy and usability.
     - [x] Created `tests/selectors-ui.cjs`, updated `tests/profile-ui.cjs`, `tests/profile-selectors.uc`, `tests/ci-static.sh`, and `tests/run-all-convert-tests.sh`. All suites passing 100%.
 
+- [x] Sub-Store-compatible VLESS URI parser & region group name left alignment:
+  - Implemented Sub-Store `proxy-utils` authority handling in `convert/parsers/uri.uc` (base64 authority decoding, `auto:` prefix stripping, `remarks` query fallback, `pbk`/`xtls=2` Reality detection, `peer` SNI, `obfs=grpc`/`path=grpc`).
+  - Left-aligned region group names in `subscriptions.js` (`label.cbi-value-title`).
+- [x] Full Protocol Processing & Schema Normalization Alignment with Sub-Store:
+  - Fixed candidate configuration check fatal crash (`outbounds[x].obfs: unknown obfs type: none`) when locally processing Hysteria 2 nodes.
+  - Implemented Sub-Store-equivalent `clean_singbox_outbound` schema guard in `convert/producer.uc` applied to all outbounds before leaving the producer.
+  - Stripped invalid `obfs` across protocols: Hysteria 2 retains `obfs` only when `type == "salamander"` and `password != ""`; all non-Hysteria 2 protocols strictly omit `obfs`.
+  - Shadowsocks protocol alignment: stripped invalid `plugin: "none"` or empty plugins and accompanying options across URI, Clash YAML, Form nodes, and raw outbounds.
+  - VMess / VLESS protocol alignment: normalized `packet_encoding` ("packetaddr" / "xudp") and sanitized empty flows.
+  - Multi-source defensive schema gating: integrated `clean_singbox_outbound` in `producer.uc`, `parsers/singbox.uc` (`sanitize_raw_outbound`), and `subscription_snapshot.uc` (`sanitize_and_validate_outbounds`).
+  - Added unit test coverage in `tests/convert-step4-producer.uc` verifying Hysteria 2 `obfs: none` purging, Shadowsocks `plugin: none` purging, rogue non-hysteria obfs purging, multiplex, and reality validation.
+
 ## In Progress
 
 - [x] Native subscription conversion (v1.5) completed across backend (M1-M4) and frontend (M5).

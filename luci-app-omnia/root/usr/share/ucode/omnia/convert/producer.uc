@@ -83,9 +83,9 @@ function produce_ss(ir) {
 		method: ir.cipher != '' ? ir.cipher : 'aes-128-gcm',
 		password: ir.password || ''
 	};
-	if (type(ir.plugin) == 'string' && ir.plugin != '') {
+	if (type(ir.plugin) == 'string' && ir.plugin != '' && lc(ir.plugin) != 'none') {
 		out.plugin = ir.plugin;
-		if (ir.plugin_opts != null && ir.plugin_opts != '')
+		if (ir.plugin_opts != null && ir.plugin_opts != '' && ir.plugin_opts != {})
 			out.plugin_opts = ir.plugin_opts;
 	}
 	return out;
@@ -101,6 +101,9 @@ function produce_vmess(ir) {
 		security: ir.security != '' ? ir.security : 'auto',
 		alter_id: ir.alterId || 0
 	};
+
+	if (type(ir.packet_encoding) == 'string' && ir.packet_encoding != '')
+		out.packet_encoding = ir.packet_encoding;
 
 	let tls = produce_tls(ir);
 	if (tls != null)
@@ -163,10 +166,10 @@ function produce_hysteria2(ir) {
 		tls: produce_tls(ir) || { enabled: true, server_name: ir.sni != '' ? ir.sni : ir.server, insecure: false }
 	};
 
-	if (ir.obfs != '') {
+	if (lc(ir.obfs || '') == 'salamander' && ir.obfs_password != '') {
 		out.obfs = {
-			type: ir.obfs,
-			password: ir.obfs_password || ''
+			type: 'salamander',
+			password: ir.obfs_password
 		};
 	}
 
@@ -227,6 +230,129 @@ function produce_socks_http(ir) {
 }
 
 /**
+ * Strict schema cleaner for sing-box outbounds.
+ * Replicates Sub-Store's cleanSingboxOutbound logic to ensure candidate
+ * configuration never contains invalid or unknown fields (e.g., obfs.type: "none", plugin: "none").
+ */
+function clean_singbox_outbound(outbound) {
+	if (type(outbound) != 'object' || outbound == null)
+		return null;
+
+	if (outbound.type == 'ss')
+		outbound.type = 'shadowsocks';
+	else if (outbound.type == 'hy2')
+		outbound.type = 'hysteria2';
+
+	let p_type = outbound.type;
+
+	// 1. Obfuscation rules
+	if (p_type == 'hysteria2') {
+		if (outbound.obfs != null) {
+			if (type(outbound.obfs) == 'object' &&
+			    lc(outbound.obfs.type || '') == 'salamander' &&
+			    type(outbound.obfs.password) == 'string' &&
+			    outbound.obfs.password != '') {
+				outbound.obfs.type = 'salamander';
+			} else {
+				delete outbound.obfs;
+			}
+		}
+	} else {
+		// Only hysteria2 supports root obfs in sing-box
+		delete outbound.obfs;
+	}
+
+	// 2. Shadowsocks plugin rules
+	if (p_type == 'shadowsocks') {
+		if (outbound.plugin != null) {
+			if (type(outbound.plugin) != 'string' || outbound.plugin == '' || lc(outbound.plugin) == 'none') {
+				delete outbound.plugin;
+				delete outbound.plugin_opts;
+			}
+		}
+		if (outbound.plugin_opts == '' || outbound.plugin_opts == null) {
+			delete outbound.plugin_opts;
+		}
+	} else {
+		delete outbound.plugin;
+		delete outbound.plugin_opts;
+	}
+
+	// 3. VMess / VLESS packet_encoding & flow
+	if (p_type == 'vmess') {
+		if (outbound.packet_encoding == '' || outbound.packet_encoding == null)
+			delete outbound.packet_encoding;
+	} else if (p_type == 'vless') {
+		if (outbound.flow == '' || outbound.flow == null)
+			delete outbound.flow;
+		if (outbound.packet_encoding == '' || outbound.packet_encoding == null)
+			delete outbound.packet_encoding;
+	} else {
+		delete outbound.flow;
+		delete outbound.packet_encoding;
+	}
+
+	// 4. Detour cleanup
+	if (outbound.detour == '' || outbound.detour == null)
+		delete outbound.detour;
+
+	// 5. TLS cleanup
+	if (type(outbound.tls) == 'object' && outbound.tls != null) {
+		if (outbound.tls.reality != null) {
+			if (type(outbound.tls.reality) != 'object' || outbound.tls.reality.public_key == '' || outbound.tls.reality.public_key == null) {
+				delete outbound.tls.reality;
+			} else if (outbound.tls.reality.short_id == null) {
+				outbound.tls.reality.short_id = '';
+			}
+		}
+		if (type(outbound.tls.alpn) == 'array' && length(outbound.tls.alpn) == 0)
+			delete outbound.tls.alpn;
+		if (outbound.tls.server_name == '' || outbound.tls.server_name == null)
+			delete outbound.tls.server_name;
+	}
+
+	// 6. Transport cleanup
+	if (type(outbound.transport) == 'object' && outbound.transport != null) {
+		if (outbound.transport.type == 'ws') {
+			if (type(outbound.transport.headers) == 'object' && outbound.transport.headers != null && length(keys(outbound.transport.headers)) == 0)
+				delete outbound.transport.headers;
+		} else if (outbound.transport.type == 'grpc') {
+			if (outbound.transport.service_name == '' || outbound.transport.service_name == null)
+				delete outbound.transport.service_name;
+		}
+	}
+
+	// 7. Multiplex cleanup
+	if (type(outbound.multiplex) == 'object' && outbound.multiplex != null) {
+		if (outbound.multiplex.enabled == false)
+			delete outbound.multiplex;
+	}
+
+	// 8. Bandwidth cleanup
+	if (outbound.up_mbps == 0 || outbound.up_mbps == null)
+		delete outbound.up_mbps;
+	if (outbound.down_mbps == 0 || outbound.down_mbps == null)
+		delete outbound.down_mbps;
+	delete outbound.up;
+	delete outbound.down;
+
+	// 9. Environment & DNS fields cleanup
+	delete outbound.bind_interface;
+	delete outbound.routing_mark;
+	delete outbound.reuse_addr;
+	delete outbound.netns;
+	delete outbound.tcp_fast_open;
+	delete outbound.tcp_multi_path;
+	delete outbound.udp_fragment;
+	delete outbound.inet4_bind_address;
+	delete outbound.inet6_bind_address;
+	delete outbound.domain_resolver;
+	delete outbound.domain_strategy;
+
+	return outbound;
+}
+
+/**
  * Main producer entry point.
  */
 function produce_singbox_outbound(ir) {
@@ -242,19 +368,23 @@ function produce_singbox_outbound(ir) {
 		out.server_port = ir.port;
 		if (out.type == 'ss')
 			out.type = 'shadowsocks';
-		return out;
+		return clean_singbox_outbound(out);
 	}
 
 	// Synthesis for non-raw IR nodes
 	let p_type = ir.type;
-	if (p_type == 'ss' || p_type == 'shadowsocks') return produce_ss(ir);
-	if (p_type == 'vmess') return produce_vmess(ir);
-	if (p_type == 'vless') return produce_vless(ir);
-	if (p_type == 'trojan') return produce_trojan(ir);
-	if (p_type == 'hysteria2') return produce_hysteria2(ir);
-	if (p_type == 'tuic') return produce_tuic(ir);
-	if (p_type == 'anytls') return produce_anytls(ir);
-	if (p_type == 'socks' || p_type == 'http') return produce_socks_http(ir);
+	let out = null;
+	if (p_type == 'ss' || p_type == 'shadowsocks') out = produce_ss(ir);
+	else if (p_type == 'vmess') out = produce_vmess(ir);
+	else if (p_type == 'vless') out = produce_vless(ir);
+	else if (p_type == 'trojan') out = produce_trojan(ir);
+	else if (p_type == 'hysteria2') out = produce_hysteria2(ir);
+	else if (p_type == 'tuic') out = produce_tuic(ir);
+	else if (p_type == 'anytls') out = produce_anytls(ir);
+	else if (p_type == 'socks' || p_type == 'http') out = produce_socks_http(ir);
+
+	if (out != null)
+		return clean_singbox_outbound(out);
 
 	return null;
 }
@@ -274,6 +404,7 @@ function produce_singbox_outbounds(ir_list) {
 }
 
 export {
+	clean_singbox_outbound,
 	produce_singbox_outbound,
 	produce_singbox_outbounds
 };

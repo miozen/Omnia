@@ -84,6 +84,28 @@ function parse_form_node(raw) {
 	let grpc_opts = type(raw.grpc_opts) == 'object' && raw.grpc_opts != null ? raw.grpc_opts : (type(raw['grpc-opts']) == 'object' ? raw['grpc-opts'] : (raw_tr != null && raw_tr.type == 'grpc' ? raw_tr : null));
 	let http_opts = type(raw.http_opts) == 'object' && raw.http_opts != null ? raw.http_opts : (type(raw['http-opts']) == 'object' ? raw['http-opts'] : (raw_tr != null && (raw_tr.type == 'http' || raw_tr.type == 'h2') ? raw_tr : null));
 
+	let obfs_type = '';
+	let obfs_password = '';
+	if (proto == 'hysteria2') {
+		if (type(raw.obfs) == 'string' && lc(trim(raw.obfs)) == 'salamander') {
+			obfs_type = 'salamander';
+			obfs_password = type(raw.obfs_password) == 'string' ? raw.obfs_password : '';
+		} else if (type(raw.obfs) == 'object' && raw.obfs != null && lc(raw.obfs.type || '') == 'salamander') {
+			obfs_type = 'salamander';
+			obfs_password = type(raw.obfs.password) == 'string' ? raw.obfs.password : (type(raw.obfs_password) == 'string' ? raw.obfs_password : '');
+		}
+	}
+
+	let plugin = '';
+	let plugin_opts = '';
+	if (proto == 'ss') {
+		let raw_plug = type(raw.plugin) == 'string' ? trim(raw.plugin) : '';
+		if (raw_plug != '' && lc(raw_plug) != 'none') {
+			plugin = raw_plug;
+			plugin_opts = raw.plugin_opts || raw['plugin-opts'] || '';
+		}
+	}
+
 	let ir_data = {
 		name: name,
 		type: proto,
@@ -107,8 +129,10 @@ function parse_form_node(raw) {
 		up_mbps: int(raw.up_mbps || raw.up || 0),
 		down_mbps: int(raw.down_mbps || raw.down || 0),
 		congestion_control: type(raw.congestion_control) == 'string' ? raw.congestion_control : (type(raw.congestion_controller) == 'string' ? raw.congestion_controller : ''),
-		obfs: type(raw.obfs) == 'string' ? raw.obfs : '',
-		obfs_password: type(raw.obfs_password) == 'string' ? raw.obfs_password : '',
+		obfs: obfs_type,
+		obfs_password: obfs_password,
+		plugin: plugin,
+		plugin_opts: plugin_opts,
 		udp: raw.udp == true,
 		_raw_outbound: raw
 	};
